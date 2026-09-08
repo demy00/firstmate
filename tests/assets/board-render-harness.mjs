@@ -4,8 +4,10 @@
 //
 // Usage: node board-render-harness.mjs <built-board.html>
 // Prints one JSON document:
-//   { stats:[{n,label}], underway:[{title,sub,badges}],
-//     charted:[{title,sub,badges,pickable}], empty, more, error }
+//   { stats:[{n,label}],
+//     underway:[{title,title_tooltip,sub,sub_tooltip,badges}],
+//     charted:[{title,title_tooltip,sub,sub_tooltip,badges,pickable}],
+//     empty, more, error }
 import { readFileSync } from "node:fs";
 
 const html = readFileSync(process.argv[2], "utf8");
@@ -100,9 +102,15 @@ const rowsOf = (container) =>
     .filter((r) => r.className.split(/\s+/).includes("bb-row"))
     .map((row) => {
       const main = row.children.find((c) => c.className.includes("bb-row__main"));
+      const titleNode = main?.children.find((c) => c.className.includes("bb-row__title"));
+      const subNode = main?.children.find((c) => c.className.includes("bb-row__sub"));
       return {
-        title: main?.children.find((c) => c.className.includes("bb-row__title"))?.textContent ?? "",
-        sub: main?.children.find((c) => c.className.includes("bb-row__sub"))?.textContent ?? "",
+        title: titleNode?.textContent ?? "",
+        // the row text is line-clamped, so the renderer also hands the full text
+        // to the element's tooltip; surface it so that stays testable
+        title_tooltip: titleNode?.title ?? "",
+        sub: subNode?.textContent ?? "",
+        sub_tooltip: subNode?.title ?? "",
         badges: badgesOf(row),
         pickable: row.children.some((c) => c.className.includes("bb-pick") && !c.className.includes("spacer")),
       };

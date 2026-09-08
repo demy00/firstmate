@@ -228,6 +228,24 @@ test_charted_rows_without_a_filed_date_follow_the_dated_rows_in_payload_order() 
   pass "charted rows with no filed date follow the dated rows in payload order"
 }
 
+# A long row title wraps and is line-clamped rather than clipped to one line, so
+# the renderer also hands the untruncated text to the row's own tooltip. Layout
+# itself needs a real engine, but this keeps the reachability guarantee testable.
+test_a_long_row_keeps_its_full_text_reachable() {
+  local home out long
+  home=$(make_home long-title)
+  long="Backend wave 1 (deliveries 50 through 74): rewriting the settlement ledger writer and backfilling every historic delivery record"
+  out=$(render "$home" "$(jq -n --arg t "$long" '[
+    {id:"long-row", repo:"quite-a-long-repository-name", title:$t,
+     reason:"waiting on the currency follow-up", dispatchable:true}]')")
+  printf '%s' "$out" | jq -e --arg t "$long" '
+    .charted[0].title == $t and .charted[0].title_tooltip == $t
+      and (.charted[0].sub | length) > 0
+      and .charted[0].sub_tooltip == .charted[0].sub
+  ' >/dev/null || fail "a long row did not carry its full text in the tooltip: $out"
+  pass "a long row keeps its full title and subtitle reachable"
+}
+
 test_an_underway_row_leads_with_the_task_name_and_keeps_its_run_status
 test_an_underway_identifier_label_is_not_replaced_by_run_status
 test_charted_next_reads_newest_filed_first
@@ -237,3 +255,4 @@ test_warnings_are_excluded_from_the_charted_next_count
 test_a_board_of_only_warnings_still_reports_nothing_queued
 test_omitted_warnings_never_count_as_more_queued
 test_an_omitted_kind_keeps_the_existing_queued_rendering
+test_a_long_row_keeps_its_full_text_reachable
