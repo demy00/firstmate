@@ -203,8 +203,9 @@ a { color: inherit; text-decoration: none; }
 .bb-ctx__k { font-family: var(--font-mono); font-size: var(--fs-2xs); letter-spacing: 0.04em;
   text-transform: uppercase; color: var(--text-faint); white-space: nowrap; }
 .bb-ctx__v { font-size: var(--fs-sm); color: var(--text-muted); line-height: 1.4; min-width: 0; overflow-wrap: anywhere; }
-/* the full PR URL is the point of this line, so it wraps instead of losing its
-   tail to an ellipsis; anywhere-breaking keeps a long URL inside the card */
+/* the full PR URL is the point of this line, so it wraps across two lines rather
+   than clipping to one, and keeps its full text in the tooltip when even two
+   lines are not enough; anywhere-breaking keeps a long URL inside the card */
 .bb-decision__link { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--ocean-600); font-weight: 600;
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2;
   overflow: hidden; overflow-wrap: anywhere; }
@@ -244,8 +245,12 @@ a { color: inherit; text-decoration: none; }
 
 /* ---- compact rows (Underway / Landed / Charted) ---- */
 .bb-rows { display: flex; flex-direction: column; }
+/* A row is as tall as its wrapped title, so its controls ride the top and sit
+   beside the title's FIRST line; centring them would float the checkbox, the
+   landed check and the state badge halfway down a four-line row, away from the
+   item they belong to. */
 .bb-row {
-  display: flex; align-items: center; gap: 12px; padding: 11px 18px;
+  display: flex; align-items: flex-start; gap: 12px; padding: 11px 18px;
   border-top: 1px solid var(--border-soft); min-width: 0;
 }
 .bb-row:first-child { border-top: none; }
@@ -274,9 +279,9 @@ a { color: inherit; text-decoration: none; }
 .bb-empty { padding: 18px; font-size: var(--fs-sm); color: var(--text-muted); overflow-wrap: anywhere; }
 
 /* ---- Charted Next dispatch picker ---- */
-/* margin:0 kills the UA default checkbox margin so picker rows and spacer rows
-   share one text left edge */
-.bb-pick { accent-color: var(--rust-500); width: 16px; height: 16px; flex: none; cursor: pointer; margin: 0; }
+/* zero side margins kill the UA default so picker rows and spacer rows share one
+   text left edge; the 2px top centres the 16px box on the title's first line */
+.bb-pick { accent-color: var(--rust-500); width: 16px; height: 16px; flex: none; cursor: pointer; margin: 2px 0 0; }
 .bb-pick-spacer { width: 16px; flex: none; }
 .bb-dispatch {
   display: flex; align-items: center; gap: 12px; padding: 12px 18px;
@@ -450,12 +455,22 @@ __FM_BEARINGS_BOARD_DATA__
     return n;
   }
   function badge(tone, text) { return el("span", "fm-badge fm-badge--" + tone, text); }
-  /* Row text wraps but is line-clamped, so the rare over-long line keeps its
-     full text reachable as the element's own tooltip. */
+  /* Clamped text hides its tail, so it - and only it - carries the full text as
+     its own tooltip. A line that already shows everything gets none, or the
+     board would pop a tooltip repeating fully visible text on every row.
+     Whether a line is clamped is a layout fact, so it is measured after layout
+     rather than guessed from the string; where nothing can be measured the line
+     stays quiet. */
+  var clampWatch = [];
+  function watchClamp(n) { clampWatch.push(n); return n; }
   function rowText(cls, text) {
     var n = el("div", cls, text);
-    n.title = text;
-    return n;
+    return text != null ? watchClamp(n) : n;
+  }
+  function refreshClampTooltips() {
+    clampWatch.forEach(function (n) {
+      if (n.scrollHeight > n.clientHeight) n.title = n.textContent;
+    });
   }
   /* Warnings ride the charted feed for layout only; they are alarms, not work,
      so every count of queued work excludes them. */
@@ -525,8 +540,8 @@ __FM_BEARINGS_BOARD_DATA__
     if (item.type === "merge") {
       if (item.detail) pad.appendChild(el("p", "bb-decision__detail", item.detail));
       if (item.pr_url) {
-        var pr = el("a", "bb-decision__link", item.pr_url);
-        pr.href = item.pr_url; pr.title = item.pr_url; pr.target = "_blank"; pr.rel = "noopener";
+        var pr = watchClamp(el("a", "bb-decision__link", item.pr_url));
+        pr.href = item.pr_url; pr.target = "_blank"; pr.rel = "noopener";
         pad.appendChild(pr);
       }
     } else {
@@ -632,6 +647,9 @@ __FM_BEARINGS_BOARD_DATA__
     /* the pile thins as the deal approaches the bottom */
     deck.classList.toggle("bb-call--penult", active === cards.length - 2);
     deck.classList.toggle("bb-call--last", active === cards.length - 1);
+    /* a hidden card has no layout to measure, so the card just dealt is the
+       first chance to tell whether its link is clamped */
+    refreshClampTooltips();
   }
   if (cards.length) {
     stackPrev.addEventListener("click", function () { showCard(active - 1); });
@@ -762,6 +780,8 @@ __FM_BEARINGS_BOARD_DATA__
       bar.classList.add("is-queued");
     });
   }
+
+  refreshClampTooltips();
   } catch (e) {
     renderBoardError("The board data could not be rendered");
   }

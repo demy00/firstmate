@@ -56,14 +56,14 @@ SH
   printf '%s\n' "$home"
 }
 
-# Build the board from <underway-json> plus <charted-json> and return what the
-# renderer produced.
-render_board() {  # <home> <underway-json> <charted-json> [charted_more] [charted_warning_more]
-  local home=$1 underway=$2 charted=$3 more=${4:-0} warning_more=${5:-0} data="$1/payload.json"
-  jq -n --argjson underway "$underway" --argjson charted "$charted" \
-    --argjson more "$more" --argjson warning_more "$warning_more" '{
+# Build a board whose fleet sections are the given JSON arrays and return what
+# the renderer produced.
+render_sections() {  # <home> <underway> <landed> <charted> [charted_more] [charted_warning_more]
+  local home=$1 underway=$2 landed=$3 charted=$4 more=${5:-0} warning_more=${6:-0} data="$1/payload.json"
+  jq -n --argjson underway "$underway" --argjson landed "$landed" \
+    --argjson charted "$charted" --argjson more "$more" --argjson warning_more "$warning_more" '{
     schema:"fm-bearings-board.v1", home:"render-home", generated:"2026-08-26T00:00Z",
-    prs_live:false, captains_call:[], underway:$underway, landed:[],
+    prs_live:false, captains_call:[], underway:$underway, landed:$landed,
     charted:$charted, charted_more:$more, charted_warning_more:$warning_more}' > "$data"
   PATH="$home/fakebin:$PATH" FM_HOME="$home" \
     FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data" \
@@ -73,9 +73,15 @@ render_board() {  # <home> <underway-json> <charted-json> [charted_more] [charte
     || fail "the built board could not be rendered"
 }
 
-# Build the board from <charted-json> alone and return what the renderer produced.
+# Build the board from <charted-json> and return what the renderer produced.
 render() {  # <home> <charted-json> [charted_more] [charted_warning_more]
-  render_board "$1" '[]' "$2" "${3:-0}" "${4:-0}"
+  render_sections "$1" '[]' '[]' "$2" "${3:-0}" "${4:-0}"
+}
+
+# Build the board from <underway-json> plus <charted-json> and return what the
+# renderer produced.
+render_board() {  # <home> <underway-json> <charted-json> [charted_more] [charted_warning_more]
+  render_sections "$1" "$2" '[]' "$3" "${4:-0}" "${5:-0}"
 }
 
 charted_next_count() {  # <render-json>
@@ -228,22 +234,38 @@ test_charted_rows_without_a_filed_date_follow_the_dated_rows_in_payload_order() 
   pass "charted rows with no filed date follow the dated rows in payload order"
 }
 
-# A long row title wraps and is line-clamped rather than clipped to one line, so
-# the renderer also hands the untruncated text to the row's own tooltip. Layout
-# itself needs a real engine, but this keeps the reachability guarantee testable.
-test_a_long_row_keeps_its_full_text_reachable() {
+# The captain reported Underway and Recently Landed titles cut off mid-word, so
+# every fleet section must hand the whole title to the row, untruncated. Whether
+# the wrapped line then clamps is a layout fact this shim cannot see, and the
+# renderer only tooltips what it has measured as clamped - so under the shim no
+# row carries one, which is what pins that tooltips are not set blanket-wide.
+test_every_fleet_section_renders_a_long_row_in_full() {
   local home out long
   home=$(make_home long-title)
   long="Backend wave 1 (deliveries 50 through 74): rewriting the settlement ledger writer and backfilling every historic delivery record"
-  out=$(render "$home" "$(jq -n --arg t "$long" '[
-    {id:"long-row", repo:"quite-a-long-repository-name", title:$t,
-     reason:"waiting on the currency follow-up", dispatchable:true}]')")
+  out=$(render_sections "$home" \
+    "$(jq -n --arg t "$long" '[
+      {id:"long-underway", repo:"quite-a-long-repository-name", state:"working",
+       name:$t, doing:"no-mistakes: review round 2", kind:"delivery"}]')" \
+    "$(jq -n --arg t "$long" '[
+      {id:"long-landed", repo:"quite-a-long-repository-name", what:$t,
+       owner:"firstmate"}]')" \
+    "$(jq -n --arg t "$long" '[
+      {id:"long-row", repo:"quite-a-long-repository-name", title:$t,
+       reason:"waiting on the currency follow-up", dispatchable:true}]')")
+  printf '%s' "$out" | jq -e '.error == ""' >/dev/null \
+    || fail "the board rendered its fail-closed error instead of the fleet: $out"
   printf '%s' "$out" | jq -e --arg t "$long" '
-    .charted[0].title == $t and .charted[0].title_tooltip == $t
-      and (.charted[0].sub | length) > 0
-      and .charted[0].sub_tooltip == .charted[0].sub
-  ' >/dev/null || fail "a long row did not carry its full text in the tooltip: $out"
-  pass "a long row keeps its full title and subtitle reachable"
+    [.underway[0], .landed[0], .charted[0]]
+    | length == 3
+      and (all(.title == $t))
+      and (all((.sub | length) > 0))
+  ' >/dev/null || fail "a fleet section truncated its long row: $out"
+  printf '%s' "$out" | jq -e '
+    [.underway[0], .landed[0], .charted[0]]
+    | all(.title_tooltip == "" and .sub_tooltip == "")
+  ' >/dev/null || fail "a row carried a tooltip the renderer never measured as clamped: $out"
+  pass "every fleet section renders a long row in full, without a blanket tooltip"
 }
 
 test_an_underway_row_leads_with_the_task_name_and_keeps_its_run_status
@@ -255,4 +277,4 @@ test_warnings_are_excluded_from_the_charted_next_count
 test_a_board_of_only_warnings_still_reports_nothing_queued
 test_omitted_warnings_never_count_as_more_queued
 test_an_omitted_kind_keeps_the_existing_queued_rendering
-test_a_long_row_keeps_its_full_text_reachable
+test_every_fleet_section_renders_a_long_row_in_full

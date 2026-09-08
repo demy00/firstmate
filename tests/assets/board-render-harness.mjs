@@ -5,8 +5,7 @@
 // Usage: node board-render-harness.mjs <built-board.html>
 // Prints one JSON document:
 //   { stats:[{n,label}],
-//     underway:[{title,title_tooltip,sub,sub_tooltip,badges}],
-//     charted:[{title,title_tooltip,sub,sub_tooltip,badges,pickable}],
+//     underway|landed|charted:[{title,title_tooltip,sub,sub_tooltip,badges,pickable}],
 //     empty, more, error }
 import { readFileSync } from "node:fs";
 
@@ -97,30 +96,32 @@ const stats = strip.children.map((t) => ({
   label: t.children.find((c) => c.className.includes("bb-stat__label"))?.textContent,
 }));
 
-const rowsOf = (container) =>
-  container.children
-    .filter((r) => r.className.split(/\s+/).includes("bb-row"))
-    .map((row) => {
-      const main = row.children.find((c) => c.className.includes("bb-row__main"));
-      const titleNode = main?.children.find((c) => c.className.includes("bb-row__title"));
-      const subNode = main?.children.find((c) => c.className.includes("bb-row__sub"));
-      return {
-        title: titleNode?.textContent ?? "",
-        // the row text is line-clamped, so the renderer also hands the full text
-        // to the element's tooltip; surface it so that stays testable
-        title_tooltip: titleNode?.title ?? "",
-        sub: subNode?.textContent ?? "",
-        sub_tooltip: subNode?.title ?? "",
-        badges: badgesOf(row),
-        pickable: row.children.some((c) => c.className.includes("bb-pick") && !c.className.includes("spacer")),
-      };
-    });
-
-const uw = byId.get("bb-underway") || new Node("div");
-const underway = rowsOf(uw);
+// Underway, Landed and Charted all render the same row shape, so one reader
+// serves all three and each section can be asserted on in its own right.
+const rowOf = (row) => {
+  const main = row.children.find((c) => c.className.includes("bb-row__main"));
+  const titleNode = main?.children.find((c) => c.className.includes("bb-row__title"));
+  const subNode = main?.children.find((c) => c.className.includes("bb-row__sub"));
+  return {
+    title: titleNode?.textContent ?? "",
+    // Row text is line-clamped, and the renderer decides on a tooltip by
+    // measuring the laid-out line box. This shim has no layout engine, so
+    // nothing here ever measures as clamped and the renderer must leave these
+    // empty; surface them so a renderer that tooltips unconditionally is caught.
+    title_tooltip: titleNode?.title ?? "",
+    sub: subNode?.textContent ?? "",
+    sub_tooltip: subNode?.title ?? "",
+    badges: badgesOf(row),
+    pickable: row.children.some((c) => c.className.includes("bb-pick") && !c.className.includes("spacer")),
+  };
+};
+const rowsOf = (node) =>
+  node.children.filter((r) => r.className.split(/\s+/).includes("bb-row")).map(rowOf);
 
 const ch = byId.get("bb-charted") || new Node("div");
 const charted = rowsOf(ch);
+const underway = rowsOf(byId.get("bb-underway") || new Node("div"));
+const landed = rowsOf(byId.get("bb-landed") || new Node("div"));
 // A fail-closed render replaces the page body instead of the board sections, so
 // surface it rather than reporting an empty board as a successful render.
 const errorText = [...byId.entries()]
@@ -131,4 +132,5 @@ const empty = ch.children.filter((c) => c.className.includes("bb-empty")).map((c
 const more = ch.children.filter((c) => c.className.includes("bb-morechip")).map((c) => c.textContent);
 
 process.stdout.write(
-  JSON.stringify({ stats, underway, charted, empty, more, error: errorText }) + "\n");
+  JSON.stringify({ stats, underway, landed, charted, empty, more, error: errorText }) + "\n",
+);
