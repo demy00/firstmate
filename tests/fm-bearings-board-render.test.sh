@@ -3,7 +3,8 @@
 # (.agents/skills/bearings/assets/board-template.html), exercised through a real
 # `fm-bearings-board.sh build` and then executed under the minimal DOM shim in
 # tests/assets/board-render-harness.mjs. The assertions are on what the page
-# renders - row badges, the stat strip, the empty state - never on the
+# renders - row badges, the stat strip, the empty state, each row's full text
+# and the tooltip the renderer measures onto a clamped line - never on the
 # template's source text.
 set -u
 
