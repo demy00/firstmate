@@ -4,7 +4,7 @@
 //
 // Usage: node board-render-harness.mjs <built-board.html>
 // Prints one JSON document:
-//   { stats:[{n,label}],
+//   { stats:[{n,label}], decisions:[{title,repo,repo_tooltip,link,link_tooltip}],
 //     underway|landed|charted:[{title,title_tooltip,sub,sub_tooltip,badges,pickable}],
 //     empty, more, error }
 import { readFileSync } from "node:fs";
@@ -25,9 +25,22 @@ class Node {
     this.type = "";
     this.value = "";
     this.checked = false;
+    const has = (c) => this.className.split(/\s+/).includes(c);
+    const add = (c) => { if (!has(c)) this.className = (this.className + " " + c).trim(); };
+    const remove = (c) => {
+      this.className = this.className.split(/\s+/).filter((x) => x && x !== c).join(" ");
+    };
     this.classList = {
-      add: (c) => { this.className = (this.className + " " + c).trim(); },
-      contains: (c) => this.className.split(/\s+/).includes(c),
+      add,
+      remove,
+      contains: has,
+      // Captain's Call deals its cards by toggling stack classes, so the shim
+      // needs the real three-argument shape to render that section at all.
+      toggle: (c, force) => {
+        const on = force === undefined ? !has(c) : !!force;
+        if (on) add(c); else remove(c);
+        return on;
+      },
     };
   }
   get textContent() {
@@ -128,9 +141,33 @@ const errorText = [...byId.entries()]
   .filter(([k]) => k.startsWith("sel:"))
   .flatMap(([, n]) => n.children.map((c) => c.textContent))
   .join(" ");
+// Captain's Call cards carry the repo identifier the captain reads first; it is
+// single-line and ellipsised, so surface it and its tooltip the same way rows do.
+const findDeep = (node, cls) => {
+  for (const c of node.children) {
+    if (c.className.split(/\s+/).includes(cls)) return c;
+    const hit = findDeep(c, cls);
+    if (hit) return hit;
+  }
+  return null;
+};
+const decisions = (byId.get("bb-call") || new Node("div")).children
+  .filter((c) => c.className.includes("bb-decision"))
+  .map((card) => {
+    const repo = findDeep(card, "bb-decision__repo");
+    const link = findDeep(card, "bb-decision__link");
+    return {
+      title: findDeep(card, "bb-decision__title")?.textContent ?? "",
+      repo: repo?.textContent ?? "",
+      repo_tooltip: repo?.title ?? "",
+      link: link?.textContent ?? "",
+      link_tooltip: link?.title ?? "",
+    };
+  });
+
 const empty = ch.children.filter((c) => c.className.includes("bb-empty")).map((c) => c.textContent);
 const more = ch.children.filter((c) => c.className.includes("bb-morechip")).map((c) => c.textContent);
 
 process.stdout.write(
-  JSON.stringify({ stats, underway, landed, charted, empty, more, error: errorText }) + "\n",
+  JSON.stringify({ stats, decisions, underway, landed, charted, empty, more, error: errorText }) + "\n",
 );

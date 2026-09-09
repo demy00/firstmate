@@ -136,7 +136,14 @@ a { color: inherit; text-decoration: none; }
 }
 .bb-brand__disc svg { width: 60%; height: 60%; }
 .bb-brand__wm { font-family: var(--font-display); font-size: 23px; color: var(--text-strong); line-height: 1; }
-.bb-meta-mono { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--text-faint); white-space: nowrap; }
+/* The provenance stamp is the board's own identity and generation time, and it
+   sits in a right-aligned footer. Held on one line it does not ellipsise - it
+   overhangs to the LEFT, so below roughly 370px the schema name is cut off the
+   viewport with nothing to show it happened. Wrapping keeps both halves on
+   screen; the break lands on the separator, and anywhere is the last resort
+   that keeps a single long token from pushing the footer sideways. */
+.bb-meta-mono { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--text-faint);
+  min-width: 0; overflow-wrap: anywhere; text-align: right; }
 
 .bb-main {
   max-width: var(--container-app); margin: 0 auto;
@@ -192,7 +199,13 @@ a { color: inherit; text-decoration: none; }
 .bb-decision { display: flex; flex-direction: column; }
 .bb-decision__pad { padding: 18px 20px 16px; display: flex; flex-direction: column; gap: 12px; flex: 1; }
 .bb-decision__top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.bb-decision__repo { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-faint); white-space: nowrap; }
+/* A repo name is an identifier, so it stays on one line - but it is also the
+   first thing read on a decision card, and .fm-card clips with overflow:hidden,
+   so without min-width:0 the flex child refuses to shrink and the tail is cut
+   at the card edge with nothing to show it happened. Shrinking plus an ellipsis
+   makes the truncation visible, and the measured tooltip carries the full name. */
+.bb-decision__repo { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-faint);
+  white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .bb-decision__title { margin: 0; font-size: var(--fs-h4); font-weight: 800; color: var(--text-strong); line-height: 1.25;
   overflow-wrap: anywhere; }
 .bb-decision__detail { margin: 0; font-size: var(--fs-sm); color: var(--text-muted); line-height: 1.45;
@@ -283,11 +296,16 @@ a { color: inherit; text-decoration: none; }
    text left edge; the 2px top centres the 16px box on the title's first line */
 .bb-pick { accent-color: var(--rust-500); width: 16px; height: 16px; flex: none; cursor: pointer; margin: 2px 0 0; }
 .bb-pick-spacer { width: 16px; flex: none; }
+/* The dispatch button carries a fixed action label that must not be broken up,
+   so on a narrow board the label plus the count cannot share one line and the
+   row was scrolling sideways with the button cut at the card edge. Wrapping
+   drops the button to its own line instead, and min-width:0 lets the count
+   give up its space first so the wrap only happens when it is really needed. */
 .bb-dispatch {
-  display: flex; align-items: center; gap: 12px; padding: 12px 18px;
+  display: flex; align-items: center; gap: 12px; padding: 12px 18px; flex-wrap: wrap;
   border-top: 1.5px solid var(--border-default); background: var(--paper-100);
 }
-.bb-dispatch__count { flex: 1 1 auto; font-size: var(--fs-xs); font-weight: 800; color: var(--text-muted);
+.bb-dispatch__count { flex: 1 1 auto; min-width: 0; font-size: var(--fs-xs); font-weight: 800; color: var(--text-muted);
   text-transform: uppercase; letter-spacing: 0.07em; }
 
 .bb-foot { display: flex; justify-content: flex-end; border-top: 1px solid var(--border-default); padding-top: 14px; }
@@ -474,6 +492,9 @@ __FM_BEARINGS_BOARD_DATA__
      tooltipped even though every word of it is on screen. Half a line is
      comfortably above that rounding noise and far below one hidden line. */
   function isClamped(n) {
+    /* A single-line identifier truncates sideways with an ellipsis, so width
+       overflow counts too; 1px absorbs sub-pixel rounding. */
+    if (n.scrollWidth - n.clientWidth > 1) return true;
     var overflow = n.scrollHeight - n.clientHeight;
     if (!(overflow > 0)) return false;
     var line = 0;
@@ -567,7 +588,7 @@ __FM_BEARINGS_BOARD_DATA__
       top.appendChild(badge(item.risk === "low" ? "neutral" : "warn", "risk " + item.risk));
     } else {
       top.appendChild(badge("solid", "decision"));
-      top.appendChild(el("span", "bb-decision__repo", item.repo));
+      top.appendChild(watchClamp(el("span", "bb-decision__repo", item.repo)));
     }
     pad.appendChild(top);
 

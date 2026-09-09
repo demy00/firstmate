@@ -85,6 +85,21 @@ render_board() {  # <home> <underway-json> <charted-json> [charted_more] [charte
   render_sections "$1" "$2" '[]' "$3" "${4:-0}" "${5:-0}"
 }
 
+# Build a board carrying only the given Captain's Call cards.
+render_call() {  # <home> <captains-call-json>
+  local home=$1 call=$2 data="$1/payload.json"
+  jq -n --argjson call "$call" '{
+    schema:"fm-bearings-board.v1", home:"render-home", generated:"2026-08-26T00:00Z",
+    prs_live:false, captains_call:$call, underway:[], landed:[],
+    charted:[], charted_more:0, charted_warning_more:0}' > "$data"
+  PATH="$home/fakebin:$PATH" FM_HOME="$home" \
+    FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data" \
+    FM_PROCEVENT_CLAIM_ROOT="$home/procevent-claims" \
+    "$BOARD" build "$data" >/dev/null || fail "the board did not build"
+  node "$HARNESS" "$home/.lavish/bearings-board.html" \
+    || fail "the built board could not be rendered"
+}
+
 charted_next_count() {  # <render-json>
   printf '%s' "$1" | jq -r '.stats[] | select(.label == "charted next") | .n'
 }
@@ -273,9 +288,35 @@ test_an_underway_row_leads_with_the_task_name_and_keeps_its_run_status
 test_an_underway_identifier_label_is_not_replaced_by_run_status
 test_charted_next_reads_newest_filed_first
 test_charted_rows_without_a_filed_date_follow_the_dated_rows_in_payload_order
+# The repository name is on every decision card and is the first thing read when
+# something needs the captain, but it is a single-line identifier the card clips.
+# The renderer must hand it over whole and tooltip it only when it measures as
+# truncated - which, with no layout engine here, is never.
+test_a_decision_card_carries_its_whole_repository_name() {
+  local home out repo
+  home=$(make_home decision-repo)
+  repo="quite-a-long-repository-name"
+  out=$(render_call "$home" "$(jq -n --arg r "$repo" '[
+    {key:"long-repo", type:"decision", repo:$r,
+     title:"Should the deprecated v1 webhook endpoint be removed now?",
+     about:"Two integrators have not answered the deprecation notice.",
+     decide:"Remove it now, or keep a flagged shim for one more release.",
+     options:[{value:"remove", label:"Remove it now"},
+              {value:"shim", label:"Keep a flagged shim"}]}]')")
+  printf '%s' "$out" | jq -e '.error == ""' >/dev/null \
+    || fail "the board rendered its fail-closed error instead of the decision card: $out"
+  printf '%s' "$out" | jq -e --arg r "$repo" '
+    (.decisions | length) == 1 and .decisions[0].repo == $r
+  ' >/dev/null || fail "a decision card truncated its repository name: $out"
+  printf '%s' "$out" | jq -e '.decisions[0].repo_tooltip == ""' >/dev/null \
+    || fail "a decision card carried a tooltip the renderer never measured as clipped: $out"
+  pass "a decision card carries its whole repository name, without a blanket tooltip"
+}
+
 test_a_warning_row_reads_as_a_repair_not_as_queued_work
 test_warnings_are_excluded_from_the_charted_next_count
 test_a_board_of_only_warnings_still_reports_nothing_queued
 test_omitted_warnings_never_count_as_more_queued
 test_an_omitted_kind_keeps_the_existing_queued_rendering
 test_every_fleet_section_renders_a_long_row_in_full
+test_a_decision_card_carries_its_whole_repository_name
