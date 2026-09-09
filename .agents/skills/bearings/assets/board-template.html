@@ -467,9 +467,45 @@ __FM_BEARINGS_BOARD_DATA__
     var n = el("div", cls, text);
     return text != null ? watchClamp(n) : n;
   }
+  /* Clamping hides whole lines, so the overflow of a genuinely clipped line box
+     is at least a full line. A bare `scrollHeight > clientHeight` is not that
+     test: these rows have fractional line-heights (19.5px), so a fully visible
+     two-line title measures 40 against 39 purely from rounding and would be
+     tooltipped even though every word of it is on screen. Half a line is
+     comfortably above that rounding noise and far below one hidden line. */
+  function isClamped(n) {
+    var overflow = n.scrollHeight - n.clientHeight;
+    if (!(overflow > 0)) return false;
+    var line = 0;
+    if (typeof getComputedStyle === "function") {
+      line = parseFloat(getComputedStyle(n).lineHeight);
+    }
+    return overflow > (line > 0 ? line / 2 : 2);
+  }
+  /* Idempotent on purpose: a line that no longer measures as clamped gives its
+     tooltip back, so a verdict taken against one layout never outlives it. */
   function refreshClampTooltips() {
     clampWatch.forEach(function (n) {
-      if (n.scrollHeight > n.clientHeight) n.title = n.textContent;
+      if (isClamped(n)) n.title = n.textContent;
+      else if (n.title) n.title = "";
+    });
+  }
+  /* The board paints in fallback fonts first (the Google Fonts @import uses
+     display=swap, which never blocks), so the first measurement is taken
+     against a layout the reader never sees and the webfont swap silently
+     reflows every row. A column count change does the same at the 900px
+     breakpoint. Both re-measure; both are guarded, because the DOM shim in
+     tests/assets/board-render-harness.mjs has neither document.fonts nor a real
+     window, and an unguarded call there would fail the whole render. */
+  function watchClampReflows() {
+    if (document.fonts && document.fonts.ready && document.fonts.ready.then) {
+      document.fonts.ready.then(refreshClampTooltips);
+    }
+    if (typeof window === "undefined" || !window.addEventListener) return;
+    var pending = null;
+    window.addEventListener("resize", function () {
+      if (pending) clearTimeout(pending);
+      pending = setTimeout(function () { pending = null; refreshClampTooltips(); }, 150);
     });
   }
   /* Warnings ride the charted feed for layout only; they are alarms, not work,
@@ -782,6 +818,7 @@ __FM_BEARINGS_BOARD_DATA__
   }
 
   refreshClampTooltips();
+  watchClampReflows();
   } catch (e) {
     renderBoardError("The board data could not be rendered");
   }
