@@ -390,6 +390,76 @@ task_show_or_fail() {  # <id> <absence-message>; sets show
   show=$TASK_SHOW_OUTPUT
 }
 
+# --- the done archive as durable captain-answer evidence --------------------
+#
+# Retention prunes a closed row out of the live backlog into the configured
+# archive, so an answered captain call stops resolving through tasks-axi long
+# before its recorded answer stops being true. The completion gate re-resolves
+# every previously attested key on every later attempt, which made an ordinary
+# lifecycle - answer the call, let retention archive it - wedge every later
+# completion for that origin permanently, with no supported command able to
+# reach it.
+#
+# Reading the archive restores that evidence without relaxing the gate. Only
+# the LOOKUP widens: verify_hold_durable applies the same rule to an archived
+# row as to a live one, so a row closed with no recorded captain answer still
+# refuses, and a key naming no row in either place still refuses.
+#
+# The archive is an ordinary markdown backlog except that its sections are
+# dated "## Archived <date>" headings rather than "## Done", which tasks-axi's
+# markdown parser skips outright - it reads such a file as zero tasks. The
+# probe therefore renames those headings in a private scratch copy and reads
+# that copy with tasks-axi itself, so an archived row is parsed by the same
+# parser, into the same --full field shape, as a live one. The archive itself
+# is never written, and the scratch copy never outlives the probe.
+
+# The configured archive file for this home's markdown backlog, absolute.
+# Returns 1 when the backend is not markdown, when no archive is configured, or
+# when the configured file is absent: each means there is no archived evidence
+# to read, which leaves every caller refusing exactly as it did before.
+archive_file() {
+  local data root archive
+  data=$(fm_backlog_data_absolute "$DATA") || return 1
+  root=$(fm_backlog_root "$data") || return 1
+  [ "$(fm_tasks_axi_backend "$root")" = markdown ] || return 1
+  archive=$(fm_tasks_axi_markdown_archive_from_toml "$root/.tasks.toml") || return 1
+  case "$archive" in
+    /*) : ;;
+    *) archive="$root/$archive" ;;
+  esac
+  [ -f "$archive" ] || return 1
+  printf '%s\n' "$archive"
+}
+
+# One archived row's `tasks-axi show --full` output, or 1 when the archive
+# carries no such row. Addressed from the same backlog root as every live row
+# probe, so the timeout bound and backend addressing are unchanged.
+archive_row_show() {  # <id>
+  local id=$1 archive data root tmp out rc=0
+  archive=$(archive_file) || return 1
+  data=$(fm_backlog_data_absolute "$DATA") || return 1
+  root=$(fm_backlog_root "$data") || return 1
+  tmp=$(umask 077; mktemp "${TMPDIR:-/tmp}/fm-captain-hold-archive.XXXXXX") || return 1
+  if LC_ALL=C sed 's/^## Archived .*$/## Done/' "$archive" > "$tmp" 2>/dev/null; then
+    out=$( (cd "$root" 2>/dev/null && fm_tasks_axi show "$id" --full --file "$tmp") 2>/dev/null ) || rc=$?
+  else
+    rc=1
+  fi
+  rm -f "$tmp"
+  [ "$rc" = 0 ] || return 1
+  printf '%s\n' "$out"
+}
+
+# A row as durable evidence: the live backlog first, then the done archive.
+# Read-only, and deliberately used only by the completion gate. Every mutating
+# path keeps using task_show, because tasks-axi cannot address an archived row
+# and it must never be handed to hold, answer, or reconcile as if it could.
+task_show_durable() {  # <id>; sets TASK_SHOW_OUTPUT
+  local id=$1
+  task_show "$id" && return 0
+  TASK_SHOW_OUTPUT=$(archive_row_show "$id")
+}
+
 show_field() {  # <show-output> <field>
   local output=$1 field=$2
   printf '%s\n' "$output" | sed -n "s/^  $field: //p" | head -1
@@ -514,7 +584,8 @@ resolution_block() {  # <mode>
 # surviving even when a date gate has expired) or a recorded captain answer.
 verify_hold_durable() {  # <task-id>
   local id=$1 show state hold_kind body
-  task_show "$id" || fail "captain-held task $id is absent from this home's configured backlog (data directory $DATA)"
+  task_show_durable "$id" \
+    || fail "captain-held task $id is absent from this home's configured backlog and its archive (data directory $DATA)"
   show=$TASK_SHOW_OUTPUT
   state=$(show_field "$show" state)
   hold_kind=$(show_field_value "$show" hold_kind)
@@ -752,6 +823,45 @@ resolve_entry() {  # <origin-or-empty> <entry>; prints "<id> <how>" or fails
   fail "no captain-held task $entry and no migrated hold for it in this home's configured backlog (data directory $DATA)"
 }
 
+# The completion gate's resolution. resolve_entry answers from the live
+# backlog, which is correct for every mutating caller; the gate additionally
+# accepts a key whose row retention already pruned into the done archive,
+# because attesting a reviewed inventory only reads evidence. The live refusal
+# is held back and emitted verbatim only when the archive misses too, so an
+# unresolvable key still refuses with exactly the message it always did. Only
+# plain absence (1) consults the archive: a migrated-hold scan refusal (2) is an
+# explicit refusal and a read-bound hit (124) is a backend that never answered,
+# so both propagate untouched.
+resolve_attested_entry() {  # <origin-or-empty> <entry>; prints "<id> <how>" or fails
+  local origin=$1 entry=$2 err out rc=0 legacy
+  err=$(umask 077; mktemp "${TMPDIR:-/tmp}/fm-captain-hold-resolve.XXXXXX") \
+    || fail "cannot stage the captain-call resolution"
+  out=$(resolve_entry "$origin" "$entry" 2>"$err") || rc=$?
+  if [ "$rc" = 0 ]; then
+    rm -f "$err"
+    printf '%s' "$out"
+    return 0
+  fi
+  if [ "$rc" = 1 ]; then
+    if archive_row_show "$entry" >/dev/null 2>&1; then
+      rm -f "$err"
+      printf '%s archived' "$entry"
+      return 0
+    fi
+    if [ -n "$origin" ] && [ "$origin" != "$BINDING_ANY" ]; then
+      legacy=$(legacy_hold_id "$origin" "$entry")
+      if archive_row_show "$legacy" >/dev/null 2>&1; then
+        rm -f "$err"
+        printf '%s archived-legacy' "$legacy"
+        return 0
+      fi
+    fi
+  fi
+  cat "$err" >&2
+  rm -f "$err"
+  return "$rc"
+}
+
 body_hold_set_timestamp() {  # <decoded-task-body>
   printf '%s\n' "$1" \
     | sed -n \
@@ -793,14 +903,14 @@ write_hold_set_stamp() {  # <task-id> <shown-body> <timestamp> <preserve-existin
 }
 
 # Resolve one entry and verify the row it names is durably captain-held. A
-# resolution failure that is not the read bound keeps resolve_entry's own
+# resolution failure that is not the read bound keeps resolve_attested_entry's own
 # status - its stderr already named the entry; 124 means the backend never
 # answered, which is not the same as an unknown entry and must not be spent
 # as absence. On success prints "<id> <how>" so the caller can keep the
 # attestation evidence.
 verify_entry_durable() {  # <origin-or-empty> <entry>; prints "<id> <how>"
   local origin=$1 entry=$2 resolved resolve_status=0
-  resolved=$(resolve_entry "$origin" "$entry") || resolve_status=$?
+  resolved=$(resolve_attested_entry "$origin" "$entry") || resolve_status=$?
   if [ "$resolve_status" -ne 0 ]; then
     [ "$resolve_status" -ne 124 ] \
       || fail "the backlog backend exceeded its read bound resolving $entry"

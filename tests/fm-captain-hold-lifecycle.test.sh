@@ -866,6 +866,161 @@ test_answer_records_and_closes() {
   pass "answer records the captain's words, closes idempotently, and releases routed work"
 }
 
+# --- answered captain calls pruned into the configured archive ---------------
+#
+# Retention moves an answered captain call out of the live backlog into the
+# configured archive. The recorded answer stays durable there, so the completion
+# gate must keep reading it; before this was fixed, answering a call and letting
+# retention archive it wedged every later completion attempt for that origin
+# with "no captain-held task ... and no migrated hold for it".
+
+# Drive tasks-axi's own retention: closing a filler row with --keep 0 prunes
+# every Done row into the configured archive, exactly as routine retention does.
+archive_done_rows() {  # <home>
+  local home=$1 filler=$2
+  tasks_in "$home" add "$filler" "Filler that drives retention" --kind ship --repo sample >/dev/null \
+    || fail "could not create the retention filler"
+  tasks_in "$home" "done" "$filler" --keep 0 >/dev/null \
+    || fail "could not prune the Done section into the configured archive"
+}
+
+# An answered call satisfies the gate before retention archives it and after,
+# because the captain's recorded answer is the same durable evidence in both
+# places. Re-attesting with --none re-resolves the previously attested key, so
+# this is the exact path a worker walks when it closes out later work.
+test_completion_gate_accepts_an_archived_answered_call() {
+  local home id
+  home=$(make_home archived-answer)
+  id=sample-archive-review
+  mkdir -p "$home/data/$id"
+  tasks_in "$home" add "$id" "Review the archived path" --kind scout --repo sample --start >/dev/null \
+    || fail "could not create the archive-gate origin"
+  write_origin_meta "$home" "$id"
+  printf 'done: report complete\n' > "$home/state/$id.status"
+  printf '# Archive review\n\nOne captain choice remains.\n' > "$home/data/$id/report.md"
+  run_captain "$home" hold sample-archived-call \
+    --title "Choose the archived option" --reason "captain archived choice pending" \
+    --repo sample >/dev/null \
+    || fail "could not register the captain-held task"
+  printf 'Captain chose the archived option.\n' > "$home/archived-decision.txt"
+  run_captain "$home" answer sample-archived-call \
+    --decision-file "$home/archived-decision.txt" >/dev/null \
+    || fail "answer could not close the captain-held task"
+  run_captain "$home" complete "$id" sample-archived-call >/dev/null \
+    || fail "the gate rejected an answered call while it was still in the live backlog"
+
+  archive_done_rows "$home" sample-archive-filler
+  if tasks_in "$home" show sample-archived-call --full >/dev/null 2>&1; then
+    fail "fixture precondition: retention did not prune the answered call out of the live backlog"
+  fi
+  assert_grep "- [x] sample-archived-call -" "$home/data/done-archive.md" \
+    "fixture precondition: the answered call is not in the configured archive"
+
+  run_captain "$home" verify "$id" > "$home/verify.out" 2> "$home/verify.err" \
+    || fail "the gate refused an answered call that retention archived: $(cat "$home/verify.err")"
+  run_captain "$home" complete "$id" --none > "$home/complete.out" 2> "$home/complete.err" \
+    || fail "re-attesting refused an answered call that retention archived: $(cat "$home/complete.err")"
+  assert_grep "decision_keys=sample-archived-call" "$home/state/$id.meta" \
+    "re-attestation dropped the archived key from the recorded inventory"
+  pass "the completion gate accepts an answered captain call pruned into the archive"
+}
+
+# The archive must not become a blanket pass. A captain call closed WITHOUT a
+# recorded answer is precisely what this gate exists to catch, and archiving it
+# must not launder it into a satisfied one. A key naming no captain call
+# anywhere must still refuse rather than resolve to nothing and pass.
+test_completion_gate_refuses_an_archived_call_with_no_recorded_answer() {
+  local home id
+  home=$(make_home archived-unanswered)
+  id=sample-unanswered-review
+  mkdir -p "$home/data/$id"
+  tasks_in "$home" add "$id" "Review the unanswered path" --kind scout --repo sample --start >/dev/null \
+    || fail "could not create the unanswered-gate origin"
+  write_origin_meta "$home" "$id"
+  printf 'done: report complete\n' > "$home/state/$id.status"
+  printf '# Unanswered review\n\nOne captain choice remains.\n' > "$home/data/$id/report.md"
+  run_captain "$home" hold sample-unanswered-call \
+    --title "Choose the unanswered option" --reason "captain unanswered choice pending" \
+    --repo sample >/dev/null \
+    || fail "could not register the captain-held task"
+  # Close it outside the answer path, so the row carries no recorded answer.
+  tasks_in "$home" "done" sample-unanswered-call >/dev/null \
+    || fail "could not close the captain call outside the answer path"
+  archive_done_rows "$home" sample-unanswered-filler
+  assert_grep "- [x] sample-unanswered-call -" "$home/data/done-archive.md" \
+    "fixture precondition: the unanswered call is not in the configured archive"
+
+  if run_captain "$home" complete "$id" sample-unanswered-call \
+    > "$home/unanswered.out" 2> "$home/unanswered.err"; then
+    fail "the gate accepted an archived captain call that carries no recorded answer"
+  fi
+  assert_grep "neither held for the captain nor closed with a recorded captain answer" \
+    "$home/unanswered.err" "the refusal did not name the missing recorded answer"
+  assert_no_grep "decisions_reviewed=1" "$home/state/$id.meta" \
+    "a refused completion recorded a false attestation"
+
+  if run_captain "$home" complete "$id" sample-absent-call \
+    > "$home/absent.out" 2> "$home/absent.err"; then
+    fail "the gate accepted a key that names no captain call anywhere"
+  fi
+  assert_grep "no captain-held task sample-absent-call" "$home/absent.err" \
+    "the refusal did not name the unresolvable key"
+  pass "the gate still refuses an archived call with no recorded answer and an unknown key"
+}
+
+# The gate unions the previously attested inventory with the newly supplied one
+# and re-resolves every entry. An archived answered key and a live still-held
+# key must both resolve in that same union, and a still-held key must stay
+# visible as the captain's open call rather than being read as answered.
+test_completion_gate_unions_archived_and_live_inventory() {
+  local home id json show
+  home=$(make_home archived-union)
+  id=sample-union-review
+  mkdir -p "$home/data/$id"
+  tasks_in "$home" add "$id" "Review the union path" --kind scout --repo sample --start >/dev/null \
+    || fail "could not create the union-gate origin"
+  write_origin_meta "$home" "$id"
+  printf 'done: report complete\n' > "$home/state/$id.status"
+  printf '# Union review\n\nTwo captain choices remain.\n' > "$home/data/$id/report.md"
+  run_captain "$home" hold sample-union-archived \
+    --title "Choose the archived union option" --reason "captain union choice pending" \
+    --repo sample >/dev/null \
+    || fail "could not register the first captain-held task"
+  printf 'Captain chose the archived union option.\n' > "$home/union-decision.txt"
+  run_captain "$home" answer sample-union-archived \
+    --decision-file "$home/union-decision.txt" >/dev/null \
+    || fail "answer could not close the first captain-held task"
+  run_captain "$home" complete "$id" sample-union-archived >/dev/null \
+    || fail "the gate rejected the first answered call"
+  archive_done_rows "$home" sample-union-filler
+
+  # A second captain call, raised after the first was archived, is still held.
+  run_captain "$home" hold sample-union-live \
+    --title "Choose the live union option" --reason "captain live choice pending" \
+    --repo sample >/dev/null \
+    || fail "could not register the second captain-held task"
+  run_captain "$home" complete "$id" sample-union-live > "$home/union.out" 2> "$home/union.err" \
+    || fail "the union of an archived key and a live key was refused: $(cat "$home/union.err")"
+  assert_grep "decision_keys=sample-union-archived,sample-union-live" "$home/state/$id.meta" \
+    "the union did not record both the archived and the live key"
+  run_captain "$home" verify "$id" >/dev/null \
+    || fail "verify refused the union of an archived key and a live key"
+
+  # The live key is still the captain's open call: archiving the first must not
+  # have closed or laundered the second.
+  show=$(tasks_in "$home" show sample-union-live --full)
+  assert_contains "$show" "held: yes" "the still-held captain call lost its hold"
+  assert_contains "$show" "hold_kind: captain" "the still-held captain call lost its captain hold"
+  assert_not_contains "$show" "Resolution recorded by fm-captain-hold" \
+    "the still-held captain call was laundered into an answered one"
+  json=$(run_bearings "$home") || fail "Bearings failed on the mixed inventory"
+  printf '%s' "$json" | jq -e '
+    (.decisions_open | any(.id == "sample-union-live" and .verb == "captain-hold"))
+      and (.decisions_open | any(.id == "sample-union-archived") | not)
+  ' >/dev/null || fail "Bearings did not keep the still-held call open and the archived one closed: $json"
+  pass "the completion gate unions archived and live inventory and keeps a held call open"
+}
+
 # --release lifts the hold instead of closing, preserving the work item's own
 # body under the record; a re-held task later accepts a new answer.
 test_release_frees_held_work() {
@@ -4032,6 +4187,9 @@ test_hold_decodes_a_bare_scalar_body_without_the_nonref_default
 test_retained_body_keeps_its_utf8_bytes
 test_completion_gate_attests_and_transfers
 test_answer_records_and_closes
+test_completion_gate_accepts_an_archived_answered_call
+test_completion_gate_refuses_an_archived_call_with_no_recorded_answer
+test_completion_gate_unions_archived_and_live_inventory
 test_release_frees_held_work
 test_hold_stamp_precedes_hold_visibility
 test_interrupted_answer_preserves_hold_age

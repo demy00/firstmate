@@ -140,6 +140,48 @@ fm_tasks_axi_backend_from_toml() {  # <toml-path>
   ' "$toml"
 }
 
+# The markdown backend's configured archive path, as written in the `[markdown]`
+# section of a `.tasks.toml`. Retention moves closed rows out of the live
+# backlog into that file, so it is where an answered captain call's recorded
+# answer lives once the live backlog no longer carries the row. The value is
+# printed verbatim, still relative to the addressing root when it was written
+# that way; a toml with no `[markdown] archive` returns 1, which callers read as
+# "this backlog archives nowhere" rather than as an error.
+fm_tasks_axi_markdown_archive_from_toml() {  # <toml-path>
+  local toml=$1
+  [ -f "$toml" ] || return 1
+  LC_ALL=C awk '
+    function trim(value) {
+      sub(/^[[:space:]]+/, "", value)
+      sub(/[[:space:]]+$/, "", value)
+      return value
+    }
+    BEGIN { inmarkdown=0; found=0; single=sprintf("%c", 39) }
+    {
+      line=$0
+      sub(/[[:space:]]*#.*/, "", line)
+      line=trim(line)
+      if (line ~ /^\[[^]]+\]$/) {
+        inmarkdown = (line == "[markdown]")
+        next
+      }
+      if (inmarkdown && line ~ /^archive[[:space:]]*=/) {
+        sub(/^archive[[:space:]]*=[[:space:]]*/, "", line)
+        line=trim(line)
+        if ((substr(line, 1, 1) == "\"" && substr(line, length(line), 1) == "\"") ||
+            (substr(line, 1, 1) == single && substr(line, length(line), 1) == single)) {
+          line=substr(line, 2, length(line) - 2)
+        }
+        if (line == "") next
+        print line
+        found=1
+        exit
+      }
+    }
+    END { if (!found) exit 1 }
+  ' "$toml"
+}
+
 # Resolve the active tasks-axi backend with the same precedence as tasks-axi.
 fm_tasks_axi_backend_resolve() {  # <tasks-axi-working-directory>
   local root=$1 backend
