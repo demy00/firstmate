@@ -413,20 +413,29 @@ task_show_or_fail() {  # <id> <absence-message>; sets show
 # parser, into the same --full field shape, as a live one. The archive itself
 # is never written, and the scratch copy never outlives the probe.
 
-# The configured archive file for this home's markdown backlog, absolute.
-# Returns 1 when the backend is not markdown, when no archive is configured, or
-# when the configured file is absent: each means there is no archived evidence
-# to read, which leaves every caller refusing exactly as it did before.
+# The archive file retention prunes this home's markdown backlog into, absolute.
+# A `[markdown] archive` in the root's `.tasks.toml` wins and is resolved from
+# that root, exactly as tasks-axi resolves it. A root that configures none -
+# including one with no `.tasks.toml` at all, which this repo supports - still
+# archives, under tasks-axi's built-in default of `done-archive.md` beside the
+# addressed backlog file. Returns 1 when the backend is not markdown or when the
+# resolved file is absent: a home that has never archived anything carries no
+# archived evidence to read, which leaves every caller refusing exactly as
+# before.
 archive_file() {
-  local data root archive
+  local data root archive file
   data=$(fm_backlog_data_absolute "$DATA") || return 1
   root=$(fm_backlog_root "$data") || return 1
   [ "$(fm_tasks_axi_backend "$root")" = markdown ] || return 1
-  archive=$(fm_tasks_axi_markdown_archive_from_toml "$root/.tasks.toml") || return 1
-  case "$archive" in
-    /*) : ;;
-    *) archive="$root/$archive" ;;
-  esac
+  if archive=$(fm_tasks_axi_markdown_archive_from_toml "$root/.tasks.toml"); then
+    case "$archive" in
+      /*) : ;;
+      *) archive="$root/$archive" ;;
+    esac
+  else
+    file=$(fm_backlog_file "$data") || return 1
+    archive="${file%/*}/done-archive.md"
+  fi
   [ -f "$archive" ] || return 1
   printf '%s\n' "$archive"
 }

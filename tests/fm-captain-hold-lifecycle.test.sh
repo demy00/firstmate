@@ -876,11 +876,12 @@ test_answer_records_and_closes() {
 
 # Drive tasks-axi's own retention: closing a filler row with --keep 0 prunes
 # every Done row into the configured archive, exactly as routine retention does.
-archive_done_rows() {  # <home>
+archive_done_rows() {  # <home> <filler> [tasks-axi args...]
   local home=$1 filler=$2
-  tasks_in "$home" add "$filler" "Filler that drives retention" --kind ship --repo sample >/dev/null \
+  shift 2
+  tasks_in "$home" add "$filler" "Filler that drives retention" --kind ship --repo sample "$@" >/dev/null \
     || fail "could not create the retention filler"
-  tasks_in "$home" "done" "$filler" --keep 0 >/dev/null \
+  tasks_in "$home" "done" "$filler" --keep 0 "$@" >/dev/null \
     || fail "could not prune the Done section into the configured archive"
 }
 
@@ -1019,6 +1020,58 @@ test_completion_gate_unions_archived_and_live_inventory() {
       and (.decisions_open | any(.id == "sample-union-archived") | not)
   ' >/dev/null || fail "Bearings did not keep the still-held call open and the archived one closed: $json"
   pass "the completion gate unions archived and live inventory and keeps a held call open"
+}
+
+# A home whose backlog root carries no `.tasks.toml` is a supported layout, and
+# tasks-axi still applies retention there: it prunes into its built-in default
+# archive, `done-archive.md` beside the addressed backlog file. The gate must
+# read that archive too, or the identical permanent wedge stays reachable in
+# every home that keeps no root config - a relocated or secondmate home
+# commonly does.
+test_completion_gate_accepts_an_archived_answer_without_a_tasks_toml() {
+  local home id
+  home=$(make_home archived-no-toml)
+  rm -f "$home/.tasks.toml"
+  id=sample-notoml-review
+  mkdir -p "$home/data/$id"
+  tasks_in "$home" add "$id" "Review the unconfigured path" --kind scout --repo sample --start \
+    --file data/backlog.md >/dev/null \
+    || fail "could not create the unconfigured-archive origin"
+  write_origin_meta "$home" "$id"
+  printf 'done: report complete\n' > "$home/state/$id.status"
+  printf '# Unconfigured review\n\nOne captain choice remains.\n' > "$home/data/$id/report.md"
+  run_captain "$home" hold sample-notoml-call \
+    --title "Choose the unconfigured option" --reason "captain unconfigured choice pending" \
+    --repo sample >/dev/null \
+    || fail "could not register the captain-held task in a home with no .tasks.toml"
+  printf 'Captain chose the unconfigured option.\n' > "$home/notoml-decision.txt"
+  run_captain "$home" answer sample-notoml-call \
+    --decision-file "$home/notoml-decision.txt" >/dev/null \
+    || fail "answer could not close the captain-held task in a home with no .tasks.toml"
+  run_captain "$home" complete "$id" sample-notoml-call >/dev/null \
+    || fail "the gate rejected an answered call while it was still in the live backlog"
+
+  archive_done_rows "$home" sample-notoml-filler --file data/backlog.md
+  if tasks_in "$home" show sample-notoml-call --full --file data/backlog.md >/dev/null 2>&1; then
+    fail "fixture precondition: retention did not prune the answered call out of the live backlog"
+  fi
+  assert_grep "- [x] sample-notoml-call -" "$home/data/done-archive.md" \
+    "fixture precondition: the answered call is not in tasks-axi's default archive"
+
+  run_captain "$home" verify "$id" > "$home/verify.out" 2> "$home/verify.err" \
+    || fail "the gate refused an answered call archived under the built-in default: $(cat "$home/verify.err")"
+  run_captain "$home" complete "$id" --none > "$home/complete.out" 2> "$home/complete.err" \
+    || fail "re-attesting refused an answered call archived under the built-in default: $(cat "$home/complete.err")"
+  assert_grep "decision_keys=sample-notoml-call" "$home/state/$id.meta" \
+    "re-attestation dropped the archived key from the recorded inventory"
+
+  if run_captain "$home" complete "$id" sample-notoml-absent \
+    > "$home/absent.out" 2> "$home/absent.err"; then
+    fail "the default archive turned an unresolvable key into a pass"
+  fi
+  assert_grep "no captain-held task sample-notoml-absent" "$home/absent.err" \
+    "the refusal did not name the unresolvable key"
+  pass "the gate reads tasks-axi's default archive in a home that configures none"
 }
 
 # --release lifts the hold instead of closing, preserving the work item's own
@@ -4190,6 +4243,7 @@ test_answer_records_and_closes
 test_completion_gate_accepts_an_archived_answered_call
 test_completion_gate_refuses_an_archived_call_with_no_recorded_answer
 test_completion_gate_unions_archived_and_live_inventory
+test_completion_gate_accepts_an_archived_answer_without_a_tasks_toml
 test_release_frees_held_work
 test_hold_stamp_precedes_hold_visibility
 test_interrupted_answer_preserves_hold_age
