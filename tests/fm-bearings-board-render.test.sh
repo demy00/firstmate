@@ -313,6 +313,39 @@ test_a_decision_card_carries_its_whole_repository_name() {
   pass "a decision card carries its whole repository name, without a blanket tooltip"
 }
 
+# Withdrawing the dispatch bar and the stack nav is what keeps a dead Queue
+# button off a board with nothing to dispatch, so pin that the renderer marks
+# both away when there is nothing to act on, and only then - a renderer that
+# marked them away unconditionally would hide live controls instead.
+test_controls_are_withdrawn_only_when_there_is_nothing_to_act_on() {
+  local home out
+  home=$(make_home controls-idle)
+  out=$(render "$home" '[
+    {"id":"warn-only","repo":"sample","title":"Home unreadable","reason":"current home state unavailable","dispatchable":false,"kind":"warning"}
+  ]')
+  printf '%s' "$out" | jq -e '.controls.dispatch_hidden == true' >/dev/null \
+    || fail "a board with nothing dispatchable left its dispatch bar in place: $out"
+  printf '%s' "$out" | jq -e '.controls.stacknav_hidden == true' >/dev/null \
+    || fail "a board with an empty Captain's Call left its stack nav in place: $out"
+
+  home=$(make_home controls-live)
+  out=$(render "$home" '[
+    {"id":"real-queued","repo":"sample","title":"Queued work","reason":"queued behind the cutover","dispatchable":true}
+  ]')
+  printf '%s' "$out" | jq -e '.controls.dispatch_hidden == false' >/dev/null \
+    || fail "a board with dispatchable work withheld its dispatch bar: $out"
+
+  home=$(make_home controls-call)
+  out=$(render_call "$home" '[
+    {"key":"one-card", "type":"decision", "repo":"sample", "title":"Ship it?",
+     "about":"One card is enough to need the nav.", "decide":"Ship, or hold.",
+     "options":[{"value":"ship","label":"Ship it"},{"value":"hold","label":"Hold"}]}
+  ]')
+  printf '%s' "$out" | jq -e '.controls.stacknav_hidden == false' >/dev/null \
+    || fail "a board with a Captain's Call card withheld its stack nav: $out"
+  pass "the dispatch bar and stack nav are withdrawn only when there is nothing to act on"
+}
+
 test_a_warning_row_reads_as_a_repair_not_as_queued_work
 test_warnings_are_excluded_from_the_charted_next_count
 test_a_board_of_only_warnings_still_reports_nothing_queued
@@ -320,3 +353,4 @@ test_omitted_warnings_never_count_as_more_queued
 test_an_omitted_kind_keeps_the_existing_queued_rendering
 test_every_fleet_section_renders_a_long_row_in_full
 test_a_decision_card_carries_its_whole_repository_name
+test_controls_are_withdrawn_only_when_there_is_nothing_to_act_on

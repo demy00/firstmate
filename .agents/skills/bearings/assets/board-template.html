@@ -169,6 +169,13 @@ a { color: inherit; text-decoration: none; }
 .bb-callwrap { display: flex; flex-direction: column; gap: 12px; }
 /* extra top margin clears the pile edges that poke below the active card */
 .bb-stacknav { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+/* Both bars are hidden through the `hidden` attribute - the stack nav when the
+   Captain's Call deck is empty, the dispatch bar when nothing is dispatchable -
+   but an author-origin `display: flex` beats the UA stylesheet's
+   `[hidden] { display: none }`, so without this the captain sees a "nothing
+   picked" bar and a Queue button that is neither disabled nor wired to a
+   handler. Same pattern the decision card already uses one section below. */
+.bb-stacknav[hidden], .bb-dispatch[hidden] { display: none; }
 .bb-stacknav__count { flex: 1 1 auto; font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--text-muted); }
 .bb-stacknav__btn {
   display: inline-grid; place-items: center; width: 34px; height: 34px; cursor: pointer;
@@ -693,6 +700,9 @@ __FM_BEARINGS_BOARD_DATA__
   var stackPrev = document.getElementById("bb-stack-prev");
   var stackNext = document.getElementById("bb-stack-next");
   var stackNav = stackCount.parentNode;
+  /* nothing to page through means no pager, and the renderer states that for
+     both cases rather than leaving the live case to a markup default */
+  stackNav.hidden = !cards.length;
   function showCard(i) {
     active = Math.max(0, Math.min(cards.length - 1, i));
     cards.forEach(function (c, j) { c.hidden = j !== active; });
@@ -715,7 +725,6 @@ __FM_BEARINGS_BOARD_DATA__
   } else {
     deck.classList.add("bb-call--empty");
     deck.appendChild(el("div", "bb-empty", "Nothing needs your action right now."));
-    stackNav.hidden = true;
   }
 
   /* Underway */
@@ -815,8 +824,11 @@ __FM_BEARINGS_BOARD_DATA__
     ch.appendChild(el("span", "bb-morechip", "+" + chartedMoreWarnings + " more repair warning" + (chartedMoreWarnings === 1 ? "" : "s") + " - ask firstmate for the full chart"));
   }
 
+  /* The markup ships the bar hidden so it never flashes before this runs, but
+     the renderer owns the state either way: stating it here keeps the invariant
+     in one place instead of splitting it between markup and an unhide. */
+  bar.hidden = !anyPickable;
   if (anyPickable) {
-    bar.hidden = false;
     refreshBar();
     barBtn.addEventListener("click", function () {
       var ids = pickedIds();

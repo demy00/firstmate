@@ -168,6 +168,16 @@ const decisions = (byId.get("bb-call") || new Node("div")).children
 const empty = ch.children.filter((c) => c.className.includes("bb-empty")).map((c) => c.textContent);
 const more = ch.children.filter((c) => c.className.includes("bb-morechip")).map((c) => c.textContent);
 
+// The dispatch bar and the stack nav are the two controls the board withdraws
+// when there is nothing to act on, and it withdraws them by attribute. Surface
+// those markers: a renderer that stops setting them leaves the captain a
+// "nothing picked" bar with a Queue button that is neither disabled nor wired.
+const stacknavOf = (countId) => byId.get(countId)?.parentNode;
+const controls = {
+  dispatch_hidden: !!byId.get("bb-dispatch")?.hidden,
+  stacknav_hidden: !!stacknavOf("bb-stack-count")?.hidden,
+};
+
 process.stdout.write(
-  JSON.stringify({ stats, decisions, underway, landed, charted, empty, more, error: errorText }) + "\n",
+  JSON.stringify({ stats, decisions, underway, landed, charted, empty, more, controls, error: errorText }) + "\n",
 );
