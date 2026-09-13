@@ -5,58 +5,11 @@
 // Usage: node board-render-harness.mjs <built-board.html>
 // Prints one JSON document:
 //   { stats:[{n,label}], decisions:[{title,repo,repo_tooltip,link,link_tooltip}],
-//     underway|landed|charted:[{title,title_tooltip,sub,sub_tooltip,badges,pickable}],
-//     empty, more, css:[{selector,media,declarations}], error }
+//     underway|landed|charted:[{title,title_tooltip,sub,sub_tooltip,badges,pickable}] }
 import { readFileSync } from "node:fs";
 
 const html = readFileSync(process.argv[2], "utf8");
 
-// How a row title behaves at a given width is decided in the board's stylesheet,
-// and this shim has no layout engine, so it cannot say what a title looks like on
-// screen. Parse the sheet into a normalized declaration model instead - selector,
-// the media condition it applies under, and its properties - so a test can assert
-// what the rules mean at a narrow width as well as a wide one. That is a weaker
-// guarantee than a real render: it pins the declarations, not the painted result.
-const declarationsOf = (body) => {
-  const out = {};
-  for (const decl of body.split(";")) {
-    const colon = decl.indexOf(":");
-    if (colon < 0) continue;
-    out[decl.slice(0, colon).trim().toLowerCase()] =
-      decl.slice(colon + 1).trim().replace(/\s+/g, " ").toLowerCase();
-  }
-  return out;
-};
-const rulesOf = (css, media) => {
-  const rules = [];
-  for (let i = 0; i < css.length; ) {
-    const open = css.indexOf("{", i);
-    if (open < 0) break;
-    const prelude = css.slice(i, open).trim();
-    let depth = 1;
-    let end = open + 1;
-    for (; end < css.length && depth > 0; end++) {
-      if (css[end] === "{") depth++;
-      else if (css[end] === "}") depth--;
-    }
-    const body = css.slice(open + 1, end - 1);
-    if (/^@media/i.test(prelude)) {
-      rules.push(...rulesOf(body, prelude.replace(/^@media\s*/i, "")));
-    } else if (!prelude.startsWith("@")) {
-      for (const selector of prelude.split(","))
-        rules.push({ selector: selector.trim(), media, declarations: declarationsOf(body) });
-    }
-    i = end;
-  }
-  return rules;
-};
-const styleSheet = html
-  .slice(html.indexOf("<style>") + "<style>".length, html.indexOf("</style>"))
-  .replace(/\/\*[\s\S]*?\*\//g, "")
-  // The font @import's own url() carries semicolons (font weights), so it is
-  // matched to its closing paren rather than to the first semicolon.
-  .replace(/@import\s+url\([^)]*\)\s*;/gi, "");
-const css = rulesOf(styleSheet, "");
 
 class Node {
   constructor(tag) {
@@ -227,5 +180,5 @@ const controls = {
 };
 
 process.stdout.write(
-  JSON.stringify({ stats, decisions, underway, landed, charted, empty, more, controls, css, error: errorText }) + "\n",
+  JSON.stringify({ stats, decisions, underway, landed, charted, empty, more, controls, error: errorText }) + "\n",
 );
