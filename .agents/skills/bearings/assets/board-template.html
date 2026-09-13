@@ -275,13 +275,14 @@ a { color: inherit; text-decoration: none; }
 }
 .bb-row:first-child { border-top: none; }
 .bb-row__main { min-width: 0; flex: 1 1 auto; }
-/* Row text wraps rather than clipping to one line: a title cut mid-word tells
-   the reader nothing about the work. The clamp keeps a pathological title from
-   growing the row without bound, and overflow-wrap breaks an unbroken token
-   (a long branch or identifier) instead of pushing the page sideways. */
+/* A row title wraps to however many lines it needs, at every width, and is
+   never clipped or ellipsised: a title cut mid-word tells the reader nothing
+   about the work, and a line ceiling only moves that cut to a narrower board.
+   A taller row on a narrow board is the right outcome. overflow-wrap breaks an
+   unbroken token (a long branch or identifier) rather than letting it push past
+   the card, with word-break as the fallback where `anywhere` is unsupported. */
 .bb-row__title { font-size: var(--fs-sm); font-weight: 700; color: var(--text-strong); line-height: 1.3;
-  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; line-clamp: 4;
-  overflow: hidden; overflow-wrap: anywhere; }
+  overflow-wrap: anywhere; word-break: break-word; }
 .bb-row__sub { font-size: var(--fs-xs); color: var(--text-muted); line-height: 1.3; margin-top: 1px;
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2;
   overflow: hidden; overflow-wrap: anywhere; }

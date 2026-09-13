@@ -5,7 +5,9 @@
 # tests/assets/board-render-harness.mjs. The assertions are on what the page
 # renders - row badges, the stat strip, the empty state, each row's full text
 # and the tooltip the renderer measures onto a clamped line - never on the
-# template's source text.
+# template's source text. Row wrapping is the one thing the shim cannot see,
+# because it has no layout engine; that is asserted against the built board's
+# parsed style rules instead, and is called out as the weaker guarantee it is.
 set -u
 
 # shellcheck source=tests/lib.sh
@@ -284,6 +286,43 @@ test_every_fleet_section_renders_a_long_row_in_full() {
   pass "every fleet section renders a long row in full, without a blanket tooltip"
 }
 
+# Whether a title is clipped on screen is decided by the stylesheet, and the shim
+# has no layout engine, so this asserts the meaning of the built board's parsed
+# rules rather than the painted result: a deliberately weaker guarantee than a
+# real render, standing in for browser-render machinery this repo does not have.
+# It catches an edit that reinstates a line ceiling, at any width - including the
+# narrow single-column board, where the captain's mid-word cut came back first.
+test_a_row_title_is_never_clipped_at_any_width() {
+  local home out
+  home=$(make_home title-wrapping)
+  out=$(render_board "$home" '[
+    {"id":"wrap-underway","repo":"sample","name":"A title long enough to wrap",
+     "state":"working","kind":"ship","doing":"no-mistakes: review round 2"}
+  ]' '[]')
+  printf '%s' "$out" | jq -e '.error == ""' >/dev/null \
+    || fail "the board rendered its fail-closed error instead of the fleet: $out"
+  printf '%s' "$out" | jq -e '
+    [.css[] | select(.selector == ".bb-cols" and (.media | test("max-width: *900px")))
+     | .declarations["grid-template-columns"]] == ["1fr"]
+  ' >/dev/null || fail "the board no longer narrows to a single column, so this covers only the wide case: $out"
+  printf '%s' "$out" | jq -e '
+    [.css[] | select(.selector == ".bb-row__title")] as $rules
+    | ($rules | length) > 0
+      and ($rules | all(.declarations
+        | (has("-webkit-line-clamp") | not)
+          and (has("line-clamp") | not)
+          and (has("max-height") | not)
+          and ((.overflow // "visible") | . != "hidden" and . != "clip")
+          and ((."text-overflow" // "clip") != "ellipsis")))
+  ' >/dev/null || fail "a row title is capped or clipped at some width, so a long one still cuts off: $out"
+  printf '%s' "$out" | jq -e '
+    [.css[] | select(.selector == ".bb-row__title") | .declarations] as $decls
+    | ($decls | any(.["overflow-wrap"] == "anywhere" or .["overflow-wrap"] == "break-word"))
+      and ($decls | any(has("word-break")))
+  ' >/dev/null || fail "a row title no longer breaks an unbreakable token, so it overflows the card: $out"
+  pass "a row title is never clipped or capped, and breaks an unbreakable token, at every width"
+}
+
 test_an_underway_row_leads_with_the_task_name_and_keeps_its_run_status
 test_an_underway_identifier_label_is_not_replaced_by_run_status
 test_charted_next_reads_newest_filed_first
@@ -352,5 +391,6 @@ test_a_board_of_only_warnings_still_reports_nothing_queued
 test_omitted_warnings_never_count_as_more_queued
 test_an_omitted_kind_keeps_the_existing_queued_rendering
 test_every_fleet_section_renders_a_long_row_in_full
+test_a_row_title_is_never_clipped_at_any_width
 test_a_decision_card_carries_its_whole_repository_name
 test_controls_are_withdrawn_only_when_there_is_nothing_to_act_on
