@@ -1,0 +1,7 @@
+ok - the completion gate accepts an answered captain call pruned into the archive
+ok - the gate still refuses an archived call with no recorded answer and an unknown key
+ok - the completion gate unions archived and live inventory and keeps a held call open
+ok - the gate reads tasks-axi's default archive in a home that configures none
+ok - the gate reads the archive the user's tasks-axi config names
+ok - the gate refuses a reused key whose newest archived close recorded no answer
+ok - the gate accepts a reused key whose newest archived close is answered

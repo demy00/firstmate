@@ -1,0 +1,44 @@
+=== BEFORE fix (base 259a669) ===
+
+$ cap complete cp-fe-audit-b2 cp-admin-portal-brandable cp-role-delete-semantics
+complete: cp-fe-audit-b2 captain-call inventory reviewed (cp-admin-portal-brandable,cp-role-delete-semantics)
+[exit 0]
+
+$ grep decision_keys <tmp>/home/state/cp-fe-audit-b2.meta
+decision_keys=cp-admin-portal-brandable,cp-role-delete-semantics
+[exit 0]
+
+--- retention prunes the answered calls into the archive ---
+
+$ t show cp-admin-portal-brandable
+error: "Task \"cp-admin-portal-brandable\" not found in this backlog"
+code: NOT_FOUND
+help[1]: Run `tasks-axi list` to see existing tasks
+[exit 1]
+
+$ grep -n ^- \[x\] cp- <tmp>/home/data/done-archive.md
+4:- [x] cp-role-delete-semantics - Decide cp-role-delete-semantics (repo: sample) (kind: captain) (done 2026-09-21) (hold: captain choice pending) (hold-kind: captain)
+12:- [x] cp-admin-portal-brandable - Decide cp-admin-portal-brandable (repo: sample) (kind: captain) (done 2026-09-21) (hold: captain choice pending) (hold-kind: captain)
+[exit 0]
+
+--- the blocked worker's commands ---
+
+$ cap verify cp-fe-audit-b2
+fm-captain-hold: no captain-held task cp-admin-portal-brandable and no migrated hold for it in this home's configured backlog (data directory <tmp>/home/data); the nearest legacy identity cp-fe-audit-b2-decision-cp-admin-portal-brandable also resolves to nothing
+[exit 1]
+
+$ cap complete cp-fe-audit-b2 --none
+fm-captain-hold: no captain-held task cp-admin-portal-brandable and no migrated hold for it in this home's configured backlog (data directory <tmp>/home/data); the nearest legacy identity cp-fe-audit-b2-decision-cp-admin-portal-brandable also resolves to nothing
+[exit 1]
+
+$ grep -E decision_keys|decisions_reviewed <tmp>/home/state/cp-fe-audit-b2.meta
+decisions_reviewed=1
+decision_keys=cp-admin-portal-brandable,cp-role-delete-semantics
+[exit 0]
+
+--- archive untouched by the gate, unknown key still refused ---
+
+$ cap complete cp-fe-audit-b2 cp-never-existed
+fm-captain-hold: no captain-held task cp-admin-portal-brandable and no migrated hold for it in this home's configured backlog (data directory <tmp>/home/data); the nearest legacy identity cp-fe-audit-b2-decision-cp-admin-portal-brandable also resolves to nothing
+[exit 1]
+archive checksum unchanged
