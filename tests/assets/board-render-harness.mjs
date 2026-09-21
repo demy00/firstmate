@@ -5,7 +5,8 @@
 // Usage: node board-render-harness.mjs <built-board.html>
 // Prints one JSON document:
 //   { stats:[{n,label}], decisions:[{title,repo,repo_tooltip,link,link_tooltip}],
-//     underway|landed|charted:[{title,title_tooltip,sub,sub_tooltip,badges,pickable}] }
+//     underway|landed|charted:[{title,title_tooltip,sub,sub_tooltip,badges,pickable}],
+//     empty, more, controls:{dispatch_hidden,stacknav_hidden}, error }
 import { readFileSync } from "node:fs";
 
 const html = readFileSync(process.argv[2], "utf8");
