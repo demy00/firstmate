@@ -413,48 +413,44 @@ task_show_or_fail() {  # <id> <absence-message>; sets show
 # parser, into the same --full field shape, as a live one. The archive itself
 # is never written, and the scratch copy never outlives the probe.
 
-# The archive file retention prunes this home's markdown backlog into, absolute.
-# A `[markdown] archive` in the root's `.tasks.toml` wins and is resolved from
-# that root, exactly as tasks-axi resolves it. A root that configures none -
-# including one with no `.tasks.toml` at all, which this repo supports - still
-# archives, under tasks-axi's built-in default of `done-archive.md` beside the
-# addressed backlog file. Returns 1 when the backend is not markdown or when the
-# resolved file is absent: a home that has never archived anything carries no
-# archived evidence to read, which leaves every caller refusing exactly as
-# before.
+# The archive file retention prunes this home's markdown backlog into, absolute,
+# from the same configuration sources tasks-axi reads
+# (fm_tasks_axi_markdown_archive_resolve). Returns 1 when the backend is not
+# markdown or when the resolved file is absent: a home that has never archived
+# anything carries no archived evidence to read, which leaves every caller
+# refusing exactly as before.
 archive_file() {
-  local data root archive file
+  local data root file archive
   data=$(fm_backlog_data_absolute "$DATA") || return 1
   root=$(fm_backlog_root "$data") || return 1
   [ "$(fm_tasks_axi_backend "$root")" = markdown ] || return 1
-  if archive=$(fm_tasks_axi_markdown_archive_from_toml "$root/.tasks.toml"); then
-    case "$archive" in
-      /*) : ;;
-      *) archive="$root/$archive" ;;
-    esac
-  else
-    file=$(fm_backlog_file "$data") || return 1
-    archive="${file%/*}/done-archive.md"
-  fi
+  file=$(fm_backlog_file "$data") || return 1
+  archive=$(fm_tasks_axi_markdown_archive_resolve "$root" "$file") || return 1
   [ -f "$archive" ] || return 1
   printf '%s\n' "$archive"
 }
 
 # One archived row's `tasks-axi show --full` output, or 1 when the archive
 # carries no such row. Addressed from the same backlog root as every live row
-# probe, so the timeout bound and backend addressing are unchanged.
+# probe and bounded by the same FM_BACKLOG_ROW_TIMEOUT_SECS read bound, whose
+# 124 propagates so a wedged backend is never read as an absent row.
 archive_row_show() {  # <id>
-  local id=$1 archive data root tmp out rc=0
+  local id=$1 archive data root tmp out rc=0 secs=${FM_BACKLOG_ROW_TIMEOUT_SECS:-10}
+  case "$secs" in ''|*[!0-9]*) secs=10 ;; esac
+  [ "$secs" -gt 0 ] 2>/dev/null || secs=10
   archive=$(archive_file) || return 1
   data=$(fm_backlog_data_absolute "$DATA") || return 1
   root=$(fm_backlog_root "$data") || return 1
   tmp=$(umask 077; mktemp "${TMPDIR:-/tmp}/fm-captain-hold-archive.XXXXXX") || return 1
   if LC_ALL=C sed 's/^## Archived .*$/## Done/' "$archive" > "$tmp" 2>/dev/null; then
-    out=$( (cd "$root" 2>/dev/null && fm_tasks_axi show "$id" --full --file "$tmp") 2>/dev/null ) || rc=$?
+    # shellcheck disable=SC2016  # Expansion is deliberately deferred to the child shell.
+    out=$(fm_run_timed "$secs" bash -c 'cd "$1" 2>/dev/null || exit 1; shift; exec tasks-axi show "$@"' \
+      _ "$root" "$id" --full --file "$tmp" 2>/dev/null) || rc=$?
   else
     rc=1
   fi
   rm -f "$tmp"
+  [ "$rc" != 124 ] || return 124
   [ "$rc" = 0 ] || return 1
   printf '%s\n' "$out"
 }
@@ -593,8 +589,10 @@ resolution_block() {  # <mode>
 # surviving even when a date gate has expired) or a recorded captain answer.
 verify_hold_durable() {  # <task-id>
   local id=$1 show state hold_kind body
-  task_show_durable "$id" \
-    || fail "captain-held task $id is absent from this home's configured backlog and its archive (data directory $DATA)"
+  task_show_durable "$id" || {
+    [ "$?" -ne 124 ] || fail "the backlog backend exceeded its read bound reading the archive for $id"
+    fail "captain-held task $id is absent from this home's configured backlog and its archive (data directory $DATA)"
+  }
   show=$TASK_SHOW_OUTPUT
   state=$(show_field "$show" state)
   hold_kind=$(show_field_value "$show" hold_kind)
@@ -842,7 +840,7 @@ resolve_entry() {  # <origin-or-empty> <entry>; prints "<id> <how>" or fails
 # explicit refusal and a read-bound hit (124) is a backend that never answered,
 # so both propagate untouched.
 resolve_attested_entry() {  # <origin-or-empty> <entry>; prints "<id> <how>" or fails
-  local origin=$1 entry=$2 err out rc=0 legacy
+  local origin=$1 entry=$2 err out rc=0 legacy archive_status
   err=$(umask 077; mktemp "${TMPDIR:-/tmp}/fm-captain-hold-resolve.XXXXXX") \
     || fail "cannot stage the captain-call resolution"
   out=$(resolve_entry "$origin" "$entry" 2>"$err") || rc=$?
@@ -852,19 +850,25 @@ resolve_attested_entry() {  # <origin-or-empty> <entry>; prints "<id> <how>" or 
     return 0
   fi
   if [ "$rc" = 1 ]; then
-    if archive_row_show "$entry" >/dev/null 2>&1; then
-      rm -f "$err"
-      printf '%s archived' "$entry"
-      return 0
-    fi
+    set -- "$entry" archived
     if [ -n "$origin" ] && [ "$origin" != "$BINDING_ANY" ]; then
       legacy=$(legacy_hold_id "$origin" "$entry")
-      if archive_row_show "$legacy" >/dev/null 2>&1; then
+      set -- "$@" "$legacy" archived-legacy
+    fi
+    while [ "$#" -ge 2 ]; do
+      archive_status=0
+      archive_row_show "$1" >/dev/null 2>&1 || archive_status=$?
+      if [ "$archive_status" = 0 ]; then
         rm -f "$err"
-        printf '%s archived-legacy' "$legacy"
+        printf '%s %s' "$1" "$2"
         return 0
       fi
-    fi
+      if [ "$archive_status" = 124 ]; then
+        rm -f "$err"
+        return 124
+      fi
+      shift 2
+    done
   fi
   cat "$err" >&2
   rm -f "$err"

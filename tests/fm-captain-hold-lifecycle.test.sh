@@ -1032,6 +1032,11 @@ test_completion_gate_accepts_an_archived_answer_without_a_tasks_toml() {
   local home id
   home=$(make_home archived-no-toml)
   rm -f "$home/.tasks.toml"
+  # With no root config, tasks-axi and fm_tasks_axi_backend both fall through to
+  # the developer's ambient ~/.tasks-axi/config.toml; pin an empty HOME so this
+  # case exercises the built-in default rather than whatever that file says.
+  local -x HOME="$home/user-home"
+  mkdir -p "$HOME"
   id=sample-notoml-review
   mkdir -p "$home/data/$id"
   tasks_in "$home" add "$id" "Review the unconfigured path" --kind scout --repo sample --start \
@@ -1072,6 +1077,60 @@ test_completion_gate_accepts_an_archived_answer_without_a_tasks_toml() {
   assert_grep "no captain-held task sample-notoml-absent" "$home/absent.err" \
     "the refusal did not name the unresolvable key"
   pass "the gate reads tasks-axi's default archive in a home that configures none"
+}
+
+# tasks-axi's archive has a third configuration source between the root
+# `.tasks.toml` and its built-in default: `[markdown] archive` in the user's
+# $HOME/.tasks-axi/config.toml. Retention prunes there when only that file
+# names an archive, so the gate must read the same file or the wedge stays
+# reachable for every home configured that way.
+test_completion_gate_reads_the_archive_named_by_the_user_config() {
+  local home id
+  home=$(make_home archived-user-config)
+  rm -f "$home/.tasks.toml"
+  local -x HOME="$home/user-home"
+  mkdir -p "$HOME/.tasks-axi"
+  printf '[markdown]\narchive = "data/user-archive.md"\n' > "$HOME/.tasks-axi/config.toml"
+  id=sample-usercfg-review
+  mkdir -p "$home/data/$id"
+  tasks_in "$home" add "$id" "Review the user-configured path" --kind scout --repo sample --start \
+    --file data/backlog.md >/dev/null \
+    || fail "could not create the user-configured-archive origin"
+  write_origin_meta "$home" "$id"
+  printf 'done: report complete\n' > "$home/state/$id.status"
+  printf '# User-configured review\n\nOne captain choice remains.\n' > "$home/data/$id/report.md"
+  run_captain "$home" hold sample-usercfg-call \
+    --title "Choose the user-configured option" --reason "captain user-configured choice pending" \
+    --repo sample >/dev/null \
+    || fail "could not register the captain-held task in a user-configured home"
+  printf 'Captain chose the user-configured option.\n' > "$home/usercfg-decision.txt"
+  run_captain "$home" answer sample-usercfg-call \
+    --decision-file "$home/usercfg-decision.txt" >/dev/null \
+    || fail "answer could not close the captain-held task in a user-configured home"
+  run_captain "$home" complete "$id" sample-usercfg-call >/dev/null \
+    || fail "the gate rejected an answered call while it was still in the live backlog"
+
+  archive_done_rows "$home" sample-usercfg-filler --file data/backlog.md
+  if tasks_in "$home" show sample-usercfg-call --full --file data/backlog.md >/dev/null 2>&1; then
+    fail "fixture precondition: retention did not prune the answered call out of the live backlog"
+  fi
+  assert_grep "- [x] sample-usercfg-call -" "$home/data/user-archive.md" \
+    "fixture precondition: the answered call is not in the user-configured archive"
+  [ ! -e "$home/data/done-archive.md" ] \
+    || fail "fixture precondition: retention also wrote the built-in default archive"
+
+  run_captain "$home" verify "$id" > "$home/verify.out" 2> "$home/verify.err" \
+    || fail "the gate refused an answered call archived where the user config names: $(cat "$home/verify.err")"
+  run_captain "$home" complete "$id" --none > "$home/complete.out" 2> "$home/complete.err" \
+    || fail "re-attesting refused an answered call archived where the user config names: $(cat "$home/complete.err")"
+
+  if run_captain "$home" complete "$id" sample-usercfg-absent \
+    > "$home/absent.out" 2> "$home/absent.err"; then
+    fail "the user-configured archive turned an unresolvable key into a pass"
+  fi
+  assert_grep "no captain-held task sample-usercfg-absent" "$home/absent.err" \
+    "the refusal did not name the unresolvable key"
+  pass "the gate reads the archive the user's tasks-axi config names"
 }
 
 # --release lifts the hold instead of closing, preserving the work item's own
@@ -4244,6 +4303,7 @@ test_completion_gate_accepts_an_archived_answered_call
 test_completion_gate_refuses_an_archived_call_with_no_recorded_answer
 test_completion_gate_unions_archived_and_live_inventory
 test_completion_gate_accepts_an_archived_answer_without_a_tasks_toml
+test_completion_gate_reads_the_archive_named_by_the_user_config
 test_release_frees_held_work
 test_hold_stamp_precedes_hold_visibility
 test_interrupted_answer_preserves_hold_age

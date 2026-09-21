@@ -141,12 +141,10 @@ fm_tasks_axi_backend_from_toml() {  # <toml-path>
 }
 
 # The markdown backend's configured archive path, as written in the `[markdown]`
-# section of a `.tasks.toml`. Retention moves closed rows out of the live
-# backlog into that file, so it is where an answered captain call's recorded
-# answer lives once the live backlog no longer carries the row. The value is
-# printed verbatim, still relative to the addressing root when it was written
-# that way; a toml with no `[markdown] archive` returns 1, which callers read as
-# "this backlog archives nowhere" rather than as an error.
+# section of one tasks-axi configuration file. The value is printed verbatim,
+# still relative when it was written that way; a file with no `[markdown]
+# archive` returns 1 so fm_tasks_axi_markdown_archive_resolve can fall through
+# to the next source.
 fm_tasks_axi_markdown_archive_from_toml() {  # <toml-path>
   local toml=$1
   [ -f "$toml" ] || return 1
@@ -180,6 +178,27 @@ fm_tasks_axi_markdown_archive_from_toml() {  # <toml-path>
     }
     END { if (!found) exit 1 }
   ' "$toml"
+}
+
+# The markdown backend's archive file, absolute, resolved with tasks-axi's own
+# precedence: `[markdown] archive` in the working root's .tasks.toml, then in
+# $HOME/.tasks-axi/config.toml, a relative value resolved from the working root;
+# with neither, tasks-axi's built-in `done-archive.md` beside the backlog file.
+# Retention prunes closed rows there, so it is where an answered captain call's
+# recorded answer lives once the live backlog no longer carries the row.
+fm_tasks_axi_markdown_archive_resolve() {  # <tasks-axi-working-directory> <backlog-file>
+  local root=$1 file=$2 archive
+  if ! archive=$(fm_tasks_axi_markdown_archive_from_toml "$root/.tasks.toml"); then
+    if [ -z "${HOME:-}" ] ||
+      ! archive=$(fm_tasks_axi_markdown_archive_from_toml "$HOME/.tasks-axi/config.toml"); then
+      printf '%s\n' "${file%/*}/done-archive.md"
+      return 0
+    fi
+  fi
+  case "$archive" in
+    /*) printf '%s\n' "$archive" ;;
+    *) printf '%s\n' "$root/$archive" ;;
+  esac
 }
 
 # Resolve the active tasks-axi backend with the same precedence as tasks-axi.
