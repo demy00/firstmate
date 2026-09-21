@@ -412,6 +412,15 @@ task_show_or_fail() {  # <id> <absence-message>; sets show
 # that copy with tasks-axi itself, so an archived row is parsed by the same
 # parser, into the same --full field shape, as a live one. The archive itself
 # is never written, and the scratch copy never outlives the probe.
+#
+# The archive is append-only and tasks-axi does not consult it when minting an
+# id, so a key re-raised after its earlier row was pruned leaves several rows
+# under one id, and tasks-axi reads the first. The newest row is the
+# authoritative one - it is what most recently happened to that id, and older
+# rows belong to earlier tasks that reused the identifier - so the scratch copy
+# keeps only the final row block for the probed id. An older answered row can
+# therefore never vouch for a later unanswered close, and an older unanswered
+# row can never refuse a later recorded answer.
 
 # The archive file retention prunes this home's markdown backlog into, absolute,
 # from the same configuration sources tasks-axi reads
@@ -442,7 +451,20 @@ archive_row_show() {  # <id>
   data=$(fm_backlog_data_absolute "$DATA") || return 1
   root=$(fm_backlog_root "$data") || return 1
   tmp=$(umask 077; mktemp "${TMPDIR:-/tmp}/fm-captain-hold-archive.XXXXXX") || return 1
-  if LC_ALL=C sed 's/^## Archived .*$/## Done/' "$archive" > "$tmp" 2>/dev/null; then
+  # shellcheck disable=SC2016  # The awk program is not shell-expanded.
+  if FM_ARCHIVE_ROW_PREFIX="- [x] $id - " LC_ALL=C awk '
+    BEGIN { prefix = ENVIRON["FM_ARCHIVE_ROW_PREFIX"] }
+    { line[NR] = $0; if (index($0, prefix) == 1) last = NR }
+    END {
+      for (i = 1; i <= NR; i++) {
+        row = line[i]
+        if (index(row, prefix) == 1 && i != last) { skip = 1; continue }
+        if (skip && (row ~ /^[ \t\r]*$/ || substr(row, 1, 2) == "  ")) continue
+        skip = 0
+        if (row ~ /^## Archived /) row = "## Done"
+        print row
+      }
+    }' "$archive" > "$tmp" 2>/dev/null; then
     # shellcheck disable=SC2016  # Expansion is deliberately deferred to the child shell.
     out=$(fm_run_timed "$secs" bash -c 'cd "$1" 2>/dev/null || exit 1; shift; exec tasks-axi show "$@"' \
       _ "$root" "$id" --full --file "$tmp" 2>/dev/null) || rc=$?

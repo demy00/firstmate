@@ -1133,6 +1133,115 @@ test_completion_gate_reads_the_archive_named_by_the_user_config() {
   pass "the gate reads the archive the user's tasks-axi config names"
 }
 
+# The archive is append-only and tasks-axi does not consult it when minting an
+# id, so a captain key re-raised after its earlier row was pruned leaves two
+# archived rows under one id. The newest row is what most recently happened to
+# that key, so it alone is the evidence: an earlier recorded answer must not
+# vouch for a later close that recorded none.
+test_completion_gate_refuses_a_reused_key_whose_newest_archived_close_is_unanswered() {
+  local home id rows
+  home=$(make_home archived-reused-unanswered)
+  local -x HOME="$home/user-home"
+  mkdir -p "$HOME"
+  id=sample-reuse-open-review
+  mkdir -p "$home/data/$id"
+  tasks_in "$home" add "$id" "Review the reused unanswered path" --kind scout --repo sample --start >/dev/null \
+    || fail "could not create the reused-unanswered origin"
+  write_origin_meta "$home" "$id"
+  printf 'done: report complete\n' > "$home/state/$id.status"
+  printf '# Reused review\n\nOne captain choice remains.\n' > "$home/data/$id/report.md"
+  run_captain "$home" hold sample-reuse-open-call \
+    --title "Choose the first reused option" --reason "captain reused choice pending" \
+    --repo sample >/dev/null \
+    || fail "could not register the captain-held task"
+  printf 'Captain chose the first reused option.\n' > "$home/reuse-decision.txt"
+  run_captain "$home" answer sample-reuse-open-call \
+    --decision-file "$home/reuse-decision.txt" >/dev/null \
+    || fail "answer could not close the captain-held task"
+  run_captain "$home" complete "$id" sample-reuse-open-call >/dev/null \
+    || fail "the gate rejected an answered call while it was still in the live backlog"
+  archive_done_rows "$home" sample-reuse-open-filler-one
+  run_captain "$home" verify "$id" >/dev/null \
+    || fail "fixture precondition: the archived answered call did not satisfy the gate"
+
+  # The same key is raised again, then closed outside the answer path.
+  run_captain "$home" hold sample-reuse-open-call \
+    --title "Choose the second reused option" --reason "captain reused choice pending again" \
+    --repo sample >/dev/null \
+    || fail "could not re-raise the captain call under its archived id"
+  tasks_in "$home" "done" sample-reuse-open-call >/dev/null \
+    || fail "could not close the re-raised captain call outside the answer path"
+  archive_done_rows "$home" sample-reuse-open-filler-two
+  if tasks_in "$home" show sample-reuse-open-call --full >/dev/null 2>&1; then
+    fail "fixture precondition: retention did not prune the re-raised call out of the live backlog"
+  fi
+  rows=$(grep -c '^- \[x\] sample-reuse-open-call - ' "$home/data/done-archive.md" || true)
+  [ "$rows" = 2 ] || fail "fixture precondition: expected two archived rows under the reused id, found $rows"
+
+  if run_captain "$home" verify "$id" > "$home/verify.out" 2> "$home/verify.err"; then
+    fail "an older archived answer vouched for a later close that recorded none"
+  fi
+  assert_grep "neither held for the captain nor closed with a recorded captain answer" \
+    "$home/verify.err" "the verify refusal did not name the missing recorded answer"
+  if run_captain "$home" complete "$id" --none > "$home/complete.out" 2> "$home/complete.err"; then
+    fail "re-attesting accepted a reused key whose newest archived close recorded no answer"
+  fi
+  assert_grep "neither held for the captain nor closed with a recorded captain answer" \
+    "$home/complete.err" "the complete refusal did not name the missing recorded answer"
+  pass "the gate refuses a reused key whose newest archived close recorded no answer"
+}
+
+# The other direction of the same rule: an earlier close that recorded no
+# answer must not refuse forever a later call under the same id that the
+# captain properly answered.
+test_completion_gate_accepts_a_reused_key_whose_newest_archived_close_is_answered() {
+  local home id rows
+  home=$(make_home archived-reused-answered)
+  local -x HOME="$home/user-home"
+  mkdir -p "$HOME"
+  id=sample-reuse-shut-review
+  mkdir -p "$home/data/$id"
+  tasks_in "$home" add "$id" "Review the reused answered path" --kind scout --repo sample --start >/dev/null \
+    || fail "could not create the reused-answered origin"
+  write_origin_meta "$home" "$id"
+  printf 'done: report complete\n' > "$home/state/$id.status"
+  printf '# Reused review\n\nOne captain choice remains.\n' > "$home/data/$id/report.md"
+  run_captain "$home" hold sample-reuse-shut-call \
+    --title "Choose the first reused option" --reason "captain reused choice pending" \
+    --repo sample >/dev/null \
+    || fail "could not register the captain-held task"
+  tasks_in "$home" "done" sample-reuse-shut-call >/dev/null \
+    || fail "could not close the captain call outside the answer path"
+  archive_done_rows "$home" sample-reuse-shut-filler-one
+  if run_captain "$home" complete "$id" sample-reuse-shut-call >/dev/null 2>&1; then
+    fail "fixture precondition: the archived unanswered close satisfied the gate"
+  fi
+
+  # The same key is raised again, and this time the captain answers it.
+  run_captain "$home" hold sample-reuse-shut-call \
+    --title "Choose the second reused option" --reason "captain reused choice pending again" \
+    --repo sample >/dev/null \
+    || fail "could not re-raise the captain call under its archived id"
+  printf 'Captain chose the second reused option.\n' > "$home/reuse-decision.txt"
+  run_captain "$home" answer sample-reuse-shut-call \
+    --decision-file "$home/reuse-decision.txt" >/dev/null \
+    || fail "answer could not close the re-raised captain call"
+  archive_done_rows "$home" sample-reuse-shut-filler-two
+  if tasks_in "$home" show sample-reuse-shut-call --full >/dev/null 2>&1; then
+    fail "fixture precondition: retention did not prune the re-raised call out of the live backlog"
+  fi
+  rows=$(grep -c '^- \[x\] sample-reuse-shut-call - ' "$home/data/done-archive.md" || true)
+  [ "$rows" = 2 ] || fail "fixture precondition: expected two archived rows under the reused id, found $rows"
+
+  run_captain "$home" complete "$id" sample-reuse-shut-call > "$home/complete.out" 2> "$home/complete.err" \
+    || fail "an older unanswered archived close refused a later recorded answer: $(cat "$home/complete.err")"
+  run_captain "$home" verify "$id" > "$home/verify.out" 2> "$home/verify.err" \
+    || fail "verify refused a reused key whose newest archived close is answered: $(cat "$home/verify.err")"
+  assert_grep "decision_keys=sample-reuse-shut-call" "$home/state/$id.meta" \
+    "the attestation did not record the reused key"
+  pass "the gate accepts a reused key whose newest archived close is answered"
+}
+
 # --release lifts the hold instead of closing, preserving the work item's own
 # body under the record; a re-held task later accepts a new answer.
 test_release_frees_held_work() {
@@ -4304,6 +4413,8 @@ test_completion_gate_refuses_an_archived_call_with_no_recorded_answer
 test_completion_gate_unions_archived_and_live_inventory
 test_completion_gate_accepts_an_archived_answer_without_a_tasks_toml
 test_completion_gate_reads_the_archive_named_by_the_user_config
+test_completion_gate_refuses_a_reused_key_whose_newest_archived_close_is_unanswered
+test_completion_gate_accepts_a_reused_key_whose_newest_archived_close_is_answered
 test_release_frees_held_work
 test_hold_stamp_precedes_hold_visibility
 test_interrupted_answer_preserves_hold_age
