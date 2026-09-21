@@ -1,0 +1,362 @@
+{
+  "base-wide": {
+    "innerWidth": 1280,
+    "docScrollWidth": 1280,
+    "titles": [
+      {
+        "text": "Backend wave 1 (deliveries 5...",
+        "clientWidth": 397,
+        "scrollWidth": 892,
+        "clientHeight": 20,
+        "scrollHeight": 20,
+        "lines": 1,
+        "textOverflow": "ellipsis",
+        "overflow": "hidden",
+        "whiteSpace": "nowrap",
+        "tooltip": "",
+        "rightEdge": 1095
+      },
+      {
+        "text": "Backend wave 1 (deliveries 5...",
+        "clientWidth": 418,
+        "scrollWidth": 892,
+        "clientHeight": 20,
+        "scrollHeight": 20,
+        "lines": 1,
+        "textOverflow": "ellipsis",
+        "overflow": "hidden",
+        "whiteSpace": "nowrap",
+        "tooltip": "",
+        "rightEdge": 610
+      },
+      {
+        "text": "feature/settlement-ledger-wr...",
+        "clientWidth": 418,
+        "scrollWidth": 708,
+        "clientHeight": 20,
+        "scrollHeight": 20,
+        "lines": 1,
+        "textOverflow": "ellipsis",
+        "overflow": "hidden",
+        "whiteSpace": "nowrap",
+        "tooltip": "",
+        "rightEdge": 610
+      },
+      {
+        "text": "Backend wave 1 (deliveries 5...",
+        "clientWidth": 475,
+        "scrollWidth": 892,
+        "clientHeight": 20,
+        "scrollHeight": 20,
+        "lines": 1,
+        "textOverflow": "ellipsis",
+        "overflow": "hidden",
+        "whiteSpace": "nowrap",
+        "tooltip": "",
+        "rightEdge": 1183
+      }
+    ],
+    "stacknavDisplay": "flex",
+    "dispatchDisplay": "flex"
+  },
+  "base-narrow": {
+    "innerWidth": 400,
+    "docScrollWidth": 464,
+    "titles": [
+      {
+        "text": "Backend wave 1 (deliveries 5...",
+        "clientWidth": 190,
+        "scrollWidth": 892,
+        "clientHeight": 20,
+        "scrollHeight": 20,
+        "lines": 1,
+        "textOverflow": "ellipsis",
+        "overflow": "hidden",
+        "whiteSpace": "nowrap",
+        "tooltip": "",
+        "rightEdge": 265
+      },
+      {
+        "text": "Backend wave 1 (deliveries 5...",
+        "clientWidth": 211,
+        "scrollWidth": 892,
+        "clientHeight": 20,
+        "scrollHeight": 20,
+        "lines": 1,
+        "textOverflow": "ellipsis",
+        "overflow": "hidden",
+        "whiteSpace": "nowrap",
+        "tooltip": "",
+        "rightEdge": 353
+      },
+      {
+        "text": "feature/settlement-ledger-wr...",
+        "clientWidth": 211,
+        "scrollWidth": 708,
+        "clientHeight": 20,
+        "scrollHeight": 20,
+        "lines": 1,
+        "textOverflow": "ellipsis",
+        "overflow": "hidden",
+        "whiteSpace": "nowrap",
+        "tooltip": "",
+        "rightEdge": 353
+      },
+      {
+        "text": "Backend wave 1 (deliveries 5...",
+        "clientWidth": 268,
+        "scrollWidth": 892,
+        "clientHeight": 20,
+        "scrollHeight": 20,
+        "lines": 1,
+        "textOverflow": "ellipsis",
+        "overflow": "hidden",
+        "whiteSpace": "nowrap",
+        "tooltip": "",
+        "rightEdge": 353
+      }
+    ],
+    "stacknavDisplay": "flex",
+    "dispatchDisplay": "flex"
+  },
+  "base-phone": {
+    "innerWidth": 320,
+    "docScrollWidth": 464,
+    "titles": [
+      {
+        "text": "Backend wave 1 (deliveries 5...",
+        "clientWidth": 110,
+        "scrollWidth": 892,
+        "clientHeight": 20,
+        "scrollHeight": 20,
+        "lines": 1,
+        "textOverflow": "ellipsis",
+        "overflow": "hidden",
+        "whiteSpace": "nowrap",
+        "tooltip": "",
+        "rightEdge": 185
+      },
+      {
+        "text": "Backend wave 1 (deliveries 5...",
+        "clientWidth": 131,
+        "scrollWidth": 892,
+        "clientHeight": 20,
+        "scrollHeight": 20,
+        "lines": 1,
+        "textOverflow": "ellipsis",
+        "overflow": "hidden",
+        "whiteSpace": "nowrap",
+        "tooltip": "",
+        "rightEdge": 273
+      },
+      {
+        "text": "feature/settlement-ledger-wr...",
+        "clientWidth": 131,
+        "scrollWidth": 708,
+        "clientHeight": 20,
+        "scrollHeight": 20,
+        "lines": 1,
+        "textOverflow": "ellipsis",
+        "overflow": "hidden",
+        "whiteSpace": "nowrap",
+        "tooltip": "",
+        "rightEdge": 273
+      },
+      {
+        "text": "Backend wave 1 (deliveries 5...",
+        "clientWidth": 188,
+        "scrollWidth": 892,
+        "clientHeight": 20,
+        "scrollHeight": 20,
+        "lines": 1,
+        "textOverflow": "ellipsis",
+        "overflow": "hidden",
+        "whiteSpace": "nowrap",
+        "tooltip": "",
+        "rightEdge": 273
+      }
+    ],
+    "stacknavDisplay": "flex",
+    "dispatchDisplay": "flex"
+  },
+  "target-wide": {
+    "innerWidth": 1280,
+    "docScrollWidth": 1280,
+    "titles": [
+      {
+        "text": "Backend wave 1 (deliveries 5...",
+        "clientWidth": 397,
+        "scrollWidth": 397,
+        "clientHeight": 59,
+        "scrollHeight": 59,
+        "lines": 3,
+        "textOverflow": "clip",
+        "overflow": "visible",
+        "whiteSpace": "normal",
+        "tooltip": "",
+        "rightEdge": 1095
+      },
+      {
+        "text": "Backend wave 1 (deliveries 5...",
+        "clientWidth": 418,
+        "scrollWidth": 418,
+        "clientHeight": 59,
+        "scrollHeight": 59,
+        "lines": 3,
+        "textOverflow": "clip",
+        "overflow": "visible",
+        "whiteSpace": "normal",
+        "tooltip": "",
+        "rightEdge": 610
+      },
+      {
+        "text": "feature/settlement-ledger-wr...",
+        "clientWidth": 418,
+        "scrollWidth": 418,
+        "clientHeight": 39,
+        "scrollHeight": 40,
+        "lines": 2,
+        "textOverflow": "clip",
+        "overflow": "visible",
+        "whiteSpace": "normal",
+        "tooltip": "",
+        "rightEdge": 610
+      },
+      {
+        "text": "Backend wave 1 (deliveries 5...",
+        "clientWidth": 475,
+        "scrollWidth": 475,
+        "clientHeight": 59,
+        "scrollHeight": 59,
+        "lines": 3,
+        "textOverflow": "clip",
+        "overflow": "visible",
+        "whiteSpace": "normal",
+        "tooltip": "",
+        "rightEdge": 1183
+      }
+    ],
+    "stacknavDisplay": "none",
+    "dispatchDisplay": "flex"
+  },
+  "target-narrow": {
+    "innerWidth": 400,
+    "docScrollWidth": 400,
+    "titles": [
+      {
+        "text": "Backend wave 1 (deliveries 5...",
+        "clientWidth": 190,
+        "scrollWidth": 190,
+        "clientHeight": 117,
+        "scrollHeight": 118,
+        "lines": 6,
+        "textOverflow": "clip",
+        "overflow": "visible",
+        "whiteSpace": "normal",
+        "tooltip": "",
+        "rightEdge": 265
+      },
+      {
+        "text": "Backend wave 1 (deliveries 5...",
+        "clientWidth": 211,
+        "scrollWidth": 211,
+        "clientHeight": 98,
+        "scrollHeight": 98,
+        "lines": 5,
+        "textOverflow": "clip",
+        "overflow": "visible",
+        "whiteSpace": "normal",
+        "tooltip": "",
+        "rightEdge": 353
+      },
+      {
+        "text": "feature/settlement-ledger-wr...",
+        "clientWidth": 211,
+        "scrollWidth": 211,
+        "clientHeight": 78,
+        "scrollHeight": 79,
+        "lines": 4,
+        "textOverflow": "clip",
+        "overflow": "visible",
+        "whiteSpace": "normal",
+        "tooltip": "",
+        "rightEdge": 353
+      },
+      {
+        "text": "Backend wave 1 (deliveries 5...",
+        "clientWidth": 268,
+        "scrollWidth": 268,
+        "clientHeight": 78,
+        "scrollHeight": 79,
+        "lines": 4,
+        "textOverflow": "clip",
+        "overflow": "visible",
+        "whiteSpace": "normal",
+        "tooltip": "",
+        "rightEdge": 353
+      }
+    ],
+    "stacknavDisplay": "none",
+    "dispatchDisplay": "flex"
+  },
+  "target-phone": {
+    "innerWidth": 320,
+    "docScrollWidth": 320,
+    "titles": [
+      {
+        "text": "Backend wave 1 (deliveries 5...",
+        "clientWidth": 110,
+        "scrollWidth": 110,
+        "clientHeight": 176,
+        "scrollHeight": 176,
+        "lines": 9,
+        "textOverflow": "clip",
+        "overflow": "visible",
+        "whiteSpace": "normal",
+        "tooltip": "",
+        "rightEdge": 185
+      },
+      {
+        "text": "Backend wave 1 (deliveries 5...",
+        "clientWidth": 131,
+        "scrollWidth": 131,
+        "clientHeight": 176,
+        "scrollHeight": 176,
+        "lines": 9,
+        "textOverflow": "clip",
+        "overflow": "visible",
+        "whiteSpace": "normal",
+        "tooltip": "",
+        "rightEdge": 273
+      },
+      {
+        "text": "feature/settlement-ledger-wr...",
+        "clientWidth": 131,
+        "scrollWidth": 131,
+        "clientHeight": 137,
+        "scrollHeight": 137,
+        "lines": 7,
+        "textOverflow": "clip",
+        "overflow": "visible",
+        "whiteSpace": "normal",
+        "tooltip": "",
+        "rightEdge": 273
+      },
+      {
+        "text": "Backend wave 1 (deliveries 5...",
+        "clientWidth": 188,
+        "scrollWidth": 188,
+        "clientHeight": 117,
+        "scrollHeight": 118,
+        "lines": 6,
+        "textOverflow": "clip",
+        "overflow": "visible",
+        "whiteSpace": "normal",
+        "tooltip": "",
+        "rightEdge": 273
+      }
+    ],
+    "stacknavDisplay": "none",
+    "dispatchDisplay": "flex"
+  }
+}
