@@ -3,7 +3,8 @@
 # (.agents/skills/bearings/assets/board-template.html), exercised through a real
 # `fm-bearings-board.sh build` and then executed under the minimal DOM shim in
 # tests/assets/board-render-harness.mjs. The assertions are on what the page
-# renders - row badges, the stat strip, the empty state - never on the
+# renders - row badges, the stat strip, the empty state, each row's full text
+# and the tooltip the renderer measures onto a clamped line - never on the
 # template's source text.
 set -u
 
@@ -56,14 +57,14 @@ SH
   printf '%s\n' "$home"
 }
 
-# Build the board from <underway-json> plus <charted-json> and return what the
-# renderer produced.
-render_board() {  # <home> <underway-json> <charted-json> [charted_more] [charted_warning_more]
-  local home=$1 underway=$2 charted=$3 more=${4:-0} warning_more=${5:-0} data="$1/payload.json"
-  jq -n --argjson underway "$underway" --argjson charted "$charted" \
-    --argjson more "$more" --argjson warning_more "$warning_more" '{
+# Build a board whose fleet sections are the given JSON arrays and return what
+# the renderer produced.
+render_sections() {  # <home> <underway> <landed> <charted> [charted_more] [charted_warning_more]
+  local home=$1 underway=$2 landed=$3 charted=$4 more=${5:-0} warning_more=${6:-0} data="$1/payload.json"
+  jq -n --argjson underway "$underway" --argjson landed "$landed" \
+    --argjson charted "$charted" --argjson more "$more" --argjson warning_more "$warning_more" '{
     schema:"fm-bearings-board.v1", home:"render-home", generated:"2026-08-26T00:00Z",
-    prs_live:false, captains_call:[], underway:$underway, landed:[],
+    prs_live:false, captains_call:[], underway:$underway, landed:$landed,
     charted:$charted, charted_more:$more, charted_warning_more:$warning_more}' > "$data"
   PATH="$home/fakebin:$PATH" FM_HOME="$home" \
     FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data" \
@@ -73,9 +74,30 @@ render_board() {  # <home> <underway-json> <charted-json> [charted_more] [charte
     || fail "the built board could not be rendered"
 }
 
-# Build the board from <charted-json> alone and return what the renderer produced.
+# Build the board from <charted-json> and return what the renderer produced.
 render() {  # <home> <charted-json> [charted_more] [charted_warning_more]
-  render_board "$1" '[]' "$2" "${3:-0}" "${4:-0}"
+  render_sections "$1" '[]' '[]' "$2" "${3:-0}" "${4:-0}"
+}
+
+# Build the board from <underway-json> plus <charted-json> and return what the
+# renderer produced.
+render_board() {  # <home> <underway-json> <charted-json> [charted_more] [charted_warning_more]
+  render_sections "$1" "$2" '[]' "$3" "${4:-0}" "${5:-0}"
+}
+
+# Build a board carrying only the given Captain's Call cards.
+render_call() {  # <home> <captains-call-json>
+  local home=$1 call=$2 data="$1/payload.json"
+  jq -n --argjson call "$call" '{
+    schema:"fm-bearings-board.v1", home:"render-home", generated:"2026-08-26T00:00Z",
+    prs_live:false, captains_call:$call, underway:[], landed:[],
+    charted:[], charted_more:0, charted_warning_more:0}' > "$data"
+  PATH="$home/fakebin:$PATH" FM_HOME="$home" \
+    FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data" \
+    FM_PROCEVENT_CLAIM_ROOT="$home/procevent-claims" \
+    "$BOARD" build "$data" >/dev/null || fail "the board did not build"
+  node "$HARNESS" "$home/.lavish/bearings-board.html" \
+    || fail "the built board could not be rendered"
 }
 
 charted_next_count() {  # <render-json>
@@ -228,12 +250,107 @@ test_charted_rows_without_a_filed_date_follow_the_dated_rows_in_payload_order() 
   pass "charted rows with no filed date follow the dated rows in payload order"
 }
 
+# The captain reported Underway and Recently Landed titles cut off mid-word, so
+# every fleet section must hand the whole title to the row, untruncated. Whether
+# the wrapped line then clamps is a layout fact this shim cannot see, and the
+# renderer only tooltips what it has measured as clamped - so under the shim no
+# row carries one, which is what pins that tooltips are not set blanket-wide.
+test_every_fleet_section_renders_a_long_row_in_full() {
+  local home out long
+  home=$(make_home long-title)
+  long="Backend wave 1 (deliveries 50 through 74): rewriting the settlement ledger writer and backfilling every historic delivery record"
+  out=$(render_sections "$home" \
+    "$(jq -n --arg t "$long" '[
+      {id:"long-underway", repo:"quite-a-long-repository-name", state:"working",
+       name:$t, doing:"no-mistakes: review round 2", kind:"delivery"}]')" \
+    "$(jq -n --arg t "$long" '[
+      {id:"long-landed", repo:"quite-a-long-repository-name", what:$t,
+       owner:"firstmate"}]')" \
+    "$(jq -n --arg t "$long" '[
+      {id:"long-row", repo:"quite-a-long-repository-name", title:$t,
+       reason:"waiting on the currency follow-up", dispatchable:true}]')")
+  printf '%s' "$out" | jq -e '.error == ""' >/dev/null \
+    || fail "the board rendered its fail-closed error instead of the fleet: $out"
+  printf '%s' "$out" | jq -e --arg t "$long" '
+    [.underway[0], .landed[0], .charted[0]]
+    | length == 3
+      and (all(.title == $t))
+      and (all((.sub | length) > 0))
+  ' >/dev/null || fail "a fleet section truncated its long row: $out"
+  printf '%s' "$out" | jq -e '
+    [.underway[0], .landed[0], .charted[0]]
+    | all(.title_tooltip == "" and .sub_tooltip == "")
+  ' >/dev/null || fail "a row carried a tooltip the renderer never measured as clamped: $out"
+  pass "every fleet section renders a long row in full, without a blanket tooltip"
+}
+
 test_an_underway_row_leads_with_the_task_name_and_keeps_its_run_status
 test_an_underway_identifier_label_is_not_replaced_by_run_status
 test_charted_next_reads_newest_filed_first
 test_charted_rows_without_a_filed_date_follow_the_dated_rows_in_payload_order
+# The repository name is on every decision card and is the first thing read when
+# something needs the captain, but it is a single-line identifier the card clips.
+# The renderer must hand it over whole and tooltip it only when it measures as
+# truncated - which, with no layout engine here, is never.
+test_a_decision_card_carries_its_whole_repository_name() {
+  local home out repo
+  home=$(make_home decision-repo)
+  repo="quite-a-long-repository-name"
+  out=$(render_call "$home" "$(jq -n --arg r "$repo" '[
+    {key:"long-repo", type:"decision", repo:$r,
+     title:"Should the deprecated v1 webhook endpoint be removed now?",
+     about:"Two integrators have not answered the deprecation notice.",
+     decide:"Remove it now, or keep a flagged shim for one more release.",
+     options:[{value:"remove", label:"Remove it now"},
+              {value:"shim", label:"Keep a flagged shim"}]}]')")
+  printf '%s' "$out" | jq -e '.error == ""' >/dev/null \
+    || fail "the board rendered its fail-closed error instead of the decision card: $out"
+  printf '%s' "$out" | jq -e --arg r "$repo" '
+    (.decisions | length) == 1 and .decisions[0].repo == $r
+  ' >/dev/null || fail "a decision card truncated its repository name: $out"
+  printf '%s' "$out" | jq -e '.decisions[0].repo_tooltip == ""' >/dev/null \
+    || fail "a decision card carried a tooltip the renderer never measured as clipped: $out"
+  pass "a decision card carries its whole repository name, without a blanket tooltip"
+}
+
+# Withdrawing the dispatch bar and the stack nav is what keeps a dead Queue
+# button off a board with nothing to dispatch, so pin that the renderer marks
+# both away when there is nothing to act on, and only then - a renderer that
+# marked them away unconditionally would hide live controls instead.
+test_controls_are_withdrawn_only_when_there_is_nothing_to_act_on() {
+  local home out
+  home=$(make_home controls-idle)
+  out=$(render "$home" '[
+    {"id":"warn-only","repo":"sample","title":"Home unreadable","reason":"current home state unavailable","dispatchable":false,"kind":"warning"}
+  ]')
+  printf '%s' "$out" | jq -e '.controls.dispatch_hidden == true' >/dev/null \
+    || fail "a board with nothing dispatchable left its dispatch bar in place: $out"
+  printf '%s' "$out" | jq -e '.controls.stacknav_hidden == true' >/dev/null \
+    || fail "a board with an empty Captain's Call left its stack nav in place: $out"
+
+  home=$(make_home controls-live)
+  out=$(render "$home" '[
+    {"id":"real-queued","repo":"sample","title":"Queued work","reason":"queued behind the cutover","dispatchable":true}
+  ]')
+  printf '%s' "$out" | jq -e '.controls.dispatch_hidden == false' >/dev/null \
+    || fail "a board with dispatchable work withheld its dispatch bar: $out"
+
+  home=$(make_home controls-call)
+  out=$(render_call "$home" '[
+    {"key":"one-card", "type":"decision", "repo":"sample", "title":"Ship it?",
+     "about":"One card is enough to need the nav.", "decide":"Ship, or hold.",
+     "options":[{"value":"ship","label":"Ship it"},{"value":"hold","label":"Hold"}]}
+  ]')
+  printf '%s' "$out" | jq -e '.controls.stacknav_hidden == false' >/dev/null \
+    || fail "a board with a Captain's Call card withheld its stack nav: $out"
+  pass "the dispatch bar and stack nav are withdrawn only when there is nothing to act on"
+}
+
 test_a_warning_row_reads_as_a_repair_not_as_queued_work
 test_warnings_are_excluded_from_the_charted_next_count
 test_a_board_of_only_warnings_still_reports_nothing_queued
 test_omitted_warnings_never_count_as_more_queued
 test_an_omitted_kind_keeps_the_existing_queued_rendering
+test_every_fleet_section_renders_a_long_row_in_full
+test_a_decision_card_carries_its_whole_repository_name
+test_controls_are_withdrawn_only_when_there_is_nothing_to_act_on

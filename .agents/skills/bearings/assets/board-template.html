@@ -108,7 +108,10 @@ a { color: inherit; text-decoration: none; }
   line-height: 1; white-space: nowrap;
 }
 .fm-sign--eyebrow { color: var(--rust-500); }
-.fm-sign--muted { color: var(--ink-500); }
+/* the eyebrow label stays on one line, but its muted companion carries a
+   sentence ("2 items wait on you, captain") that must wrap rather than
+   push the section head - and the page - sideways in a narrow window */
+.fm-sign--muted { color: var(--ink-500); white-space: normal; line-height: 1.3; min-width: 0; }
 .fm-sign svg { width: 14px; height: 14px; }
 .fm-ico { width: 1.15em; height: 1.15em; flex: none; vertical-align: -0.18em; }
 
@@ -133,7 +136,14 @@ a { color: inherit; text-decoration: none; }
 }
 .bb-brand__disc svg { width: 60%; height: 60%; }
 .bb-brand__wm { font-family: var(--font-display); font-size: 23px; color: var(--text-strong); line-height: 1; }
-.bb-meta-mono { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--text-faint); white-space: nowrap; }
+/* The provenance stamp is the board's own identity and generation time, and it
+   sits in a right-aligned footer. Held on one line it does not ellipsise - it
+   overhangs to the LEFT, so below roughly 370px the schema name is cut off the
+   viewport with nothing to show it happened. Wrapping keeps both halves on
+   screen; the break lands on the separator, and anywhere is the last resort
+   that keeps a single long token from pushing the footer sideways. */
+.bb-meta-mono { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--text-faint);
+  min-width: 0; overflow-wrap: anywhere; text-align: right; }
 
 .bb-main {
   max-width: var(--container-app); margin: 0 auto;
@@ -152,13 +162,20 @@ a { color: inherit; text-decoration: none; }
 .bb-stat__label { font-family: var(--font-mono); font-size: var(--fs-2xs); letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); }
 
 .bb-section { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
-.bb-section__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.bb-section__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
 .bb-cols { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 22px; }
 
 /* ---- Captain's Call: one card at a time, dealt off a visible stack ---- */
 .bb-callwrap { display: flex; flex-direction: column; gap: 12px; }
 /* extra top margin clears the pile edges that poke below the active card */
 .bb-stacknav { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+/* Both bars are hidden through the `hidden` attribute - the stack nav when the
+   Captain's Call deck is empty, the dispatch bar when nothing is dispatchable -
+   but an author-origin `display: flex` beats the UA stylesheet's
+   `[hidden] { display: none }`, so without this the captain sees a "nothing
+   picked" bar and a Queue button that is neither disabled nor wired to a
+   handler. Same pattern the decision card already uses one section below. */
+.bb-stacknav[hidden], .bb-dispatch[hidden] { display: none; }
 .bb-stacknav__count { flex: 1 1 auto; font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--text-muted); }
 .bb-stacknav__btn {
   display: inline-grid; place-items: center; width: 34px; height: 34px; cursor: pointer;
@@ -189,16 +206,29 @@ a { color: inherit; text-decoration: none; }
 .bb-decision { display: flex; flex-direction: column; }
 .bb-decision__pad { padding: 18px 20px 16px; display: flex; flex-direction: column; gap: 12px; flex: 1; }
 .bb-decision__top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.bb-decision__repo { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-faint); white-space: nowrap; }
-.bb-decision__title { margin: 0; font-size: var(--fs-h4); font-weight: 800; color: var(--text-strong); line-height: 1.25; }
-.bb-decision__detail { margin: 0; font-size: var(--fs-sm); color: var(--text-muted); line-height: 1.45; }
+/* A repo name is an identifier, so it stays on one line - but it is also the
+   first thing read on a decision card, and .fm-card clips with overflow:hidden,
+   so without min-width:0 the flex child refuses to shrink and the tail is cut
+   at the card edge with nothing to show it happened. Shrinking plus an ellipsis
+   makes the truncation visible, and the measured tooltip carries the full name. */
+.bb-decision__repo { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-faint);
+  white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.bb-decision__title { margin: 0; font-size: var(--fs-h4); font-weight: 800; color: var(--text-strong); line-height: 1.25;
+  overflow-wrap: anywhere; }
+.bb-decision__detail { margin: 0; font-size: var(--fs-sm); color: var(--text-muted); line-height: 1.45;
+  overflow-wrap: anywhere; }
 /* about / decide / recommended - three scannable context rows */
 .bb-ctx { display: flex; flex-direction: column; gap: 6px; }
 .bb-ctx__row { display: grid; grid-template-columns: 78px minmax(0,1fr); gap: 8px; align-items: baseline; }
 .bb-ctx__k { font-family: var(--font-mono); font-size: var(--fs-2xs); letter-spacing: 0.04em;
   text-transform: uppercase; color: var(--text-faint); white-space: nowrap; }
-.bb-ctx__v { font-size: var(--fs-sm); color: var(--text-muted); line-height: 1.4; min-width: 0; }
-.bb-decision__link { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--ocean-600); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+.bb-ctx__v { font-size: var(--fs-sm); color: var(--text-muted); line-height: 1.4; min-width: 0; overflow-wrap: anywhere; }
+/* the full PR URL is the point of this line, so it wraps across two lines rather
+   than clipping to one, and keeps its full text in the tooltip when even two
+   lines are not enough; anywhere-breaking keeps a long URL inside the card */
+.bb-decision__link { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--ocean-600); font-weight: 600;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2;
+  overflow: hidden; overflow-wrap: anywhere; }
 .bb-decision__link:hover { text-decoration: underline; }
 /* One rhythm owner: the answer form is a flex column with the same 12px gap as
    the card pad, and the foot rides margin-top:auto so every Queue answer button
@@ -213,8 +243,8 @@ a { color: inherit; text-decoration: none; }
 .bb-opt:hover { border-color: var(--ink-300); }
 .bb-opt input { accent-color: var(--rust-500); margin-top: 3px; flex: none; }
 .bb-opt__body { min-width: 0; flex: 1 1 auto; }
-.bb-opt__label { display: block; font-size: var(--fs-sm); font-weight: 700; color: var(--text-strong); line-height: 1.3; }
-.bb-opt__hint { display: block; font-size: var(--fs-xs); color: var(--text-muted); line-height: 1.35; margin-top: 1px; }
+.bb-opt__label { display: block; font-size: var(--fs-sm); font-weight: 700; color: var(--text-strong); line-height: 1.3; overflow-wrap: anywhere; }
+.bb-opt__hint { display: block; font-size: var(--fs-xs); color: var(--text-muted); line-height: 1.35; margin-top: 1px; overflow-wrap: anywhere; }
 .bb-opt__rec { flex: none; align-self: center; font-size: var(--fs-2xs); font-weight: 800; text-transform: uppercase;
   letter-spacing: 0.07em; color: var(--navy-700); background: var(--gold-300);
   border: 1px solid var(--gold-600); border-radius: var(--radius-xs); padding: 3px 7px 2px; }
@@ -235,16 +265,27 @@ a { color: inherit; text-decoration: none; }
 
 /* ---- compact rows (Underway / Landed / Charted) ---- */
 .bb-rows { display: flex; flex-direction: column; }
+/* A row is as tall as its wrapped title, so its controls ride the top and sit
+   beside the title's FIRST line; centring them would float the checkbox, the
+   landed check and the state badge halfway down a four-line row, away from the
+   item they belong to. */
 .bb-row {
-  display: flex; align-items: center; gap: 12px; padding: 11px 18px;
+  display: flex; align-items: flex-start; gap: 12px; padding: 11px 18px;
   border-top: 1px solid var(--border-soft); min-width: 0;
 }
 .bb-row:first-child { border-top: none; }
 .bb-row__main { min-width: 0; flex: 1 1 auto; }
+/* A row title wraps to however many lines it needs, at every width, and is
+   never clipped or ellipsised: a title cut mid-word tells the reader nothing
+   about the work, and a line ceiling only moves that cut to a narrower board.
+   A taller row on a narrow board is the right outcome. overflow-wrap breaks an
+   unbroken token (a long branch or identifier) rather than letting it push past
+   the card, with word-break as the fallback where `anywhere` is unsupported. */
 .bb-row__title { font-size: var(--fs-sm); font-weight: 700; color: var(--text-strong); line-height: 1.3;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  overflow-wrap: anywhere; word-break: break-word; }
 .bb-row__sub { font-size: var(--fs-xs); color: var(--text-muted); line-height: 1.3; margin-top: 1px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2;
+  overflow: hidden; overflow-wrap: anywhere; }
 .bb-row__id { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-faint); white-space: nowrap; }
 .bb-row__pr { font-family: var(--font-mono); font-size: var(--fs-xs); font-weight: 600; color: var(--ocean-600); white-space: nowrap; }
 .bb-row__pr:hover { text-decoration: underline; }
@@ -256,18 +297,23 @@ a { color: inherit; text-decoration: none; }
   font-size: var(--fs-xs); font-weight: 800; color: var(--text-muted);
   border: 1.5px dashed var(--ink-300); border-radius: var(--radius-pill); padding: 5px 12px; width: fit-content;
 }
-.bb-empty { padding: 18px; font-size: var(--fs-sm); color: var(--text-muted); }
+.bb-empty { padding: 18px; font-size: var(--fs-sm); color: var(--text-muted); overflow-wrap: anywhere; }
 
 /* ---- Charted Next dispatch picker ---- */
-/* margin:0 kills the UA default checkbox margin so picker rows and spacer rows
-   share one text left edge */
-.bb-pick { accent-color: var(--rust-500); width: 16px; height: 16px; flex: none; cursor: pointer; margin: 0; }
+/* zero side margins kill the UA default so picker rows and spacer rows share one
+   text left edge; the 2px top centres the 16px box on the title's first line */
+.bb-pick { accent-color: var(--rust-500); width: 16px; height: 16px; flex: none; cursor: pointer; margin: 2px 0 0; }
 .bb-pick-spacer { width: 16px; flex: none; }
+/* The dispatch button carries a fixed action label that must not be broken up,
+   so on a narrow board the label plus the count cannot share one line and the
+   row was scrolling sideways with the button cut at the card edge. Wrapping
+   drops the button to its own line instead, and min-width:0 lets the count
+   give up its space first so the wrap only happens when it is really needed. */
 .bb-dispatch {
-  display: flex; align-items: center; gap: 12px; padding: 12px 18px;
+  display: flex; align-items: center; gap: 12px; padding: 12px 18px; flex-wrap: wrap;
   border-top: 1.5px solid var(--border-default); background: var(--paper-100);
 }
-.bb-dispatch__count { flex: 1 1 auto; font-size: var(--fs-xs); font-weight: 800; color: var(--text-muted);
+.bb-dispatch__count { flex: 1 1 auto; min-width: 0; font-size: var(--fs-xs); font-weight: 800; color: var(--text-muted);
   text-transform: uppercase; letter-spacing: 0.07em; }
 
 .bb-foot { display: flex; justify-content: flex-end; border-top: 1px solid var(--border-default); padding-top: 14px; }
@@ -435,6 +481,62 @@ __FM_BEARINGS_BOARD_DATA__
     return n;
   }
   function badge(tone, text) { return el("span", "fm-badge fm-badge--" + tone, text); }
+  /* Clamped text hides its tail, so it - and only it - carries the full text as
+     its own tooltip. A line that already shows everything gets none, or the
+     board would pop a tooltip repeating fully visible text on every row.
+     Whether a line is clamped is a layout fact, so it is measured after layout
+     rather than guessed from the string; where nothing can be measured the line
+     stays quiet. */
+  var clampWatch = [];
+  function watchClamp(n) { clampWatch.push(n); return n; }
+  function rowText(cls, text) {
+    var n = el("div", cls, text);
+    return text != null ? watchClamp(n) : n;
+  }
+  /* Clamping hides whole lines, so the overflow of a genuinely clipped line box
+     is at least a full line. A bare `scrollHeight > clientHeight` is not that
+     test: these rows have fractional line-heights (19.5px), so a fully visible
+     two-line title measures 40 against 39 purely from rounding and would be
+     tooltipped even though every word of it is on screen. Half a line is
+     comfortably above that rounding noise and far below one hidden line. */
+  function isClamped(n) {
+    /* A single-line identifier truncates sideways with an ellipsis, so width
+       overflow counts too; 1px absorbs sub-pixel rounding. */
+    if (n.scrollWidth - n.clientWidth > 1) return true;
+    var overflow = n.scrollHeight - n.clientHeight;
+    if (!(overflow > 0)) return false;
+    var line = 0;
+    if (typeof getComputedStyle === "function") {
+      line = parseFloat(getComputedStyle(n).lineHeight);
+    }
+    return overflow > (line > 0 ? line / 2 : 2);
+  }
+  /* Idempotent on purpose: a line that no longer measures as clamped gives its
+     tooltip back, so a verdict taken against one layout never outlives it. */
+  function refreshClampTooltips() {
+    clampWatch.forEach(function (n) {
+      if (isClamped(n)) n.title = n.textContent;
+      else if (n.title) n.title = "";
+    });
+  }
+  /* The board paints in fallback fonts first (the Google Fonts @import uses
+     display=swap, which never blocks), so the first measurement is taken
+     against a layout the reader never sees and the webfont swap silently
+     reflows every row. A column count change does the same at the 900px
+     breakpoint. Both re-measure; both are guarded, because the DOM shim in
+     tests/assets/board-render-harness.mjs has neither document.fonts nor a real
+     window, and an unguarded call there would fail the whole render. */
+  function watchClampReflows() {
+    if (document.fonts && document.fonts.ready && document.fonts.ready.then) {
+      document.fonts.ready.then(refreshClampTooltips);
+    }
+    if (typeof window === "undefined" || !window.addEventListener) return;
+    var pending = null;
+    window.addEventListener("resize", function () {
+      if (pending) clearTimeout(pending);
+      pending = setTimeout(function () { pending = null; refreshClampTooltips(); }, 150);
+    });
+  }
   /* Warnings ride the charted feed for layout only; they are alarms, not work,
      so every count of queued work excludes them. */
   function isWarning(t) { return t && t.kind === "warning"; }
@@ -494,7 +596,7 @@ __FM_BEARINGS_BOARD_DATA__
       top.appendChild(badge(item.risk === "low" ? "neutral" : "warn", "risk " + item.risk));
     } else {
       top.appendChild(badge("solid", "decision"));
-      top.appendChild(el("span", "bb-decision__repo", item.repo));
+      top.appendChild(watchClamp(el("span", "bb-decision__repo", item.repo)));
     }
     pad.appendChild(top);
 
@@ -503,7 +605,7 @@ __FM_BEARINGS_BOARD_DATA__
     if (item.type === "merge") {
       if (item.detail) pad.appendChild(el("p", "bb-decision__detail", item.detail));
       if (item.pr_url) {
-        var pr = el("a", "bb-decision__link", item.pr_url);
+        var pr = watchClamp(el("a", "bb-decision__link", item.pr_url));
         pr.href = item.pr_url; pr.target = "_blank"; pr.rel = "noopener";
         pad.appendChild(pr);
       }
@@ -599,6 +701,9 @@ __FM_BEARINGS_BOARD_DATA__
   var stackPrev = document.getElementById("bb-stack-prev");
   var stackNext = document.getElementById("bb-stack-next");
   var stackNav = stackCount.parentNode;
+  /* nothing to page through means no pager, and the renderer states that for
+     both cases rather than leaving the live case to a markup default */
+  stackNav.hidden = !cards.length;
   function showCard(i) {
     active = Math.max(0, Math.min(cards.length - 1, i));
     cards.forEach(function (c, j) { c.hidden = j !== active; });
@@ -610,6 +715,9 @@ __FM_BEARINGS_BOARD_DATA__
     /* the pile thins as the deal approaches the bottom */
     deck.classList.toggle("bb-call--penult", active === cards.length - 2);
     deck.classList.toggle("bb-call--last", active === cards.length - 1);
+    /* a hidden card has no layout to measure, so the card just dealt is the
+       first chance to tell whether its link is clamped */
+    refreshClampTooltips();
   }
   if (cards.length) {
     stackPrev.addEventListener("click", function () { showCard(active - 1); });
@@ -618,7 +726,6 @@ __FM_BEARINGS_BOARD_DATA__
   } else {
     deck.classList.add("bb-call--empty");
     deck.appendChild(el("div", "bb-empty", "Nothing needs your action right now."));
-    stackNav.hidden = true;
   }
 
   /* Underway */
@@ -630,10 +737,10 @@ __FM_BEARINGS_BOARD_DATA__
     var main = el("div", "bb-row__main");
     /* the snapshot's durable name-or-id label leads the row so a scan says
        WHICH task this is; the run status keeps its place on the second line */
-    main.appendChild(el("div", "bb-row__title", t.name));
+    main.appendChild(rowText("bb-row__title", t.name));
     /* captain-facing rows name the repo; the internal task id shows only when
        no repo is known */
-    main.appendChild(el("div", "bb-row__sub",
+    main.appendChild(rowText("bb-row__sub",
       t.doing + " · " + t.kind + " · " + (t.repo || t.id)));
     row.appendChild(main);
     uw.appendChild(row);
@@ -648,8 +755,8 @@ __FM_BEARINGS_BOARD_DATA__
     chk.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
     row.appendChild(chk);
     var main = el("div", "bb-row__main");
-    main.appendChild(el("div", "bb-row__title", t.what));
-    main.appendChild(el("div", "bb-row__sub", (t.repo || t.id) + " · " + t.owner));
+    main.appendChild(rowText("bb-row__title", t.what));
+    main.appendChild(rowText("bb-row__sub", (t.repo || t.id) + " · " + t.owner));
     row.appendChild(main);
     if (t.pr_url) {
       var a = el("a", "bb-row__pr", "#" + t.pr_url.split("/").pop());
@@ -698,10 +805,10 @@ __FM_BEARINGS_BOARD_DATA__
       row.appendChild(el("span", "bb-pick-spacer"));
     }
     var main = el("div", "bb-row__main");
-    main.appendChild(el("div", "bb-row__title", t.title));
+    main.appendChild(rowText("bb-row__title", t.title));
     /* second line keeps the title uncrowded in the half-width column */
     var chSub = t.repo || t.id;
-    main.appendChild(el("div", "bb-row__sub", t.reason ? t.reason + " · " + chSub : chSub));
+    main.appendChild(rowText("bb-row__sub", t.reason ? t.reason + " · " + chSub : chSub));
     row.appendChild(main);
     if (isWarning(t)) row.appendChild(badge("danger", "needs repair"));
     else if (t.reason) row.appendChild(badge("warn", "waiting"));
@@ -718,8 +825,11 @@ __FM_BEARINGS_BOARD_DATA__
     ch.appendChild(el("span", "bb-morechip", "+" + chartedMoreWarnings + " more repair warning" + (chartedMoreWarnings === 1 ? "" : "s") + " - ask firstmate for the full chart"));
   }
 
+  /* The markup ships the bar hidden so it never flashes before this runs, but
+     the renderer owns the state either way: stating it here keeps the invariant
+     in one place instead of splitting it between markup and an unhide. */
+  bar.hidden = !anyPickable;
   if (anyPickable) {
-    bar.hidden = false;
     refreshBar();
     barBtn.addEventListener("click", function () {
       var ids = pickedIds();
@@ -740,6 +850,9 @@ __FM_BEARINGS_BOARD_DATA__
       bar.classList.add("is-queued");
     });
   }
+
+  refreshClampTooltips();
+  watchClampReflows();
   } catch (e) {
     renderBoardError("The board data could not be rendered");
   }
