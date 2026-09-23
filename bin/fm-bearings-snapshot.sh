@@ -291,6 +291,12 @@ $(printf '%s' "$SNAP" | jq -r '.tasks[] | select(.kind != "secondmate") | .paths
 EOF
 
     for repo in $repos; do PR_REPOS_TOTAL=$((PR_REPOS_TOTAL + 1)); done
+    # A PR head names a task by its worker-branch prefix. Humans branch under
+    # feature/** too (that is why the worker prefix moved there), so a feature/<id>
+    # head is a task PR only when <id> has a record this snapshot already holds
+    # (in-flight task meta or any backlog row); otherwise its task stays "-".
+    # The legacy fm/ prefix was firstmate-only and still maps unconditionally.
+    # tests/fm-bearings-snapshot.test.sh pins both cases.
     task_ids_json=$(printf '%s' "$SNAP" | jq -c '
       [ (.tasks[].id | strings), (.backlog.records[].id | strings) ] | unique')
     nrepos=0; npr=0; nwarn=0; ncapped=0; rows='[]'
