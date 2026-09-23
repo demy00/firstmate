@@ -21,9 +21,6 @@
 #   fm_task_branch_candidates <task-id>
 #     Print every branch name that may hold <task-id>'s work, one per line,
 #     current convention first, then each legacy prefix.
-#   fm_task_branch_id <branch>
-#     Print the task id encoded in <branch> when it carries a known worker
-#     prefix; return 1 without output for any other branch.
 #   fm_task_branch_resolve <git-dir> <task-id>
 #     Print the first candidate that exists as a local branch in <git-dir>;
 #     return 1 without output when none does.
@@ -46,19 +43,6 @@ fm_task_branch_candidates() {
   for prefix in $FM_TASK_BRANCH_LEGACY_PREFIXES; do
     printf '%s/%s\n' "$prefix" "$id"
   done
-}
-
-fm_task_branch_id() {
-  local branch=$1 prefix
-  for prefix in "$FM_TASK_BRANCH_PREFIX" $FM_TASK_BRANCH_LEGACY_PREFIXES; do
-    case "$branch" in
-      "$prefix"/?*)
-        printf '%s\n' "${branch#"$prefix"/}"
-        return 0
-        ;;
-    esac
-  done
-  return 1
 }
 
 fm_task_branch_resolve() {

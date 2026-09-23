@@ -36,30 +36,6 @@ test_candidates_list_current_name_first_then_legacy() {
   pass "fm_task_branch_candidates lists feature/<id> before fm/<id>"
 }
 
-test_branch_id_parses_both_prefixes_and_nothing_else() {
-  local out
-  out=$(fm_task_branch_id feature/build-widget-a1) \
-    || fail "feature/<id> must parse to its task id"
-  [ "$out" = build-widget-a1 ] || fail "feature/<id> parsed to '$out'"
-  out=$(fm_task_branch_id fm/build-widget-a1) \
-    || fail "fm/<id> must still parse to its task id"
-  [ "$out" = build-widget-a1 ] || fail "fm/<id> parsed to '$out'"
-  out=$(fm_task_branch_id feature/fm/nested) \
-    || fail "feature/fm/nested must parse under the current prefix"
-  [ "$out" = fm/nested ] || fail "feature/fm/nested parsed to '$out', not the current-prefix remainder"
-  if out=$(fm_task_branch_id main); then
-    fail "main must not parse as a worker branch, got '$out'"
-  fi
-  [ -z "$out" ] || fail "a non-worker branch must print nothing, got '$out'"
-  if out=$(fm_task_branch_id feature/); then
-    fail "a bare prefix must not parse as a worker branch, got '$out'"
-  fi
-  if out=$(fm_task_branch_id features/x); then
-    fail "a prefix that merely starts with the worker prefix must not parse, got '$out'"
-  fi
-  pass "fm_task_branch_id recovers the task id from feature/ and fm/ branches only"
-}
-
 test_prefixes_json_matches_shell_order() {
   local out
   out=$(fm_task_branch_prefixes_json)
@@ -133,7 +109,6 @@ test_merge_local_lands_both_branch_names() {
 
 test_new_branch_is_named_feature
 test_candidates_list_current_name_first_then_legacy
-test_branch_id_parses_both_prefixes_and_nothing_else
 test_prefixes_json_matches_shell_order
 test_resolve_prefers_feature_then_falls_back_to_fm
 test_merge_local_lands_both_branch_names

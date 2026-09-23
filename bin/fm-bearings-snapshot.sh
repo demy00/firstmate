@@ -291,6 +291,8 @@ $(printf '%s' "$SNAP" | jq -r '.tasks[] | select(.kind != "secondmate") | .paths
 EOF
 
     for repo in $repos; do PR_REPOS_TOTAL=$((PR_REPOS_TOTAL + 1)); done
+    task_ids_json=$(printf '%s' "$SNAP" | jq -c '
+      [ (.tasks[].id | strings), (.backlog.records[].id | strings) ] | unique')
     nrepos=0; npr=0; nwarn=0; ncapped=0; rows='[]'
     pr_fetch_limit=$((FM_BEARINGS_PR_LIMIT + 1))
     for repo in $repos; do
@@ -301,13 +303,17 @@ EOF
         || { nwarn=$((nwarn + 1)); continue; }
       [ -n "$out" ] || out='[]'
       repo_result=$(printf '%s' "$out" | jq --arg repo "$repo" --argjson limit "$FM_BEARINGS_PR_LIMIT" \
-        --argjson prefixes "$TASK_BRANCH_PREFIXES_JSON" '
+        --argjson prefixes "$TASK_BRANCH_PREFIXES_JSON" --arg current "$FM_TASK_BRANCH_PREFIX" \
+        --argjson task_ids "$task_ids_json" '
         [ .[] | {
           num:(.number|tostring),
           repo:$repo,
           task:((.headRefName // "") as $h
             | ([$prefixes[] | . as $pre | select(($h | startswith($pre + "/")) and (($h | length) > ($pre | length) + 1))] | first) as $p
-            | if $p == null then "-" else ($h | ltrimstr($p + "/")) end),
+            | if $p == null then "-"
+              else ($h | ltrimstr($p + "/")) as $id
+                | if $p == $current and (any($task_ids[]; . == $id) | not) then "-" else $id end
+              end),
           url:(.url // "-"),
           review:(.reviewDecision // "none"),
           mergeable:(.mergeable // "UNKNOWN"),

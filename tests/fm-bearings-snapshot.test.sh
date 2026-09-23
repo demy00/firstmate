@@ -59,6 +59,12 @@ if [ "${FAKE_GH_LEGACY_BRANCH:-0}" = 1 ]; then
 JSON
   exit 0
 fi
+if [ "${FAKE_GH_FEATURE_HEADS:-0}" = 1 ]; then
+  cat <<'JSON'
+[{"number":11,"title":"Login redesign","url":"https://github.com/kunchenguid/firstmate/pull/11","headRefName":"feature/login-redesign","reviewDecision":"","mergeable":"MERGEABLE","statusCheckRollup":[]},{"number":12,"title":"Real queued work","url":"https://github.com/kunchenguid/firstmate/pull/12","headRefName":"feature/live-gate","reviewDecision":"","mergeable":"MERGEABLE","statusCheckRollup":[]},{"number":13,"title":"Landed thing","url":"https://github.com/kunchenguid/firstmate/pull/13","headRefName":"feature/done-a","reviewDecision":"","mergeable":"MERGEABLE","statusCheckRollup":[]}]
+JSON
+  exit 0
+fi
 if [ "${FAKE_GH_MANY:-0}" = 1 ]; then
   cat <<'JSON'
 [{"number":1,"title":"One","url":"https://github.com/acme/repo/pull/1","headRefName":"feature/one","reviewDecision":"","mergeable":"MERGEABLE","statusCheckRollup":[]},{"number":2,"title":"Two","url":"https://github.com/acme/repo/pull/2","headRefName":"feature/two","reviewDecision":"","mergeable":"MERGEABLE","statusCheckRollup":[]},{"number":3,"title":"Three","url":"https://github.com/acme/repo/pull/3","headRefName":"feature/three","reviewDecision":"","mergeable":"MERGEABLE","statusCheckRollup":[]}]
@@ -1440,6 +1446,25 @@ test_include_prs_maps_a_legacy_fm_branch_to_its_task() {
     .candidate_prs | any(.[]; .num == "9" and .task == "ship-task")
   ' >/dev/null || fail "a PR on an fm/<id> branch must still cross-reference its task: $json"
   pass "--include-prs maps a PR on the earlier fm/ worker branch back to its task"
+}
+
+# Humans branch under feature/** too (that is why the worker prefix moved
+# there), so a feature/<id> head names a task only when this home has a record
+# of <id>: task metadata or a backlog row in any section. The default fixture
+# pins the in-flight case (feature/ship-task); this one pins queued and done
+# records, and a feature/ head with no record at all.
+test_include_prs_labels_a_feature_head_only_when_a_task_record_matches() {
+  local home fakebin json
+  home=$(make_home prs-feature-heads); write_fixture "$home"
+  fakebin=$(make_fakebin "$home"); : > "$home/net.log"
+  json=$(FAKE_GH_FEATURE_HEADS=1 run "$home" "$fakebin" --include-prs --json)
+  printf '%s' "$json" | jq -e '
+    .candidate_prs
+    | any(.[]; .num == "11" and .task == "-")
+      and any(.[]; .num == "12" and .task == "live-gate")
+      and any(.[]; .num == "13" and .task == "done-a")
+  ' >/dev/null || fail "a feature/<id> head must map to a task only when <id> has a record: $json"
+  pass "--include-prs labels a feature/ head as a task PR only when a task record matches its id"
 }
 
 test_partial_github_failure_degrades() {
@@ -3384,6 +3409,7 @@ test_report_pointers_surface
 test_queued_item_prose_never_hides_it
 test_include_prs_is_the_only_fetch_path
 test_include_prs_maps_a_legacy_fm_branch_to_its_task
+test_include_prs_labels_a_feature_head_only_when_a_task_record_matches
 test_partial_github_failure_degrades
 test_perl_fallback_bounds_github_call
 test_section_caps_and_expansion_flags
