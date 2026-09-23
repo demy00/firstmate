@@ -7,7 +7,8 @@
 # data/<task-id>/brief.md for future relaunches, and prints the fm-send.sh command
 # that delivers it to the current worker. Those instructions carry the
 # scratch-state inventory, the clean
-# default-branch base, the fm/<task-id> branch, and - rendered from
+# default-branch base, the worker branch (bin/fm-task-branch-lib.sh owns its
+# name), and - rendered from
 # bin/fm-dod-lib.sh, the single owner an ordinary ship brief also uses - the
 # mode-specific Definition of done, so a promoted worker receives exactly the same
 # delivery contract as a briefed one, including the no-mistakes mode's ask-user
@@ -100,6 +101,7 @@ esac
 
 ID=${POS[0]}
 fm_task_id_creation_valid "$ID" || { echo "error: invalid task id" >&2; exit 2; }
+TASK_BRANCH=$(fm_task_branch "$ID")
 CONTROL_LOCK="$STATE/.control-$ID.lock"
 CONTROL_LOCK_HELD=0
 META_LOCK=
@@ -179,10 +181,10 @@ if [ "$MODE" = no-mistakes ]; then
   PROMOTION_ASK_USER_BLOCK=$(fm_ask_user_escalation_block "$DATA" "$ID")
 fi
 IFS= read -r -d '' PROMOTION_SHIP_SPEC <<EOF || true
-If these promotion steps were already completed before a relaunch, preserve the existing \`fm/$ID\` branch and continue from its current state; do not repeat them destructively.
+If these promotion steps were already completed before a relaunch, preserve the existing \`$TASK_BRANCH\` branch and continue from its current state; do not repeat them destructively.
 1. **Verify isolation before anything else.** Run \`pwd -P\` and \`git rev-parse --show-toplevel\`; both must resolve to the disposable task worktree you were launched in, such as a treehouse pool path or an Orca-managed worktree, not the primary checkout firstmate operates from. If either does not resolve to the worktree you were launched in, stop and escalate to firstmate.
 2. Inventory this worktree's scratch state with \`git status\` and \`git log\` before changing anything.
-3. Return to a clean default-branch base, then create your branch: \`git checkout -b fm/$ID\`.
+3. Return to a clean default-branch base, then create your branch: \`git checkout -b $TASK_BRANCH\`.
 4. Carry over only the intended fix changes. Leave scratch commits, debug edits, and experiment files behind.
 5. If you reproduced a bug, turn that reproduction into a regression test.
 6. Treat the scout-time Firstmate spec and any unmarked legacy \`# Task\` text as investigation context, not captain intent or current ship-time instructions.

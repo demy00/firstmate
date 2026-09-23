@@ -101,6 +101,10 @@ FLEET="$SCRIPT_DIR/fm-fleet-snapshot.sh"
 # shellcheck source=bin/fm-landed-lib.sh
 # shellcheck disable=SC1091
 . "$SCRIPT_DIR/fm-landed-lib.sh"  # FM_LANDED_JQ_DEFS: the shared landed selector
+# shellcheck source=bin/fm-task-branch-lib.sh
+# shellcheck disable=SC1091
+. "$SCRIPT_DIR/fm-task-branch-lib.sh"  # the worker branch prefixes that map a PR head back to its task
+TASK_BRANCH_PREFIXES_JSON=$(fm_task_branch_prefixes_json)
 
 # Bounds (overridable for tests / large fleets).
 FM_BEARINGS_LANDED=${FM_BEARINGS_LANDED:-6}
@@ -296,11 +300,14 @@ EOF
         --json number,title,url,headRefName,reviewDecision,mergeable,statusCheckRollup 2>/dev/null) \
         || { nwarn=$((nwarn + 1)); continue; }
       [ -n "$out" ] || out='[]'
-      repo_result=$(printf '%s' "$out" | jq --arg repo "$repo" --argjson limit "$FM_BEARINGS_PR_LIMIT" '
+      repo_result=$(printf '%s' "$out" | jq --arg repo "$repo" --argjson limit "$FM_BEARINGS_PR_LIMIT" \
+        --argjson prefixes "$TASK_BRANCH_PREFIXES_JSON" '
         [ .[] | {
           num:(.number|tostring),
           repo:$repo,
-          task:(if (.headRefName // "" | startswith("fm/")) then (.headRefName | ltrimstr("fm/")) else "-" end),
+          task:((.headRefName // "") as $h
+            | ([$prefixes[] | . as $pre | select(($h | startswith($pre + "/")) and (($h | length) > ($pre | length) + 1))] | first) as $p
+            | if $p == null then "-" else ($h | ltrimstr($p + "/")) end),
           url:(.url // "-"),
           review:(.reviewDecision // "none"),
           mergeable:(.mergeable // "UNKNOWN"),

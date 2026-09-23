@@ -53,14 +53,20 @@ SH
 echo "gh $*" >> "$NET_LOG"
 if [ "${FAKE_GH_FAIL:-0}" = 1 ]; then exit 1; fi
 if [ "${FAKE_GH_SLEEP:-0}" = 1 ]; then sleep 30; fi
+if [ "${FAKE_GH_LEGACY_BRANCH:-0}" = 1 ]; then
+  cat <<'JSON'
+[{"number":9,"title":"Ship the thing","url":"https://github.com/kunchenguid/firstmate/pull/9","headRefName":"fm/ship-task","reviewDecision":"APPROVED","mergeable":"MERGEABLE","statusCheckRollup":[{"conclusion":"SUCCESS","status":"COMPLETED"}]}]
+JSON
+  exit 0
+fi
 if [ "${FAKE_GH_MANY:-0}" = 1 ]; then
   cat <<'JSON'
-[{"number":1,"title":"One","url":"https://github.com/acme/repo/pull/1","headRefName":"fm/one","reviewDecision":"","mergeable":"MERGEABLE","statusCheckRollup":[]},{"number":2,"title":"Two","url":"https://github.com/acme/repo/pull/2","headRefName":"fm/two","reviewDecision":"","mergeable":"MERGEABLE","statusCheckRollup":[]},{"number":3,"title":"Three","url":"https://github.com/acme/repo/pull/3","headRefName":"fm/three","reviewDecision":"","mergeable":"MERGEABLE","statusCheckRollup":[]}]
+[{"number":1,"title":"One","url":"https://github.com/acme/repo/pull/1","headRefName":"feature/one","reviewDecision":"","mergeable":"MERGEABLE","statusCheckRollup":[]},{"number":2,"title":"Two","url":"https://github.com/acme/repo/pull/2","headRefName":"feature/two","reviewDecision":"","mergeable":"MERGEABLE","statusCheckRollup":[]},{"number":3,"title":"Three","url":"https://github.com/acme/repo/pull/3","headRefName":"feature/three","reviewDecision":"","mergeable":"MERGEABLE","statusCheckRollup":[]}]
 JSON
   exit 0
 fi
 cat <<'JSON'
-[{"number":9,"title":"Ship the thing","url":"https://github.com/kunchenguid/firstmate/pull/9","headRefName":"fm/ship-task","reviewDecision":"APPROVED","mergeable":"MERGEABLE","statusCheckRollup":[{"conclusion":"SUCCESS","status":"COMPLETED"}]}]
+[{"number":9,"title":"Ship the thing","url":"https://github.com/kunchenguid/firstmate/pull/9","headRefName":"feature/ship-task","reviewDecision":"APPROVED","mergeable":"MERGEABLE","statusCheckRollup":[{"conclusion":"SUCCESS","status":"COMPLETED"}]}]
 JSON
 SH
   cat > "$fb/gh-axi" <<'SH'
@@ -1420,6 +1426,20 @@ test_include_prs_is_the_only_fetch_path() {
     .candidate_prs | any(.[]; .num == "9" and .task == "ship-task" and .checks == "passing" and .review == "APPROVED")
   ' >/dev/null || fail "candidate_prs must carry the fetched PR cross-referenced to its task: $json"
   pass "--include-prs is the only path that fetches, and it enriches correctly"
+}
+
+# A PR is cross-referenced to its task by its head branch name, so the board
+# must recognise the earlier fm/<id> worker branch a still-running lane owns
+# exactly as it recognises the current feature/<id> one (the default fixture).
+test_include_prs_maps_a_legacy_fm_branch_to_its_task() {
+  local home fakebin json
+  home=$(make_home prs-legacy); write_fixture "$home"
+  fakebin=$(make_fakebin "$home"); : > "$home/net.log"
+  json=$(FAKE_GH_LEGACY_BRANCH=1 run "$home" "$fakebin" --include-prs --json)
+  printf '%s' "$json" | jq -e '
+    .candidate_prs | any(.[]; .num == "9" and .task == "ship-task")
+  ' >/dev/null || fail "a PR on an fm/<id> branch must still cross-reference its task: $json"
+  pass "--include-prs maps a PR on the earlier fm/ worker branch back to its task"
 }
 
 test_partial_github_failure_degrades() {
@@ -3363,6 +3383,7 @@ test_open_decision_surfaces_end_to_end
 test_report_pointers_surface
 test_queued_item_prose_never_hides_it
 test_include_prs_is_the_only_fetch_path
+test_include_prs_maps_a_legacy_fm_branch_to_its_task
 test_partial_github_failure_degrades
 test_perl_fallback_bounds_github_call
 test_section_caps_and_expansion_flags
