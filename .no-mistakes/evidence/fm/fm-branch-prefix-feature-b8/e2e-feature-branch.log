@@ -1,0 +1,137 @@
+
+===== A. fm-brief.sh: the rendered brief tells a NEW worker to create feature/<task-id> =====
+
+$ fm-brief.sh add-login-a1 some-proj --mode no-mistakes
+  scaffolded: /private/var/folders/y9/b8qt1d396lv9cfh42ft2gt7r0000gn/T/e2e-feature-branch.rnAONO/brief-home/data/add-login-a1/brief.md (ship, mode=no-mistakes; replace {TASK} and {FIRSTMATE_SPEC})
+-- lines of data/add-login-a1/brief.md that name the worker branch:
+  22:1. First action: create your branch: `git checkout -b feature/add-login-a1`
+
+$ fm-brief.sh fix-header-b2 some-proj --mode direct-PR
+  scaffolded: /private/var/folders/y9/b8qt1d396lv9cfh42ft2gt7r0000gn/T/e2e-feature-branch.rnAONO/brief-home/data/fix-header-b2/brief.md (ship, mode=direct-PR; replace {TASK} and {FIRSTMATE_SPEC})
+-- lines of data/fix-header-b2/brief.md that name the worker branch:
+  22:1. First action: create your branch: `git checkout -b feature/fix-header-b2`
+  25:1. Never push to the default branch (push only your `feature/fix-header-b2` branch). Never merge a PR.
+
+$ fm-brief.sh tidy-docs-c3 some-proj --mode local-only
+  scaffolded: /private/var/folders/y9/b8qt1d396lv9cfh42ft2gt7r0000gn/T/e2e-feature-branch.rnAONO/brief-home/data/tidy-docs-c3/brief.md (ship, mode=local-only; replace {TASK} and {FIRSTMATE_SPEC})
+-- lines of data/tidy-docs-c3/brief.md that name the worker branch:
+  22:1. First action: create your branch: `git checkout -b feature/tidy-docs-c3`
+  25:1. Never push to any remote and never open a PR. Work only on your `feature/tidy-docs-c3` branch; firstmate handles the merge into local `main`.
+  79:The task is complete only when committed on your branch `feature/tidy-docs-c3`. Do NOT push, do NOT open a PR, do NOT merge.
+  81:When it is implemented and committed, append `done [at=<epoch>]: ready in branch feature/tidy-docs-c3` to the status file and stop.
+
+===== B. fm-merge-local.sh: lands a feature/<id> branch AND a pre-rename fm/<id> branch =====
+
+$ git -C sample branch --list        # before
+  + feature/land-feature-1
+  * main
+$ git -C sample log --oneline main    # before
+  ea32515 initial
+$ fm-merge-local.sh land-feature-1
+  ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ●  WATCHER DOWN - SUPERVISION IS OFF
+  ●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+  ●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+  ●  This is a supervision warning only; the guarded operation WILL still run.
+  ●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+  ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  merged feature/land-feature-1 into local main (ea32515 -> 1879324) in /private/var/folders/y9/b8qt1d396lv9cfh42ft2gt7r0000gn/T/e2e-feature-branch.rnAONO/merge-feature/projects/sample
+  exit=0
+$ git -C sample log --oneline main    # after
+  1879324 delivery on feature/land-feature-1
+  ea32515 initial
+
+$ git -C sample branch --list        # before
+  + fm/land-fm-1
+  * main
+$ git -C sample log --oneline main    # before
+  7c079e8 initial
+$ fm-merge-local.sh land-fm-1
+  ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ●  WATCHER DOWN - SUPERVISION IS OFF
+  ●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+  ●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+  ●  This is a supervision warning only; the guarded operation WILL still run.
+  ●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+  ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  merged fm/land-fm-1 into local main (7c079e8 -> 8bd0406) in /private/var/folders/y9/b8qt1d396lv9cfh42ft2gt7r0000gn/T/e2e-feature-branch.rnAONO/merge-fm/projects/sample
+  exit=0
+$ git -C sample log --oneline main    # after
+  8bd0406 delivery on fm/land-fm-1
+  7c079e8 initial
+
+===== C. fm-review-diff.sh: reviews the task branch under feature/ and under legacy fm/ =====
+
+$ git -C wt branch --list
+  * (HEAD detached at refs/heads/main)
+    feature/task-x1
+  + main
+$ fm-review-diff.sh task-x1
+  diff base: origin/main
+   feature.txt | 1 +
+   1 file changed, 1 insertion(+)
+  
+  diff --git a/feature.txt b/feature.txt
+  new file mode 100644
+  index 0000000..5acb343
+  --- /dev/null
+  +++ b/feature.txt
+  @@ -0,0 +1 @@
+  +change made on feature/task-x1
+
+$ git -C wt branch --list
+  * (HEAD detached at refs/heads/main)
+    fm/task-x1
+  + main
+$ fm-review-diff.sh task-x1
+  diff base: origin/main
+   feature.txt | 1 +
+   1 file changed, 1 insertion(+)
+  
+  diff --git a/feature.txt b/feature.txt
+  new file mode 100644
+  index 0000000..37521ce
+  --- /dev/null
+  +++ b/feature.txt
+  @@ -0,0 +1 @@
+  +change made on fm/task-x1
+
+===== D. fm-bearings-snapshot.sh --include-prs: PR head -> task mapping =====
+
+-- default-feature-head: gh returned these PR heads:
+  #9  head=feature/ship-task
+-- task ids this home has a record of (from data/backlog.md, every section):
+  dead-gate   done-a   live-gate   scout-x   ship-task 
+-- candidate_prs as the captain sees them (num / head-derived task):
+  #9  task=ship-task
+
+-- legacy-fm-head: gh returned these PR heads:
+  #9  head=fm/ship-task
+-- task ids this home has a record of (from data/backlog.md, every section):
+  dead-gate   done-a   live-gate   scout-x   ship-task 
+-- candidate_prs as the captain sees them (num / head-derived task):
+  #9  task=ship-task
+
+-- feature-heads-known-and-unknown: gh returned these PR heads:
+  #11  head=feature/login-redesign
+  #12  head=feature/live-gate
+  #13  head=feature/done-a
+-- task ids this home has a record of (from data/backlog.md, every section):
+  dead-gate   done-a   live-gate   scout-x   ship-task 
+-- candidate_prs as the captain sees them (num / head-derived task):
+  #11  task=-
+  #12  task=live-gate
+  #13  task=done-a
+
+-- legacy-fm-head-without-record: gh returned these PR heads:
+  #21  head=fm/orphan-lane
+  #22  head=feature/orphan-lane
+  #23  head=feature/
+  #24  head=hotfix/ship-task
+-- task ids this home has a record of (from data/backlog.md, every section):
+  dead-gate   done-a   live-gate   scout-x   ship-task 
+-- candidate_prs as the captain sees them (num / head-derived task):
+  #21  task=orphan-lane
+  #22  task=-
+  #23  task=-
+  #24  task=-

@@ -1,0 +1,83 @@
+===== A. fm-brief.sh: the rendered brief tells a NEW worker to create feature/<task-id> =====
+
+$ fm-brief.sh add-login-a1 some-proj --mode no-mistakes
+  scaffolded: /private/var/folders/y9/b8qt1d396lv9cfh42ft2gt7r0000gn/T/e2e-feature-branch.rnAONO/brief-home/data/add-login-a1/brief.md (ship, mode=no-mistakes; replace {TASK} and {FIRSTMATE_SPEC})
+-- lines of data/add-login-a1/brief.md that name the worker branch:
+  22:1. First action: create your branch: `git checkout -b feature/add-login-a1`
+
+$ fm-brief.sh fix-header-b2 some-proj --mode direct-PR
+  scaffolded: /private/var/folders/y9/b8qt1d396lv9cfh42ft2gt7r0000gn/T/e2e-feature-branch.rnAONO/brief-home/data/fix-header-b2/brief.md (ship, mode=direct-PR; replace {TASK} and {FIRSTMATE_SPEC})
+-- lines of data/fix-header-b2/brief.md that name the worker branch:
+  22:1. First action: create your branch: `git checkout -b feature/fix-header-b2`
+  25:1. Never push to the default branch (push only your `feature/fix-header-b2` branch). Never merge a PR.
+
+$ fm-brief.sh tidy-docs-c3 some-proj --mode local-only
+  scaffolded: /private/var/folders/y9/b8qt1d396lv9cfh42ft2gt7r0000gn/T/e2e-feature-branch.rnAONO/brief-home/data/tidy-docs-c3/brief.md (ship, mode=local-only; replace {TASK} and {FIRSTMATE_SPEC})
+-- lines of data/tidy-docs-c3/brief.md that name the worker branch:
+  22:1. First action: create your branch: `git checkout -b feature/tidy-docs-c3`
+  25:1. Never push to any remote and never open a PR. Work only on your `feature/tidy-docs-c3` branch; firstmate handles the merge into local `main`.
+  79:The task is complete only when committed on your branch `feature/tidy-docs-c3`. Do NOT push, do NOT open a PR, do NOT merge.
+  81:When it is implemented and committed, append `done [at=<epoch>]: ready in branch feature/tidy-docs-c3` to the status file and stop.
+
+===== B. fm-merge-local.sh: lands a feature/<id> branch AND a pre-rename fm/<id> branch =====
+
+$ git -C sample branch --list        # before
+  + feature/land-feature-1
+  * main
+$ git -C sample log --oneline main    # before
+  ea32515 initial
+$ fm-merge-local.sh land-feature-1
+  merged feature/land-feature-1 into local main (ea32515 -> 1879324) in /private/var/folders/y9/b8qt1d396lv9cfh42ft2gt7r0000gn/T/e2e-feature-branch.rnAONO/merge-feature/projects/sample
+  exit=0
+$ git -C sample log --oneline main    # after
+  1879324 delivery on feature/land-feature-1
+  ea32515 initial
+
+$ git -C sample branch --list        # before
+  + fm/land-fm-1
+  * main
+$ git -C sample log --oneline main    # before
+  7c079e8 initial
+$ fm-merge-local.sh land-fm-1
+  merged fm/land-fm-1 into local main (7c079e8 -> 8bd0406) in /private/var/folders/y9/b8qt1d396lv9cfh42ft2gt7r0000gn/T/e2e-feature-branch.rnAONO/merge-fm/projects/sample
+  exit=0
+$ git -C sample log --oneline main    # after
+  8bd0406 delivery on fm/land-fm-1
+  7c079e8 initial
+
+===== C. fm-review-diff.sh: reviews the task branch under feature/ and under legacy fm/ =====
+
+$ git -C wt branch --list
+  * (HEAD detached at refs/heads/main)
+    feature/task-x1
+  + main
+$ fm-review-diff.sh task-x1
+  diff base: origin/main
+   feature.txt | 1 +
+   1 file changed, 1 insertion(+)
+  
+  diff --git a/feature.txt b/feature.txt
+  new file mode 100644
+  index 0000000..5acb343
+  --- /dev/null
+  +++ b/feature.txt
+  @@ -0,0 +1 @@
+  +change made on feature/task-x1
+
+$ git -C wt branch --list
+  * (HEAD detached at refs/heads/main)
+    fm/task-x1
+  + main
+$ fm-review-diff.sh task-x1
+  diff base: origin/main
+   feature.txt | 1 +
+   1 file changed, 1 insertion(+)
+  
+  diff --git a/feature.txt b/feature.txt
+  new file mode 100644
+  index 0000000..37521ce
+  --- /dev/null
+  +++ b/feature.txt
+  @@ -0,0 +1 @@
+  +change made on fm/task-x1
+

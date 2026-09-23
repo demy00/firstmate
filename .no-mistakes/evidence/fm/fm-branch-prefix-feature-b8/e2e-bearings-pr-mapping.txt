@@ -1,0 +1,39 @@
+===== D. fm-bearings-snapshot.sh --include-prs: PR head -> task mapping =====
+
+-- default-feature-head: gh returned these PR heads:
+  #9  head=feature/ship-task
+-- task ids this home has a record of (from data/backlog.md, every section):
+  dead-gate   done-a   live-gate   scout-x   ship-task 
+-- candidate_prs as the captain sees them (num / head-derived task):
+  #9  task=ship-task
+
+-- legacy-fm-head: gh returned these PR heads:
+  #9  head=fm/ship-task
+-- task ids this home has a record of (from data/backlog.md, every section):
+  dead-gate   done-a   live-gate   scout-x   ship-task 
+-- candidate_prs as the captain sees them (num / head-derived task):
+  #9  task=ship-task
+
+-- feature-heads-known-and-unknown: gh returned these PR heads:
+  #11  head=feature/login-redesign
+  #12  head=feature/live-gate
+  #13  head=feature/done-a
+-- task ids this home has a record of (from data/backlog.md, every section):
+  dead-gate   done-a   live-gate   scout-x   ship-task 
+-- candidate_prs as the captain sees them (num / head-derived task):
+  #11  task=-
+  #12  task=live-gate
+  #13  task=done-a
+
+-- legacy-fm-head-without-record: gh returned these PR heads:
+  #21  head=fm/orphan-lane
+  #22  head=feature/orphan-lane
+  #23  head=feature/
+  #24  head=hotfix/ship-task
+-- task ids this home has a record of (from data/backlog.md, every section):
+  dead-gate   done-a   live-gate   scout-x   ship-task 
+-- candidate_prs as the captain sees them (num / head-derived task):
+  #21  task=orphan-lane
+  #22  task=-
+  #23  task=-
+  #24  task=-
