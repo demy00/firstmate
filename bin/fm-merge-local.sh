@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Perform the approved local merge for a local-only ship task: fast-forward the
-# project's default branch to the crewmate's fm/<id> branch.
+# project's default branch to the crewmate's worker branch, resolved under any
+# prefix bin/fm-task-branch-lib.sh recognises (current convention first).
 #
 # This is firstmate's merge gate-action (the captain's merge authority applied
 # locally instead of via a GitHub PR). It is the one sanctioned exception to hard
@@ -23,6 +24,8 @@ FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
 STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
 # shellcheck source=bin/fm-pr-lib.sh
 . "$SCRIPT_DIR/fm-pr-lib.sh"
+# shellcheck source=bin/fm-task-branch-lib.sh
+. "$SCRIPT_DIR/fm-task-branch-lib.sh"
 # shellcheck source=bin/fm-backlog-transition-lib.sh
 . "$SCRIPT_DIR/fm-backlog-transition-lib.sh"
 if [ "$#" -ne 1 ] || ! fm_pr_task_id_valid "$1"; then
@@ -93,8 +96,7 @@ default_branch() {
   return 1
 }
 
-BRANCH="fm/$ID"
-git -C "$PROJ" rev-parse --verify --quiet "refs/heads/$BRANCH" >/dev/null || { echo "error: branch $BRANCH does not exist in $PROJ" >&2; exit 1; }
+BRANCH=$(fm_task_branch_resolve "$PROJ" "$ID") || { echo "error: branch $(fm_task_branch "$ID") does not exist in $PROJ" >&2; exit 1; }
 
 DEFAULT=$(default_branch) || { echo "error: cannot determine default branch for $PROJ; expected origin/HEAD, main, or master" >&2; exit 1; }
 

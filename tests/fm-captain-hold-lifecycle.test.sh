@@ -3144,7 +3144,7 @@ test_retained_row_artifacts_survive_captain_answers() {
   local_id=sample-released-local
   local_repo="$home/projects/sample-local"
   local_wt="$home/projects/$local_id"
-  fm_git_worktree "$local_repo" "$local_wt" "fm/$local_id"
+  fm_git_worktree "$local_repo" "$local_wt" "feature/$local_id"
   printf 'landed locally\n' > "$local_wt/local.txt"
   git -C "$local_wt" add local.txt
   git -C "$local_wt" -c user.name='Firstmate Tests' -c user.email='tests@example.invalid' \
@@ -3649,7 +3649,7 @@ test_local_merge_entrypoint_refuses_a_captain_held_task() {
   local_id=sample-held-local-entrypoint
   local_repo="$home/projects/sample-local"
   local_wt="$home/projects/$local_id"
-  fm_git_worktree "$local_repo" "$local_wt" "fm/$local_id"
+  fm_git_worktree "$local_repo" "$local_wt" "feature/$local_id"
   printf 'held local delivery\n' > "$local_wt/local.txt"
   git -C "$local_wt" add local.txt
   git -C "$local_wt" -c user.name='Firstmate Tests' -c user.email='tests@example.invalid' \
@@ -3721,7 +3721,7 @@ test_local_merge_entrypoint_separates_an_unreadable_record_from_an_absent_one() 
   id=sample-missing-local-authority
   repo="$home/projects/sample-local"
   wt="$home/projects/$id"
-  fm_git_worktree "$repo" "$wt" "fm/$id"
+  fm_git_worktree "$repo" "$wt" "feature/$id"
   printf 'untracked local delivery\n' > "$wt/local.txt"
   git -C "$wt" add local.txt
   git -C "$wt" -c user.name='Firstmate Tests' -c user.email='tests@example.invalid' \
@@ -3920,7 +3920,7 @@ test_merge_entrypoints_refuse_a_reused_task_incarnation() {
   local_id=sample-reused-local-incarnation
   local_old_repo="$local_home/projects/sample-reused-local-old"
   local_old_wt="$local_home/projects/$local_id"
-  fm_git_worktree "$local_old_repo" "$local_old_wt" "fm/$local_id"
+  fm_git_worktree "$local_old_repo" "$local_old_wt" "feature/$local_id"
   printf 'original local delivery\n' > "$local_old_wt/original.txt"
   git -C "$local_old_wt" add original.txt
   git -C "$local_old_wt" -c user.name='Firstmate Tests' \
@@ -3985,7 +3985,7 @@ test_merge_entrypoints_refuse_a_reused_task_incarnation() {
 
   local_new_repo="$local_home/projects/sample-reused-local-new"
   local_new_wt="$local_home/projects/reused-$local_id"
-  fm_git_worktree "$local_new_repo" "$local_new_wt" "fm/$local_id"
+  fm_git_worktree "$local_new_repo" "$local_new_wt" "feature/$local_id"
   printf 'replacement local delivery\n' > "$local_new_wt/replacement.txt"
   git -C "$local_new_wt" add replacement.txt
   git -C "$local_new_wt" -c user.name='Firstmate Tests' \
@@ -4103,7 +4103,7 @@ SH
   local_id=sample-teardown-race-local
   local_repo="$local_home/projects/sample-local-race"
   local_wt="$local_home/projects/$local_id"
-  fm_git_worktree "$local_repo" "$local_wt" "fm/$local_id"
+  fm_git_worktree "$local_repo" "$local_wt" "feature/$local_id"
   printf 'serialized local delivery\n' > "$local_wt/local.txt"
   git -C "$local_wt" add local.txt
   git -C "$local_wt" -c user.name='Firstmate Tests' -c user.email='tests@example.invalid' \

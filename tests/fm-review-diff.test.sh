@@ -11,6 +11,10 @@
 #   (d) pr= present but PR head unreachable -> fallback to local branch + warning
 #   (e) pr= + STALE recorded pr_head= + newer remote pull head -> must use fetched head
 #       (this is the class that bit reviewers holding merges over "missing" fixes)
+#   (f) the worker branch resolves under the current feature/<id> name, and a
+#       branch created under the earlier fm/<id> name still resolves; when the
+#       worktree holds neither, a stray checked-out branch is not mistaken for
+#       the task (bin/fm-task-branch-lib.sh)
 set -u
 
 # shellcheck source=tests/lib.sh
@@ -20,8 +24,8 @@ fm_git_identity fmtest fmtest@example.invalid
 REVIEW_DIFF="$ROOT/bin/fm-review-diff.sh"
 TMP_ROOT=$(fm_test_tmproot fm-review-diff-tests)
 
-make_case() {
-  local name=$1 case_dir
+make_case() {  # <name> [<worker-branch>]
+  local name=$1 branch=${2:-feature/task-x1} case_dir
   case_dir="$TMP_ROOT/$name"
   mkdir -p "$case_dir/state"
 
@@ -36,7 +40,7 @@ make_case() {
 
   git clone -q "$case_dir/origin.git" "$case_dir/project"
   git -C "$case_dir/project" remote set-head origin main 2>/dev/null || true
-  git -C "$case_dir/project" worktree add -q -b fm/task-x1 "$case_dir/wt" main
+  git -C "$case_dir/project" worktree add -q -b "$branch" "$case_dir/wt" main
 
   touch "$case_dir/state/.last-watcher-beat"
   printf '%s\n' "$case_dir"
@@ -52,8 +56,8 @@ write_task_meta() {
     "$@"
 }
 
-stale_and_pr_commits() {
-  local case_dir=$1
+stale_and_pr_commits() {  # <case-dir> [<worker-branch>]
+  local case_dir=$1 branch=${2:-feature/task-x1}
   printf 'stale-local\n' > "$case_dir/wt/feature.txt"
   git -C "$case_dir/wt" add feature.txt
   git -C "$case_dir/wt" commit -qm "stale local branch"
@@ -64,7 +68,7 @@ stale_and_pr_commits() {
   git -C "$case_dir/wt" commit -qm "pipeline fix on PR"
   PR_SHA=$(git -C "$case_dir/wt" rev-parse HEAD)
 
-  git -C "$case_dir/wt" checkout -q fm/task-x1
+  git -C "$case_dir/wt" checkout -q "$branch"
 }
 
 run_review_diff() {
@@ -97,7 +101,7 @@ test_stale_recorded_pr_head_loses_to_fetched_pull_head() {
   local case_dir out stale_sha
   case_dir=$(make_case stale-recorded)
   stale_and_pr_commits "$case_dir"
-  stale_sha=$(git -C "$case_dir/wt" rev-parse fm/task-x1)
+  stale_sha=$(git -C "$case_dir/wt" rev-parse feature/task-x1)
   # Remote PR head is newer (pipeline fix); meta still points at the older local tip.
   git -C "$case_dir/wt" push -q origin "pr-head-tmp:refs/pull/9/head"
   write_task_meta "$case_dir" \
@@ -148,6 +152,42 @@ test_no_pr_meta_uses_local_branch() {
   pass "fm-review-diff without pr= keeps the worktree-branch diff"
 }
 
+# (f) The task's worker branch is looked up by name, so the lookup must follow
+# the naming convention: a new worker's feature/<id> branch (exercised by every
+# case above), and a branch created under the earlier fm/<id> name, which a
+# running lane still owns and which is never renamed out from under it.
+test_legacy_fm_branch_still_resolves() {
+  local case_dir out
+  case_dir=$(make_case legacy-fm fm/task-x1)
+  stale_and_pr_commits "$case_dir" fm/task-x1
+  write_task_meta "$case_dir"
+  # Park the worktree on the unrelated PR scratch branch: the diff must come
+  # from the task's own fm/ branch, not from whatever happens to be checked out.
+  git -C "$case_dir/wt" checkout -q pr-head-tmp
+
+  out=$(run_review_diff "$case_dir" task-x1 2> "$case_dir/stderr")
+
+  assert_contains "$out" '+stale-local' "legacy-fm: diff must come from the task's fm/ branch"
+  assert_not_contains "$out" '+pr-fixed' "legacy-fm: diff must not follow the checked-out scratch branch"
+  pass "fm-review-diff resolves a worker branch created under the earlier fm/ prefix"
+}
+
+# The current name wins when both exist, so a task whose worker recreated its
+# branch under feature/ is never read through a stale fm/ twin.
+test_feature_branch_wins_over_legacy_twin() {
+  local case_dir out
+  case_dir=$(make_case feature-over-legacy)
+  stale_and_pr_commits "$case_dir"
+  git -C "$case_dir/wt" branch -q fm/task-x1 pr-head-tmp
+  write_task_meta "$case_dir"
+
+  out=$(run_review_diff "$case_dir" task-x1 2> "$case_dir/stderr")
+
+  assert_contains "$out" '+stale-local' "feature-over-legacy: diff must come from the feature/ branch"
+  assert_not_contains "$out" '+pr-fixed' "feature-over-legacy: diff must not read the fm/ twin"
+  pass "fm-review-diff prefers the feature/ branch over an fm/ twin of the same task"
+}
+
 test_unreachable_pr_head_falls_back_with_warning() {
   local case_dir out err
   case_dir=$(make_case fetch-fallback)
@@ -173,4 +213,6 @@ test_pr_meta_uses_pr_head_not_stale_local
 test_pr_meta_fetches_pull_head_without_recorded_sha
 test_stale_recorded_pr_head_loses_to_fetched_pull_head
 test_no_pr_meta_uses_local_branch
+test_legacy_fm_branch_still_resolves
+test_feature_branch_wins_over_legacy_twin
 test_unreachable_pr_head_falls_back_with_warning

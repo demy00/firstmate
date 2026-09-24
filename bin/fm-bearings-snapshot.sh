@@ -101,6 +101,10 @@ FLEET="$SCRIPT_DIR/fm-fleet-snapshot.sh"
 # shellcheck source=bin/fm-landed-lib.sh
 # shellcheck disable=SC1091
 . "$SCRIPT_DIR/fm-landed-lib.sh"  # FM_LANDED_JQ_DEFS: the shared landed selector
+# shellcheck source=bin/fm-task-branch-lib.sh
+# shellcheck disable=SC1091
+. "$SCRIPT_DIR/fm-task-branch-lib.sh"  # the worker branch prefixes that map a PR head back to its task
+TASK_BRANCH_PREFIXES_JSON=$(fm_task_branch_prefixes_json)
 
 # Bounds (overridable for tests / large fleets).
 FM_BEARINGS_LANDED=${FM_BEARINGS_LANDED:-6}
@@ -287,6 +291,14 @@ $(printf '%s' "$SNAP" | jq -r '.tasks[] | select(.kind != "secondmate") | .paths
 EOF
 
     for repo in $repos; do PR_REPOS_TOTAL=$((PR_REPOS_TOTAL + 1)); done
+    # A PR head names a task by its worker-branch prefix. Humans branch under
+    # feature/** too (that is why the worker prefix moved there), so a feature/<id>
+    # head is a task PR only when <id> has a record this snapshot already holds
+    # (in-flight task meta or any backlog row); otherwise its task stays "-".
+    # The legacy fm/ prefix was firstmate-only and still maps unconditionally.
+    # tests/fm-bearings-snapshot.test.sh pins both cases.
+    task_ids_json=$(printf '%s' "$SNAP" | jq -c '
+      [ (.tasks[].id | strings), (.backlog.records[].id | strings) ] | unique')
     nrepos=0; npr=0; nwarn=0; ncapped=0; rows='[]'
     pr_fetch_limit=$((FM_BEARINGS_PR_LIMIT + 1))
     for repo in $repos; do
@@ -296,11 +308,18 @@ EOF
         --json number,title,url,headRefName,reviewDecision,mergeable,statusCheckRollup 2>/dev/null) \
         || { nwarn=$((nwarn + 1)); continue; }
       [ -n "$out" ] || out='[]'
-      repo_result=$(printf '%s' "$out" | jq --arg repo "$repo" --argjson limit "$FM_BEARINGS_PR_LIMIT" '
+      repo_result=$(printf '%s' "$out" | jq --arg repo "$repo" --argjson limit "$FM_BEARINGS_PR_LIMIT" \
+        --argjson prefixes "$TASK_BRANCH_PREFIXES_JSON" --arg current "$FM_TASK_BRANCH_PREFIX" \
+        --argjson task_ids "$task_ids_json" '
         [ .[] | {
           num:(.number|tostring),
           repo:$repo,
-          task:(if (.headRefName // "" | startswith("fm/")) then (.headRefName | ltrimstr("fm/")) else "-" end),
+          task:((.headRefName // "") as $h
+            | ([$prefixes[] | . as $pre | select(($h | startswith($pre + "/")) and (($h | length) > ($pre | length) + 1))] | first) as $p
+            | if $p == null then "-"
+              else ($h | ltrimstr($p + "/")) as $id
+                | if $p == $current and (any($task_ids[]; . == $id) | not) then "-" else $id end
+              end),
           url:(.url // "-"),
           review:(.reviewDecision // "none"),
           mergeable:(.mergeable // "UNKNOWN"),
