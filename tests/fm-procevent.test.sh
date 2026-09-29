@@ -3188,6 +3188,99 @@ assert_contains "$out" "SESSION-ENDING MESSAGE: (none)" \
 assert_contains "$out" "ANNOTATIONS: (none)" "an empty board close invented annotations"
 pass "read distinguishes a feedback capture from an ended-with-nothing close"
 
+# lavish-axi frames queued feedback as a TOON LIST instead of a table whenever
+# an item carries a nested object such as a table-cell `target`. Every item in
+# that shape must reach the handler exactly as the tabular shape does.
+cat > "$READ" <<'EOF'
+session:
+  file: /review.html
+  status: feedback
+prompts[4]:
+  - uid: "1"
+    prompt: "first comment, with a comma\nand a second line"
+    selector: "body > main > div:nth-of-type(1)"
+    tag: div
+    text: Sample heading
+  - uid: "6"
+    prompt: cell comment
+    selector: "table > tbody > tr:nth-of-type(2) > td:nth-of-type(3)"
+    tag: td
+    text: "42"
+    target:
+      type: table-cell
+      selector: "table > tbody > tr:nth-of-type(2) > td:nth-of-type(3)"
+      rowLabel: Sample row
+      columnLabel: Sample column
+      text: "42"
+    attachments[1]:
+      - id: att-1
+        path: /tmp/sample.png
+  - uid: "7"
+    prompt: "- uid: \"99\""
+    tag: message
+    text: Freeform message
+  - uid: "8"
+    prompt: "Pick one\n\nContext data: {\"schema\":\"fm-bearings-answer.v1\",\"question\":\"sample-list-call\",\"selection\":\"opt-a\",\"note\":\"\"}"
+    selector: "section#call > button"
+    tag: choice
+    text: Option A
+EOF
+out=$(read_out) || fail "read failed on a list-shaped capture"
+assert_contains "$out" "declared_items: 4" "a list-shaped capture hid its declared count"
+assert_contains "$out" "presented_items: 4" "a list-shaped capture dropped queued items"
+assert_contains "$out" "complete: yes" "a complete list-shaped capture was not marked complete"
+assert_contains "$out" "annotation_count: 3" "list-shaped annotations were not counted"
+assert_contains "$out" $'| first comment, with a comma\n| and a second line' \
+  "a list-shaped comment lost its text"
+assert_contains "$out" "element_selector: body > main > div:nth-of-type(1)" \
+  "a list-shaped annotation lost its selector"
+assert_contains "$out" "| cell comment" "a table-cell comment was dropped"
+assert_contains "$out" $'target:\n| columnLabel: Sample column' "a table-cell comment lost its column"
+assert_contains "$out" "| rowLabel: Sample row" "a table-cell comment lost its row"
+assert_contains "$out" $'CAPTAIN MESSAGE\n| - uid: "99"\nEND CAPTAIN MESSAGE' \
+  "a list-shaped freeform message was not presented as the captain message"
+assert_contains "$out" "| Option A" "a list-shaped choice lost its label"
+assert_not_contains "$out" "Context data:" "a list-shaped choice surfaced its context as a comment"
+cp "$READ" "$SIL"
+silent_says no "a list-shaped capture carries queued content"
+sed 's/status: feedback/status: ended/' "$READ" > "$SIL"
+silent_says no "an ended session carrying a list-shaped block is never assumed empty"
+list_answers=$("$ROOT/bin/fm-procevent-lavish.sh" answers "$READ") \
+  || fail "answers failed on a list-shaped capture"
+[ "$list_answers" = "$(printf 'sample-list-call\topt-a\tOption A')" ] \
+  || fail "a list-shaped choice did not reach the keyed-answer intake: $list_answers"
+pass "read, silent, and answers consume the list-shaped queued-content block"
+
+# A list whose items cannot all be parsed, or a content header in neither
+# published shape, is never certified as a complete empty read.
+cat > "$READ" <<'EOF'
+session:
+  file: /review.html
+  status: feedback
+prompts[2]:
+  - uid: "1"
+    prompt: kept comment
+    tag: div
+    text: Sample
+  - uid: "2"
+    prompt: "unterminated
+    tag: div
+EOF
+out=$(read_out) || fail "read failed on a list with a malformed item"
+assert_contains "$out" "presented_items: 1" "a malformed list item was certified as presented"
+assert_contains "$out" "malformed_items: 1" "a malformed list item was not reported"
+assert_contains "$out" "complete: no" "a list with a malformed item was certified complete"
+assert_contains "$out" "| kept comment" "a valid list item beside a malformed one was dropped"
+for bad_header in 'prompts[many]:' 'prompts[2]: a,b' 'prompts: something'; do
+  printf 'session:\n  file: /review.html\n  status: feedback\n%s\n  - uid: "1"\n' "$bad_header" > "$READ"
+  out=$(read_out) || fail "read failed on an unparseable content header: $bad_header"
+  assert_contains "$out" "complete: no" "an unparseable content header was certified complete: $bad_header"
+done
+printf 'session:\n  file: /review.html\n  status: feedback\nprompts[1]:\n  uid: "1"\n' > "$READ"
+out=$(read_out) || fail "read failed on a list block that is not a list of items"
+assert_contains "$out" "complete: no" "a list block with no items was certified complete"
+pass "read never certifies an unparseable content block as a complete empty read"
+
 # The runner's silence seam is generic and closed by default: an adapter with no
 # `silent` command must keep announcing, so adding the seam changed nothing for
 # every adapter that has no notion of a no-op.
