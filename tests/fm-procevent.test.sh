@@ -3215,6 +3215,7 @@ prompts[4]:
     attachments[1]:
       - id: att-1
         path: /tmp/sample.png
+        name: "sample, shot.png"
   - uid: "7"
     prompt: "- uid: \"99\""
     tag: message
@@ -3237,6 +3238,9 @@ assert_contains "$out" "element_selector: body > main > div:nth-of-type(1)" \
 assert_contains "$out" "| cell comment" "a table-cell comment was dropped"
 assert_contains "$out" $'target:\n| columnLabel: Sample column' "a table-cell comment lost its column"
 assert_contains "$out" "| rowLabel: Sample row" "a table-cell comment lost its row"
+assert_contains "$out" $'attachments:\n| - id: att-1\n|   name: sample, shot.png\n|   path: /tmp/sample.png\nANNOTATION 3 of 3' \
+  "a table-cell comment lost its image attachment"
+assert_contains "$out" "unpresented_items: 0" "a fully presented list-shaped capture reported unpresented items"
 assert_contains "$out" $'CAPTAIN MESSAGE\n| - uid: "99"\nEND CAPTAIN MESSAGE' \
   "a list-shaped freeform message was not presented as the captain message"
 assert_contains "$out" "| Option A" "a list-shaped choice lost its label"
@@ -3250,6 +3254,58 @@ list_answers=$("$ROOT/bin/fm-procevent-lavish.sh" answers "$READ") \
 [ "$list_answers" = "$(printf 'sample-list-call\topt-a\tOption A')" ] \
   || fail "a list-shaped choice did not reach the keyed-answer intake: $list_answers"
 pass "read, silent, and answers consume the list-shaped queued-content block"
+
+# An image-only freeform message carries its image as attachments, in either
+# nested array shape; that image must reach the handler with the message.
+cat > "$READ" <<'EOF'
+session:
+  file: /review.html
+  status: feedback
+prompts[2]:
+  - uid: ""
+    prompt: ""
+    selector: ""
+    tag: message
+    text: Freeform message
+    attachments[2]:
+      - id: first.png
+        type: image
+        path: /tmp/first.png
+        name: first.png
+      - id: second.png
+        type: image
+        path: /tmp/second.png
+  - uid: "3"
+    prompt: see image
+    selector: div
+    tag: div
+    text: Sample
+    attachments[1]{id,type,path}:
+      third.png,image,/tmp/third.png
+EOF
+out=$(read_out) || fail "read failed on list-shaped attachments"
+assert_contains "$out" "complete: yes" "a capture with presented attachments was not marked complete"
+assert_contains "$out" $'CAPTAIN MESSAGE\n| Freeform message\nattachments:\n| - id: first.png\n|   name: first.png\n|   path: /tmp/first.png\n|   type: image\n| - id: second.png\n|   path: /tmp/second.png\n|   type: image\nEND CAPTAIN MESSAGE' \
+  "an image-only freeform message lost its attachments"
+assert_contains "$out" $'attachments:\n| - id: third.png\n|   path: /tmp/third.png\n|   type: image\nEND ANNOTATIONS' \
+  "a tabular attachment on an annotation was not presented"
+pass "read presents list and tabular attachments on messages and annotations"
+
+# Nested content the reader does not present is never certified as read.
+for hidden in $'    target:\n      type: mermaid-node\n      nodes[1]{id}:\n        a' \
+  $'    target:\n      meta:\n        a: b' \
+  $'    extra:\n      a: b' \
+  $'    tags[2]: x,y' \
+  $'    attachments[2]:\n      - id: only-one.png' \
+  $'    attachments[1]:\n      - id: deep.png\n        dims:\n          width: 1'; do
+  printf 'session:\n  file: /review.html\n  status: feedback\nprompts[1]:\n  - uid: "1"\n    prompt: kept\n    tag: div\n%s\n' "$hidden" > "$READ"
+  out=$(read_out) || fail "read failed on unpresented nested content: $hidden"
+  assert_contains "$out" "presented_items: 1" "an item with unpresented nested content was dropped: $hidden"
+  assert_contains "$out" "unpresented_items: 1" "unpresented nested content was not reported: $hidden"
+  assert_contains "$out" "complete: no" "unpresented nested content was certified complete: $hidden"
+  assert_contains "$out" "| kept" "an item with unpresented nested content lost its comment: $hidden"
+done
+pass "read never certifies an item with unpresented nested content as complete"
 
 # A list whose items cannot all be parsed, or a content header in neither
 # published shape, is never certified as a complete empty read.

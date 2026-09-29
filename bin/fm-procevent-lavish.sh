@@ -25,7 +25,10 @@
 #            plus a completeness verdict, follow before all annotations so a
 #            partial read is obvious; a content block in neither published
 #            shape is never certified complete. Each annotation retains its
-#            element uid, selector, tag, text, and any nested target. A non-choice freeform comment (`prompt`)
+#            element uid, selector, tag, text, and any nested target, and an
+#            annotation or message keeps its image attachments; an item with
+#            other nested content is counted unpresented and never certified
+#            complete. A non-choice freeform comment (`prompt`)
 #            is printed as its own field even when a selector is also present
 #            and even when that comment matches the element text, so typed
 #            words are never dropped. Choice Context data is not a comment.
@@ -489,9 +492,12 @@ cmd_terminal() {
 # by N indented CSV rows. Otherwise - for example when an item carries a nested
 # `target` object or an `attachments` array - it is a LIST: a `prompts[N]:`
 # header followed by N indented `- key: value` items whose further fields sit
-# two columns deeper, with one level of nesting kept as `parent.child`. Both
-# shapes must reach the handler, so each consumer reads the block through
-# LAVISH_ITEMS_PERL rather than its own header match. The header anchors on
+# two columns deeper. A list item keeps its `target` object's fields as
+# `target.<field>` and its `attachments` array (in either shape) as a list of
+# attachment objects; an item carrying any other nested content is counted as
+# unpresented, so no consumer can certify it as fully read. Both shapes must
+# reach the handler, so each consumer reads the block through LAVISH_ITEMS_PERL
+# rather than its own header match. The header anchors on
 # column zero: an indented payload line is captain-supplied text and must never
 # be able to forge a content header. A top-level prompts or feedback line that
 # is neither shape is unparsed, and every consumer treats that as incomplete
@@ -499,9 +505,9 @@ cmd_terminal() {
 # shellcheck disable=SC2016 # Perl source, expanded by perl rather than bash.
 LAVISH_ITEMS_PERL='
 use strict; use warnings;
-# Returns { found, unparsed, want, items => [ {field => value} ], malformed }
-# for the first top-level block whose name matches $names, with every value
-# already unescaped.
+# Returns { found, unparsed, want, items => [ {field => value} ], malformed,
+# unpresented } for the first top-level block whose name matches $names, with
+# every value already unescaped.
 sub lavish_unquote {
   my ($v) = @_;
   $v =~ s/\\(.)/$1 eq "n" ? "\n" : $1 eq "t" ? "\t" : $1 eq "r" ? "\r" : $1/ge;
@@ -514,47 +520,31 @@ sub lavish_scalar {  # TOON primitive -> string, or undef when unparseable
   return undef if $v =~ /\A"/;
   return $v;
 }
-sub lavish_field {  # "key: value" -> (key, value, container), or () when unparseable
-  # container is "" for a primitive, "object" for "key:", "array" for "key[N]...:".
+sub lavish_field {  # "key: value" -> (key, value, container, count, fields), or () when unparseable
+  # container is "" for a primitive, "object" for "key:", "array" for "key[N]...:";
+  # an array value is its inline text, or undef when its items follow on deeper lines.
   my ($s) = @_;
-  return () unless $s =~ /\A("(?:[^"\\]|\\.)*"|[A-Za-z_][\w.]*)(\[\d+\](?:\{[^}]*\})?)?:(?:[ ](.*))?\z/;
-  my ($k, $array, $v) = ($1, $2, $3);
+  return () unless $s =~ /\A("(?:[^"\\]|\\.)*"|[A-Za-z_][\w.]*)(?:\[(\d+)\](?:\{([^}]*)\})?)?:(?:[ ](.*))?\z/;
+  my ($k, $n, $fields, $v) = ($1, $2, $3, $4);
   $k = lavish_unquote(substr($k, 1, -1)) if $k =~ /\A"/;
-  return ($k, undef, "array") if defined $array;
+  return ($k, (defined $v && length $v ? $v : undef), "array", $n, $fields) if defined $n;
   return ($k, undef, "object") if !defined($v) || $v eq "";
   my $val = lavish_scalar($v);
   return () unless defined $val;
   return ($k, $val, "");
 }
-sub lavish_items {  # <path> <block-name regex>
-  my ($path, $names) = @_;
-  my %r = (found => 0, unparsed => 0, want => 0, items => [], malformed => 0);
-  open my $fh, "<", $path or return undef;
-  my ($want, @fields, $list, @block);
-  while (my $line = <$fh>) {
-    if (!$r{found}) {
-      next unless $line =~ /^(?:$names)/;
-      if ($line =~ /^(?:$names)\[(\d+)\](?:\{([^}]*)\})?:\s*$/) {
-        ($want, $list) = ($1, !defined $2);
-        @fields = split /,/, $2 unless $list;
-        $r{found} = 1;
-        $r{want} = $want;
-      } else {
-        $r{unparsed} = 1;
-        last;
-      }
-      next;
-    }
-    last unless $line =~ /^\s/;
-    chomp $line;
-    push @block, $line;
-  }
-  close $fh;
-  return \%r unless $r{found};
-  if (!$list) {
-    for my $row (@block) {
+sub lavish_array {  # <count> <fields or undef> <lines> <nested>
+  # Parses the body of a TOON array of objects: tabular rows when fields are
+  # given, otherwise list items. Only a top-level item ($nested) may carry the
+  # presented `target` object and `attachments` array; any other nested content
+  # marks its item unpresented.
+  my ($want, $fields, $lines, $nested) = @_;
+  my %r = (items => [], malformed => 0, unparsed => 0, unpresented => 0);
+  if (defined $fields) {
+    my @fields = split /,/, $fields;
+    for my $line (@$lines) {
       last if @{$r{items}} + $r{malformed} >= $want;
-      $row =~ s/^\s+//;
+      (my $row = $line) =~ s/^\s+//;
       my @vals;
       while (length $row) {
         if ($row =~ s/^"((?:[^"\\]|\\.)*)"//) {
@@ -584,22 +574,42 @@ sub lavish_items {  # <path> <block-name regex>
     }
     return \%r;
   }
-  my ($indent, $cur, $bad, $parent);
+  my ($indent, $cur, $bad, $hidden, $parent, $array, @sub);
+  my $finish_array = sub {
+    return unless $array;
+    my ($k, $n, $f) = @$array;
+    my $sub = lavish_array($n, $f, [@sub], 0);
+    $hidden = 1 if $sub->{malformed} || $sub->{unparsed} || $sub->{unpresented} || @{$sub->{items}} != $n;
+    $cur->{$k} = $sub->{items};
+    ($array, @sub) = (undef);
+  };
   my $finish = sub {
     return unless $cur;
-    if ($bad) { $r{malformed}++ } else { push @{$r{items}}, $cur }
-    ($cur, $bad, $parent) = (undef, 0, undef);
+    if ($bad) {
+      $r{malformed}++;
+    } else {
+      push @{$r{items}}, $cur;
+      $r{unpresented}++ if $hidden;
+    }
+    ($cur, $bad, $hidden, $parent) = (undef, 0, 0, undef);
   };
-  for my $line (@block) {
+  for my $line (@$lines) {
     next if $line =~ /^\s*$/;
     $line =~ /^(\s*)(.*)$/;
     my ($lead, $rest) = (length $1, $2);
     $indent = $lead unless defined $indent;
+    if ($array) {
+      if ($lead > $indent + 2) {
+        push @sub, $line;
+        next;
+      }
+      $finish_array->();
+    }
     my $depth;
     if ($lead == $indent && $rest =~ /\A-(?: (.*))?\z/) {
       $finish->();
       last if @{$r{items}} + $r{malformed} >= $want;
-      ($cur, $bad) = ({}, 0);
+      ($cur, $bad, $hidden) = ({}, 0, 0);
       next unless defined $1 && length $1;
       ($depth, $rest) = (0, $1);
     } elsif (!$cur) {
@@ -611,24 +621,63 @@ sub lavish_items {  # <path> <block-name regex>
     } elsif ($lead == $indent + 4) {
       $depth = 1;
     } elsif ($lead > $indent + 4) {
-      next;  # deeper nesting is not presented
+      $hidden = 1;
+      next;
     } else {
       $bad = 1;
       next;
     }
-    my ($k, $v, $container) = lavish_field($rest);
+    my ($k, $v, $container, $n, $f) = lavish_field($rest);
     if (!defined $k) {
-      $bad = 1 if $depth == 0;
+      if ($depth == 0) { $bad = 1 } else { $hidden = 1 }
       next;
     }
     if ($depth == 0) {
-      $parent = $container eq "object" ? $k : undef;
-      $cur->{$k} = $v unless length $container;
+      $parent = undef;
+      if (!length $container) {
+        $cur->{$k} = $v;
+      } elsif ($nested && $container eq "object" && $k eq "target") {
+        $parent = $k;
+      } elsif ($nested && $container eq "array" && $k eq "attachments" && !defined $v) {
+        $array = [$k, $n, $f];
+      } else {
+        $hidden = 1;
+      }
     } elsif (defined $parent && !length $container) {
       $cur->{"$parent.$k"} = $v;
+    } else {
+      $hidden = 1;
     }
   }
+  $finish_array->();
   $finish->();
+  return \%r;
+}
+sub lavish_items {  # <path> <block-name regex>
+  my ($path, $names) = @_;
+  my %r = (found => 0, unparsed => 0, want => 0, items => [], malformed => 0, unpresented => 0);
+  open my $fh, "<", $path or return undef;
+  my ($fields, @block);
+  while (my $line = <$fh>) {
+    if (!$r{found}) {
+      next unless $line =~ /^(?:$names)/;
+      if ($line =~ /^(?:$names)\[(\d+)\](?:\{([^}]*)\})?:\s*$/) {
+        ($r{want}, $fields) = ($1, $2);
+        $r{found} = 1;
+      } else {
+        $r{unparsed} = 1;
+        last;
+      }
+      next;
+    }
+    last unless $line =~ /^\s/;
+    chomp $line;
+    push @block, $line;
+  }
+  close $fh;
+  return \%r unless $r{found};
+  my $body = lavish_array($r{want}, $fields, \@block, 1);
+  $r{$_} = $body->{$_} for qw(items malformed unparsed unpresented);
   return \%r;
 }
 '
@@ -786,7 +835,8 @@ cmd_reconciles() { cmd_choice_rows reconciles "$@"; }
 # out of that field. A pure annotation has no prompt.
 # A list-shaped item's nested `target` (for example a table cell's row and
 # column labels) is printed as its own prefixed field so the comment keeps the
-# place it was written about.
+# place it was written about. Attachments on an annotation or message are
+# printed as their own field, one `- id:` entry per attachment.
 cmd_read() {
   local file=${1-} lifecycle session_ended
   [ -n "$file" ] || usage
@@ -799,8 +849,9 @@ cmd_read() {
     my $want = $block->{want};
     my @parsed = @{$block->{items}};
     my $malformed = $block->{malformed};
+    my $unpresented = $block->{unpresented};
     my $presented = scalar @parsed;
-    my $complete = ($presented == $want && !$malformed && !$block->{unparsed}) ? "yes" : "no";
+    my $complete = ($presented == $want && !$malformed && !$unpresented && !$block->{unparsed}) ? "yes" : "no";
     my @messages;
     my @annotations;
     for my $f (@parsed) {
@@ -821,6 +872,19 @@ cmd_read() {
       return if !@lines || (@lines == 1 && $lines[0] eq "");
       print "| $_\n" for @lines;
     }
+    sub emit_attachments {
+      my ($f) = @_;
+      my $list = $f->{attachments};
+      return unless ref $list eq "ARRAY" && @$list;
+      my %rank = (id => 0, name => 1, path => 2, url => 3);
+      my @lines;
+      for my $att (@$list) {
+        my @keys = sort { ($rank{$a} // 9) <=> ($rank{$b} // 9) || $a cmp $b } keys %$att;
+        push @lines, map { ($_ eq $keys[0] ? "- " : "  ") . "$_: $att->{$_}" } @keys;
+      }
+      print "attachments:\n";
+      emit_body(join "\n", @lines);
+    }
     if (@messages) {
       my $message_label = $session_ended =~ /^(?:true|True|TRUE)$/
         ? "SESSION-ENDING MESSAGE" : "CAPTAIN MESSAGE";
@@ -831,6 +895,7 @@ cmd_read() {
           ? $messages[$i]{prompt}
           : (defined $messages[$i]{text} ? $messages[$i]{text} : "");
         emit_body($body);
+        emit_attachments($messages[$i]);
       }
       print "END $message_label\n";
     } else {
@@ -840,6 +905,7 @@ cmd_read() {
     print "declared_items: $want\n";
     print "presented_items: $presented\n";
     print "malformed_items: $malformed\n";
+    print "unpresented_items: $unpresented\n";
     print "complete: $complete\n";
     print "lifecycle: $lifecycle\n";
     print "session_ended: ", (length $session_ended ? $session_ended : "(unset)"), "\n";
@@ -872,6 +938,7 @@ cmd_read() {
           print "target:\n";
           emit_body(join "\n", map { substr($_, 7) . ": $f->{$_}" } @target);
         }
+        emit_attachments($f);
       }
       print "END ANNOTATIONS\n";
     } else {
