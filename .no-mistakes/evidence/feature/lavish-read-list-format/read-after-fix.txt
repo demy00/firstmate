@@ -1,0 +1,124 @@
+CAPTAIN MESSAGE
+CAPTAIN MESSAGE PART 1 of 2
+| Freeform message
+attachments:
+| [0].bytes: 67
+| [0].height: 1
+| [0].id: d0afbaf740ad2d35e78e6238ae16b5b17bdfd8d2b26351fc66bc2dfdf8e59f9f.png
+| [0].mime: image/png
+| [0].name: screenshot.png
+| [0].path: /tmp/lavish-e2e.rnPZ/state/attachments/1da419450ffd6418/d0afbaf740ad2d35e78e6238ae16b5b17bdfd8d2b26351fc66bc2dfdf8e59f9f.png
+| [0].type: image
+| [0].width: 1
+CAPTAIN MESSAGE PART 2 of 2
+| Overall looks good, ship after fixes
+fields:
+| text: Freeform message
+END CAPTAIN MESSAGE
+
+declared_items: 12
+presented_items: 12
+malformed_items: 0
+unpresented_items: 0
+complete: yes
+lifecycle: feedback
+session_ended: (unset)
+annotation_count: 10
+session_ending_message_count: 2
+
+ANNOTATIONS
+ANNOTATION 1 of 10
+element_uid: 1
+element_selector: body > main > div:nth-of-type(1) > h1
+tag: h1
+text:
+| Sample heading
+prompt:
+| comment 1: tighten this, please
+ANNOTATION 2 of 10
+element_uid: 2
+element_selector: body > main > div:nth-of-type(1) > h1
+tag: h1
+text:
+| Sample heading
+prompt:
+| comment 2: tighten this, please
+ANNOTATION 3 of 10
+element_uid: 3
+element_selector: body > main > div:nth-of-type(1) > h1
+tag: h1
+text:
+| Sample heading
+prompt:
+| comment 3: tighten this, please
+ANNOTATION 4 of 10
+element_uid: 4
+element_selector: body > main > div:nth-of-type(1) > h1
+tag: h1
+text:
+| Sample heading
+prompt:
+| comment 4: tighten this, please
+ANNOTATION 5 of 10
+element_uid: 5
+element_selector: body > main > div:nth-of-type(1) > h1
+tag: h1
+text:
+| Sample heading
+prompt:
+| comment 5: tighten this, please
+ANNOTATION 6 of 10
+element_uid: 6
+element_selector: body > main > div:nth-of-type(1) > h1
+tag: h1
+text:
+| Sample heading
+prompt:
+| comment 6: tighten this, please
+ANNOTATION 7 of 10
+element_uid: 7
+element_selector: body > main > div:nth-of-type(1) > h1
+tag: h1
+text:
+| Sample heading
+prompt:
+| comment 7: tighten this, please
+ANNOTATION 8 of 10
+element_uid: 8
+element_selector: table > tbody > tr:nth-of-type(2) > td:nth-of-type(2)
+tag: td
+text:
+| Local
+prompt:
+| This cell is wrong
+target:
+| columnLabel: Where the AI runs
+| rowLabel: Private
+| selector: table > tbody > tr:nth-of-type(2) > td:nth-of-type(2)
+| text: Local
+| type: table-cell
+ANNOTATION 9 of 10
+element_uid: 9
+element_selector: main > p
+tag: p
+text:
+| selected words
+prompt:
+| reword these
+target:
+| end.offset: 19
+| end.path[0]: 0
+| end.selector: main > p
+| start.offset: 5
+| start.path[0]: 0
+| start.selector: main > p
+| text: selected words
+| type: text-range
+ANNOTATION 10 of 10
+element_uid: 12
+element_selector: form > button
+tag: choice
+text:
+| Plan: Pro
+END ANNOTATIONS
+END LAVISH RESULT (12 of 12)

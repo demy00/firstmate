@@ -1,0 +1,85 @@
+session:
+  file: /private/tmp/lavish-e2e.rnPZ/board.html
+  status: feedback
+prompts[12]:
+  - uid: "1"
+    prompt: "comment 1: tighten this, please"
+    selector: "body > main > div:nth-of-type(1) > h1"
+    tag: h1
+    text: Sample heading
+  - uid: "2"
+    prompt: "comment 2: tighten this, please"
+    selector: "body > main > div:nth-of-type(1) > h1"
+    tag: h1
+    text: Sample heading
+  - uid: "3"
+    prompt: "comment 3: tighten this, please"
+    selector: "body > main > div:nth-of-type(1) > h1"
+    tag: h1
+    text: Sample heading
+  - uid: "4"
+    prompt: "comment 4: tighten this, please"
+    selector: "body > main > div:nth-of-type(1) > h1"
+    tag: h1
+    text: Sample heading
+  - uid: "5"
+    prompt: "comment 5: tighten this, please"
+    selector: "body > main > div:nth-of-type(1) > h1"
+    tag: h1
+    text: Sample heading
+  - uid: "6"
+    prompt: "comment 6: tighten this, please"
+    selector: "body > main > div:nth-of-type(1) > h1"
+    tag: h1
+    text: Sample heading
+  - uid: "7"
+    prompt: "comment 7: tighten this, please"
+    selector: "body > main > div:nth-of-type(1) > h1"
+    tag: h1
+    text: Sample heading
+  - uid: "8"
+    prompt: This cell is wrong
+    selector: "table > tbody > tr:nth-of-type(2) > td:nth-of-type(2)"
+    tag: td
+    text: Local
+    target:
+      type: table-cell
+      selector: "table > tbody > tr:nth-of-type(2) > td:nth-of-type(2)"
+      rowLabel: Private
+      columnLabel: Where the AI runs
+      text: Local
+  - uid: "9"
+    prompt: reword these
+    selector: main > p
+    tag: p
+    text: selected words
+    target:
+      type: text-range
+      text: selected words
+      start:
+        selector: main > p
+        path[1]: 0
+        offset: 5
+      end:
+        selector: main > p
+        path[1]: 0
+        offset: 19
+  - uid: ""
+    prompt: ""
+    selector: ""
+    tag: message
+    text: Freeform message
+    attachments[1]{id,type,path,mime,bytes,width,height,name}:
+      d0afbaf740ad2d35e78e6238ae16b5b17bdfd8d2b26351fc66bc2dfdf8e59f9f.png,image,/tmp/lavish-e2e.rnPZ/state/attachments/1da419450ffd6418/d0afbaf740ad2d35e78e6238ae16b5b17bdfd8d2b26351fc66bc2dfdf8e59f9f.png,image/png,67,1,1,screenshot.png
+  - uid: ""
+    prompt: "Overall looks good, ship after fixes"
+    selector: ""
+    tag: message
+    text: Freeform message
+  - uid: "12"
+    prompt: "Pick one\n\nContext data: {\"schema\":\"fm-bearings-answer.v1\",\"question\":\"plan\",\"selection\":\"pro\",\"note\":\"\"}"
+    selector: form > button
+    tag: choice
+    text: "Plan: Pro"
+next_step: "Apply the requested changes to /private/tmp/lavish-e2e.rnPZ/board.html. Some prompts carry image attachments the user added: each is an object in the prompt's `attachments` array with an absolute local `path` (plus id, mime, and dimensions). Open those image files to see what the user is referring to. Do not respond to the user just yet. Now you must run `lavish-axi poll /private/tmp/lavish-e2e.rnPZ/board.html --agent-reply \"<message for the user>\"` without --timeout-ms unless the user ended the session. The poll waits silently until the user sends more feedback or ends the session - never kill it. Keep the poll in the foreground by default and let it return the feedback directly to the agent. A background poll is allowed only through a harness-native tracked background-job facility whose completion result is guaranteed to resume or notify the same agent. Never use `nohup`, shell `&`, `disown`, redirected fire-and-forget processes, or a detached terminal without an explicit verified callback merely to keep polling alive. If the harness has no completion-aware background facility, use the foreground poll or first wire a verified wake callback into the surrounding supervisor. Do not tell the user the artifact is being monitored until that wake path is live. If the poll gets killed or times out before feedback arrives, re-run it - feedback remains queued until delivery. Poll delivery consumes the response, so read it completely."
+dom_snapshot: ""
