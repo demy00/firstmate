@@ -3083,23 +3083,29 @@ if [ "$KIND" = ship ]; then
   BRIEF_FORGE=$(sed -n 's/^Delivery contract: mode=[^ ]*.*[[:space:]]forge=\([^ ]*\).*$/\1/p' "$BRIEF" | head -n 1)
   [ -n "$BRIEF_FORGE" ] || BRIEF_FORGE=none
   BRIEF_BRANCH=$(sed -n 's/^Ship branch: //p' "$BRIEF" | head -n 1)
+  # A brief without a Ship branch line still tells the worker which branch to
+  # create, and briefs from both prefix eras exist, so that rendered branch is
+  # the one the spawn must record. Only a brief that renders none at all falls
+  # back to the task-branch candidates.
+  BRIEF_CHECKOUT=$(sed -n 's/.*`git checkout -b \([^` ]*\) --`.*/\1/p' "$BRIEF" | head -n 1)
   if [ -n "$BRIEF_BRANCH" ]; then
     [ "$BRIEF_BRANCH" = "$BRANCH" ] || {
       echo "error: branch mismatch for $ID: the brief says branch=$BRIEF_BRANCH but this spawn selected branch=$BRANCH" >&2
       exit 1
     }
-  elif ! fm_task_branch_candidates "$ID" | grep -Fqx -- "$BRANCH"; then
+  elif { [ -n "$BRIEF_CHECKOUT" ] && [ "$BRIEF_CHECKOUT" != "$BRANCH" ]; } ||
+    { [ -z "$BRIEF_CHECKOUT" ] && ! fm_task_branch_candidates "$ID" | grep -Fqx -- "$BRANCH"; }; then
     # A relaunch's branch comes from the meta record (--branch-prefix is refused
     # there), so a promoted scout whose brief never carried a Ship branch line
     # must relaunch on that recorded branch rather than be refused.
     if [ "$RELAUNCH" -eq 1 ]; then
       echo "warning: $BRIEF records no ship branch; relaunching on the task's recorded branch $BRANCH" >&2
     else
-      echo "error: $BRIEF records no ship branch; regenerate it with --branch-prefix before spawning $BRANCH" >&2
+      echo "error: $BRIEF records no ship branch${BRIEF_CHECKOUT:+ and tells the worker to create $BRIEF_CHECKOUT}; regenerate it with --branch-prefix before spawning $BRANCH" >&2
       exit 1
     fi
   else
-    echo "warning: $BRIEF records no ship branch; defaulting to legacy branch $BRANCH" >&2
+    echo "warning: $BRIEF records no ship branch; launching on branch $BRANCH" >&2
   fi
   if [ -z "$BRIEF_MODE" ]; then
     echo "warning: $BRIEF records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode $MODE - confirm its definition of done matches" >&2

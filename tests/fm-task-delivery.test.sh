@@ -1366,9 +1366,30 @@ EOF
 
   write_brief "$home" branch-agree-a3 no-mistakes
   out=$(run_spawn "$home" "$fakebin" branch-agree-a3 "$proj" claude --mode no-mistakes --yolo off)
-  assert_contains "$out" "records no ship branch; defaulting to legacy branch feature/branch-agree-a3" \
+  assert_contains "$out" "records no ship branch; launching on branch feature/branch-agree-a3" \
     "the legacy default did not warn about the brief's missing ship branch"
   assert_not_contains "$out" "branch mismatch" "the legacy default was refused as drift"
+
+  # A legacy brief that renders its own checkout binds the spawn to that branch:
+  # an fm/ brief spawned on the default feature/ prefix would record a branch the
+  # worker never creates.
+  write_brief "$home" branch-agree-a7 no-mistakes
+  printf '1. First action: create your branch: `git checkout -b fm/branch-agree-a7 --`\n' \
+    >>"$home/data/branch-agree-a7/brief.md"
+  out=$(run_spawn "$home" "$fakebin" branch-agree-a7 "$proj" claude --mode no-mistakes --yolo off)
+  status=$?
+  [ "$status" -ne 0 ] || fail "a legacy fm/ brief spawned on the default feature/ branch was accepted"
+  assert_contains "$out" "records no ship branch and tells the worker to create fm/branch-agree-a7" \
+    "the refusal did not name the branch the brief renders"
+  assert_absent "$home/state/branch-agree-a7.meta" "the refused legacy fm/ brief spawn still recorded a task"
+
+  write_brief "$home" branch-agree-a8 no-mistakes
+  printf '1. First action: create your branch: `git checkout -b feature/branch-agree-a8 --`\n' \
+    >>"$home/data/branch-agree-a8/brief.md"
+  out=$(run_spawn "$home" "$fakebin" branch-agree-a8 "$proj" claude --mode no-mistakes --yolo off)
+  assert_contains "$out" "records no ship branch; launching on branch feature/branch-agree-a8" \
+    "a legacy brief rendering the selected branch did not proceed"
+  assert_not_contains "$out" "regenerate it with --branch-prefix" "a legacy brief rendering the selected branch was refused"
 
   FM_HOME="$home" "$BRIEF" branch-agree-a4 proj --mode no-mistakes --branch-prefix fix/ >/dev/null \
     || fail "a second fix/-prefixed brief should scaffold"
