@@ -1,0 +1,25 @@
+{
+  "sessions": {
+    "0b276ea59b4b94c3": {
+      "key": "0b276ea59b4b94c3",
+      "file": "/Users/demy00/.no-mistakes/evidence/01M3T0WJWPR469BT5NKVHCAVX5/e2e/board.html",
+      "url": "http://127.0.0.1:47813/session/0b276ea59b4b94c3",
+      "status": "open",
+      "pending_prompts": 0,
+      "prompts": [],
+      "layout_warnings": [],
+      "artifact_revision": 0,
+      "artifact_failures": [],
+      "delivered_attachments": [],
+      "dom_snapshot": "",
+      "chat": [
+        {
+          "role": "user",
+          "text": "Overall looks good, ship it after fixes",
+          "at": "2026-09-30T20:47:21.371Z"
+        }
+      ],
+      "updated_at": "2026-09-30T20:47:24.043Z"
+    }
+  }
+}

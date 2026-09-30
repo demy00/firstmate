@@ -1,0 +1,5 @@
+## after fix
+classify: feedback
+silent exit=1 (non-zero = wake is published)
+## base
+silent exit=1

@@ -1,0 +1,83 @@
+session:
+  file: /Users/demy00/.no-mistakes/evidence/01M3T0WJWPR469BT5NKVHCAVX5/e2e/board.html
+  status: feedback
+prompts[12]:
+  - uid: "1"
+    prompt: "Comment number 1: tighten this copy"
+    selector: "body > main > div:nth-of-type(1) > p"
+    tag: p
+    text: Some paragraph text here
+  - uid: "2"
+    prompt: "Comment number 2: tighten this copy"
+    selector: "body > main > div:nth-of-type(1) > p"
+    tag: p
+    text: Some paragraph text here
+  - uid: "3"
+    prompt: "Comment number 3: tighten this copy"
+    selector: "body > main > div:nth-of-type(1) > p"
+    tag: p
+    text: Some paragraph text here
+  - uid: "4"
+    prompt: "Comment number 4: tighten this copy"
+    selector: "body > main > div:nth-of-type(1) > p"
+    tag: p
+    text: Some paragraph text here
+  - uid: "5"
+    prompt: "Comment number 5: tighten this copy"
+    selector: "body > main > div:nth-of-type(1) > p"
+    tag: p
+    text: Some paragraph text here
+  - uid: "6"
+    prompt: "Comment number 6: tighten this copy"
+    selector: "body > main > div:nth-of-type(1) > p"
+    tag: p
+    text: Some paragraph text here
+  - uid: "7"
+    prompt: "Comment number 7: tighten this copy"
+    selector: "body > main > div:nth-of-type(1) > p"
+    tag: p
+    text: Some paragraph text here
+  - uid: "8"
+    prompt: "Comment number 8: tighten this copy"
+    selector: "body > main > div:nth-of-type(1) > p"
+    tag: p
+    text: Some paragraph text here
+  - uid: "9"
+    prompt: "Comment number 9: tighten this copy"
+    selector: "body > main > div:nth-of-type(1) > p"
+    tag: p
+    text: Some paragraph text here
+  - uid: "10"
+    prompt: Clarify where the AI runs
+    selector: "table td:nth-of-type(1)"
+    tag: td
+    text: Private
+    target:
+      type: table-cell
+      selector: "table td:nth-of-type(1)"
+      rowLabel: Private
+      columnLabel: Where the AI runs
+      text: Private
+  - uid: "11"
+    prompt: reword this
+    selector: main p
+    tag: p
+    text: paragraph text
+    target:
+      type: text-range
+      text: paragraph text
+      start:
+        selector: main > p
+        path[2]: 0,1
+        offset: 5
+      end:
+        selector: main > p
+        path[2]: 0,1
+        offset: 19
+  - uid: ""
+    prompt: "Overall looks good, ship it after fixes"
+    selector: ""
+    tag: message
+    text: Freeform message
+next_step: "Apply the requested changes to /Users/demy00/.no-mistakes/evidence/01M3T0WJWPR469BT5NKVHCAVX5/e2e/board.html. Do not respond to the user just yet. Now you must run `lavish-axi poll /Users/demy00/.no-mistakes/evidence/01M3T0WJWPR469BT5NKVHCAVX5/e2e/board.html --agent-reply \"<message for the user>\"` without --timeout-ms unless the user ended the session. The poll waits silently until the user sends more feedback or ends the session - never kill it. Keep the poll in the foreground by default and let it return the feedback directly to the agent. A background poll is allowed only through a harness-native tracked background-job facility whose completion result is guaranteed to resume or notify the same agent. Never use `nohup`, shell `&`, `disown`, redirected fire-and-forget processes, or a detached terminal without an explicit verified callback merely to keep polling alive. If the harness has no completion-aware background facility, use the foreground poll or first wire a verified wake callback into the surrounding supervisor. Do not tell the user the artifact is being monitored until that wake path is live. If the poll gets killed or times out before feedback arrives, re-run it - feedback remains queued until delivery. Poll delivery consumes the response, so read it completely."
+dom_snapshot: ""
