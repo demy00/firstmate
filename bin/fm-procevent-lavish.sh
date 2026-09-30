@@ -25,7 +25,8 @@
 #            plus a completeness verdict, follow before all annotations so a
 #            partial read is obvious; a content block in neither published
 #            shape is never certified complete. Each annotation retains its
-#            element uid, selector, tag, and text. Every other field of an
+#            element uid, selector, tag, and text; a message keeps any non-empty
+#            uid, selector, or text beside its body. Every other field of an
 #            annotation or message, nested ones included, is presented
 #            flattened under target, attachments, or fields; an item whose
 #            nested content cannot be parsed is counted unpresented and never
@@ -935,12 +936,13 @@ cmd_read() {
       emit_body(join "\n", map { substr($_, $strip) . ": $f->{$_}" } sort { $order{$a} cmp $order{$b} } @keys);
     }
     sub emit_nested {
-      my ($f) = @_;
+      my ($f, @shown) = @_;
+      my %shown = map { $_ => 1 } @shown;
       my (@target, @attachments, @other);
       for my $k (keys %$f) {
         if ($k =~ /\Atarget\./) { push @target, $k }
         elsif ($k =~ /\Aattachments\[/) { push @attachments, $k }
-        elsif ($k !~ /\A(?:uid|prompt|selector|tag|text)\z/) { push @other, $k }
+        elsif (!$shown{$k}) { push @other, $k }
       }
       emit_section("target", $f, 7, @target);
       emit_section("attachments", $f, 11, @attachments);
@@ -952,11 +954,11 @@ cmd_read() {
       print "$message_label\n";
       for my $i (0 .. $#messages) {
         print "$message_label PART ", ($i + 1), " of ", scalar(@messages), "\n" if @messages > 1;
-        my $body = defined $messages[$i]{prompt} && length $messages[$i]{prompt}
-          ? $messages[$i]{prompt}
-          : (defined $messages[$i]{text} ? $messages[$i]{text} : "");
-        emit_body($body);
-        emit_nested($messages[$i]);
+        my $m = $messages[$i];
+        my $body_key = defined $m->{prompt} && length $m->{prompt} ? "prompt" : "text";
+        emit_body($m->{$body_key});
+        emit_nested($m, "tag", $body_key,
+          grep { !defined $m->{$_} || !length $m->{$_} } qw(uid prompt selector text));
       }
       print "END $message_label\n";
     } else {
@@ -994,7 +996,7 @@ cmd_read() {
           print "prompt:\n";
           emit_body($comment);
         }
-        emit_nested($f);
+        emit_nested($f, qw(uid prompt selector tag text));
       }
       print "END ANNOTATIONS\n";
     } else {

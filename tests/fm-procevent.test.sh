@@ -3241,7 +3241,7 @@ assert_contains "$out" "| rowLabel: Sample row" "a table-cell comment lost its r
 assert_contains "$out" $'attachments:\n| [0].id: att-1\n| [0].name: sample, shot.png\n| [0].path: /tmp/sample.png\nANNOTATION 3 of 3' \
   "a table-cell comment lost its image attachment"
 assert_contains "$out" "unpresented_items: 0" "a fully presented list-shaped capture reported unpresented items"
-assert_contains "$out" $'CAPTAIN MESSAGE\n| - uid: "99"\nEND CAPTAIN MESSAGE' \
+assert_contains "$out" $'CAPTAIN MESSAGE\n| - uid: "99"\nfields:\n| text: Freeform message\n| uid: 7\nEND CAPTAIN MESSAGE' \
   "a list-shaped freeform message was not presented as the captain message"
 assert_contains "$out" "| Option A" "a list-shaped choice lost its label"
 assert_not_contains "$out" "Context data:" "a list-shaped choice surfaced its context as a comment"
@@ -3350,9 +3350,28 @@ assert_contains "$out" $'| reword this\ntarget:\n| end.offset: 12\n| end.path[0]
   "a text-selection comment lost its start or end"
 assert_contains "$out" $'target:\n| type: layout-warnings\n| warnings[0].kind: overflow\n| warnings[0].selector: div.wide\n| warnings[0].size[0]: 1200\n| warnings[0].size[1]: 80\n| warnings[1].kind: overlap\n| warnings[1].selectors[0]: h1\n| warnings[1].selectors[1]: h2\nEND ANNOTATIONS' \
   "a layout-warnings comment lost its warnings"
-assert_contains "$out" $'CAPTAIN MESSAGE\n| about this part\ntarget:\n| selector: section#intro\n| type: element\nattachments:\n| [0].id: shot.png\n| [0].path: /tmp/shot.png\n| [0].type: image\nfields:\n| extra[0][0]: a\n| extra[0][1]: b\nEND CAPTAIN MESSAGE' \
+assert_contains "$out" $'CAPTAIN MESSAGE\n| about this part\ntarget:\n| selector: section#intro\n| type: element\nattachments:\n| [0].id: shot.png\n| [0].path: /tmp/shot.png\n| [0].type: image\nfields:\n| extra[0][0]: a\n| extra[0][1]: b\n| text: Freeform message\nEND CAPTAIN MESSAGE' \
   "a message lost its target, image attachment, or other nested field"
 pass "read presents nested targets, attachments, and fields flattened and complete"
+
+# A message's own uid, selector, and label text reach the handler beside its
+# body; only the message tag, which the section label already states, is folded.
+cat > "$READ" <<'EOF'
+session:
+  file: /review.html
+  status: feedback
+prompts[1]:
+  - uid: "3"
+    prompt: about this block
+    selector: "#x"
+    tag: message
+    text: Freeform message
+EOF
+out=$(read_out) || fail "read failed on a message carrying a selector"
+assert_contains "$out" "complete: yes" "a fully presented message was not certified complete"
+assert_contains "$out" $'CAPTAIN MESSAGE\n| about this block\nfields:\n| selector: #x\n| text: Freeform message\n| uid: 3\nEND CAPTAIN MESSAGE' \
+  "a message dropped its uid, selector, or text"
+pass "read presents a message's uid, selector, and text beside its body"
 
 # Nested content that cannot be parsed is never certified as read.
 for hidden in $'    attachments[2]:\n      - id: only-one.png' \
