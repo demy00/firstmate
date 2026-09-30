@@ -1,0 +1,14 @@
+## Pre-fix fm-spawn.sh (829b49e, warning text aligned) - legacy fm/ brief on default feature/ prefix
+not ok - the refusal did not name the branch the brief renders (missing: 'records no ship branch and tells the worker to create fm/branch-agree-a7')
+--- output ---
+warning: /private/var/folders/y9/b8qt1d396lv9cfh42ft2gt7r0000gn/T/fm-task-delivery.aU00F9/branch-agree/home/data/branch-agree-a7/launch-brief.md records no ship branch; launching on branch feature/branch-agree-a7
+
+## Post-fix (b7edc11) fm-task-delivery.test.sh
+ok - fm-spawn: every legacy worker receives scoped role instructions without changing project or primary instructions
+ok - fm-promote: a selected branch prefix reaches both worker instructions and durable task state
+Switched to a new branch '$(touch${IFS}/private/var/folders/y9/b8qt1d396lv9cfh42ft2gt7r0000gn/T/fm-task-delivery.OZrdK7/promote-branch-shell-safe-marker)/promote-branch-safe-e3'
+ok - fm-promote: ref-format-valid shell metacharacters stay literal in promotion branch commands
+ok - fm-spawn: the brief must carry the spawn's selected ship branch, and the selection is validated before anything is created
+ok - fm-spawn: a ship branch that deviates from the registered prefix is announced, never blocked
+ok - fm-project-mode: --branch-prefix resolves order-independently and defaults to the default feature/ prefix
+# all fm-task-delivery tests passed

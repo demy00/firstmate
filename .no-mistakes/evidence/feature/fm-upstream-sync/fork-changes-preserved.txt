@@ -1,0 +1,43 @@
+## fm-captain-hold-lifecycle
+ok - report-only unresolved captain call is reproduced and completion refuses before loss
+ok - the completion gate accepts an answered captain call pruned into the archive
+ok - the gate still refuses an archived call with no recorded answer and an unknown key
+ok - the completion gate unions archived and live inventory and keeps a held call open
+ok - the gate reads tasks-axi's default archive in a home that configures none
+ok - the gate reads the archive the user's tasks-axi config names
+ok - the gate refuses a reused key whose newest archived close recorded no answer
+ok - the gate accepts a reused key whose newest archived close is answered
+ok - a deferred captain call leaves the live Captain's Call until its date and stays answerable
+ok - main-home and secondmate-home captain calls remain correctly routed
+ok - a captain call with no routed work, a verified transfer, an open decision, and an answered call all stay silent
+ok - an interrupted cleanup keeps the captain call recoverable and session start retains it
+ok - cleanup retains captain calls in the configured backlog
+## fm-bearings-board-render
+## fm-task-branch-lib
+ok - fm_task_branch names a new worker branch feature/<task-id>
+ok - fm_task_branch_candidates lists feature/<id> before fm/<id>
+ok - fm_task_branch_prefixes_json mirrors the shell prefix order for jq consumers
+ok - fm_task_branch_resolve prefers feature/<id> and still finds fm/<id>
+ok - fm_task_branch_unrecorded resolves an existing branch and otherwise names feature/<id>
+ok - fm-merge-local lands a feature/<id> branch and a pre-rename fm/<id> branch
+## fm-review-diff
+ok - fm-review-diff without pr= keeps the worktree-branch diff
+ok - fm-review-diff falls back to local branch with a warning when PR head is unreachable
+ok - fm-review-diff reviews the meta-recorded ship branch even when the worktree HEAD moved off it
+ok - fm-review-diff refuses a corrupt recorded ship branch instead of reviewing the wrong content
+ok - fm-review-diff resolves an unrecorded task's feature/<id> branch
+ok - fm-review-diff prefers an unrecorded task's feature/ branch over an fm/ twin
+## fm-brief
+ok - fm-brief.sh: --branch-prefix omitted defaults every ship mode to feature/<task-id>
+ok - fm-brief.sh: a --branch-prefix override renders identically across every generated section
+ok - fm-brief.sh: an empty --branch-prefix override resolves to a bare <task-id> branch
+ok - fm-brief.sh: --branch-prefix is refused on scout and secondmate scaffolds
+ok - fm-brief.sh: --branch-prefix value is validated against embedded spaces and a leading dash
+ok - fm-brief.sh: ref-format-valid shell metacharacters stay literal in generated branch commands
+## fm-dod-lib
+ok - a moved remote branch that lacks the named head is refused
+ok - local-only linked named branch is reachable from the project clone
+## fm-bearings-snapshot
+ok - --include-prs labels a feature/ head as a task PR only when a task record matches its id
+ok - --include-prs maps a custom branch-prefix PR back to its recorded task
+## fm-bearings-board
