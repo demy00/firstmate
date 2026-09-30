@@ -3087,6 +3087,7 @@ if [ "$KIND" = ship ]; then
   # create, and briefs from both prefix eras exist, so that rendered branch is
   # the one the spawn must record. Only a brief that renders none at all falls
   # back to the task-branch candidates.
+  # shellcheck disable=SC2016 # Backticks are literal brief Markdown.
   BRIEF_CHECKOUT=$(sed -n 's/.*`git checkout -b \([^` ]*\)\( --\)\{0,1\}`.*/\1/p' "$BRIEF" | head -n 1)
   if [ -n "$BRIEF_BRANCH" ]; then
     [ "$BRIEF_BRANCH" = "$BRANCH" ] || {
