@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
-# Behavior tests for bin/fm-task-branch-lib.sh, the one owner of the worker
-# branch naming convention.
+# Behavior tests for bin/fm-task-branch-lib.sh, the one owner of the default
+# ship-branch prefix and of the branch a task resolves to when its record names
+# none.
 #
-# A new worker branch is named feature/<task-id>, so project repositories whose
+# A new ship branch defaults to feature/<task-id>, so project repositories whose
 # automated checks run only on main, develop, or feature/** branches check a
-# worker branch from its first push. Branches created under the earlier
-# fm/<task-id> name are never renamed, because a running pipeline owns them, so
-# every lookup must keep resolving them while the current name wins whenever
-# both exist. A rename that creates under one name and looks up under another
-# silently loses the task; these tests pin both halves together.
+# worker branch from its first push. A task record that names no branch predates
+# the recorded branch= field; its work sits under feature/<task-id> or the
+# earlier fm/<task-id>, and a branch is never renamed under a running pipeline,
+# so every lookup must keep resolving both while the current name wins whenever
+# both exist. A convention that creates under one name and looks up under
+# another silently loses the task; these tests pin both halves together.
 set -u
 
 # shellcheck source=tests/lib.sh
@@ -39,7 +41,7 @@ test_candidates_list_current_name_first_then_legacy() {
 test_prefixes_json_matches_shell_order() {
   local out
   out=$(fm_task_branch_prefixes_json)
-  [ "$out" = '["feature","fm"]' ] || fail "prefixes JSON must list feature then fm, got '$out'"
+  [ "$out" = '["feature/","fm/"]' ] || fail "prefixes JSON must list feature/ then fm/, got '$out'"
   printf '%s' "$out" | jq -e 'type == "array"' >/dev/null \
     || fail "prefixes JSON must be valid JSON: $out"
   pass "fm_task_branch_prefixes_json mirrors the shell prefix order for jq consumers"
@@ -73,6 +75,20 @@ test_resolve_prefers_feature_then_falls_back_to_fm() {
     || fail "a task whose only branch is feature/<id> must resolve"
   [ "$out" = feature/task-r1 ] || fail "current-only task resolved to '$out'"
   pass "fm_task_branch_resolve prefers feature/<id> and still finds fm/<id>"
+}
+
+# An unrecorded task whose worker has not created its branch yet resolves to the
+# default-prefix name, which is what a fresh worker is told to create.
+test_unrecorded_defaults_to_the_current_name() {
+  local repo out
+  repo="$TMP_ROOT/unrecorded"
+  fm_git_init_commit "$repo"
+  out=$(fm_task_branch_unrecorded "$repo" task-u1)
+  [ "$out" = feature/task-u1 ] || fail "an unrecorded task with no branch must default to feature/<id>, got '$out'"
+  git -C "$repo" branch -q fm/task-u1
+  out=$(fm_task_branch_unrecorded "$repo" task-u1)
+  [ "$out" = fm/task-u1 ] || fail "an unrecorded task must resolve its existing fm/<id> branch, got '$out'"
+  pass "fm_task_branch_unrecorded resolves an existing branch and otherwise names feature/<id>"
 }
 
 # The guarded local-only landing looks the worker branch up by task id, so a
@@ -111,4 +127,5 @@ test_new_branch_is_named_feature
 test_candidates_list_current_name_first_then_legacy
 test_prefixes_json_matches_shell_order
 test_resolve_prefers_feature_then_falls_back_to_fm
+test_unrecorded_defaults_to_the_current_name
 test_merge_local_lands_both_branch_names
