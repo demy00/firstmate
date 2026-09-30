@@ -1374,7 +1374,7 @@ EOF
   # an fm/ brief spawned on the default feature/ prefix would record a branch the
   # worker never creates.
   write_brief "$home" branch-agree-a7 no-mistakes
-  printf '1. First action: create your branch: `git checkout -b fm/branch-agree-a7 --`\n' \
+  printf '1. First action: create your branch: `git checkout -b fm/branch-agree-a7`\n' \
     >>"$home/data/branch-agree-a7/brief.md"
   out=$(run_spawn "$home" "$fakebin" branch-agree-a7 "$proj" claude --mode no-mistakes --yolo off)
   status=$?
@@ -1384,7 +1384,7 @@ EOF
   assert_absent "$home/state/branch-agree-a7.meta" "the refused legacy fm/ brief spawn still recorded a task"
 
   write_brief "$home" branch-agree-a8 no-mistakes
-  printf '1. First action: create your branch: `git checkout -b feature/branch-agree-a8 --`\n' \
+  printf '1. First action: create your branch: `git checkout -b feature/branch-agree-a8`\n' \
     >>"$home/data/branch-agree-a8/brief.md"
   out=$(run_spawn "$home" "$fakebin" branch-agree-a8 "$proj" claude --mode no-mistakes --yolo off)
   assert_contains "$out" "records no ship branch; launching on branch feature/branch-agree-a8" \

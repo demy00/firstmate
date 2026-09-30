@@ -3087,7 +3087,7 @@ if [ "$KIND" = ship ]; then
   # create, and briefs from both prefix eras exist, so that rendered branch is
   # the one the spawn must record. Only a brief that renders none at all falls
   # back to the task-branch candidates.
-  BRIEF_CHECKOUT=$(sed -n 's/.*`git checkout -b \([^` ]*\) --`.*/\1/p' "$BRIEF" | head -n 1)
+  BRIEF_CHECKOUT=$(sed -n 's/.*`git checkout -b \([^` ]*\)\( --\)\{0,1\}`.*/\1/p' "$BRIEF" | head -n 1)
   if [ -n "$BRIEF_BRANCH" ]; then
     [ "$BRIEF_BRANCH" = "$BRANCH" ] || {
       echo "error: branch mismatch for $ID: the brief says branch=$BRIEF_BRANCH but this spawn selected branch=$BRANCH" >&2
