@@ -3238,7 +3238,7 @@ assert_contains "$out" "element_selector: body > main > div:nth-of-type(1)" \
 assert_contains "$out" "| cell comment" "a table-cell comment was dropped"
 assert_contains "$out" $'target:\n| columnLabel: Sample column' "a table-cell comment lost its column"
 assert_contains "$out" "| rowLabel: Sample row" "a table-cell comment lost its row"
-assert_contains "$out" $'attachments:\n| - id: att-1\n|   name: sample, shot.png\n|   path: /tmp/sample.png\nANNOTATION 3 of 3' \
+assert_contains "$out" $'attachments:\n| [0].id: att-1\n| [0].name: sample, shot.png\n| [0].path: /tmp/sample.png\nANNOTATION 3 of 3' \
   "a table-cell comment lost its image attachment"
 assert_contains "$out" "unpresented_items: 0" "a fully presented list-shaped capture reported unpresented items"
 assert_contains "$out" $'CAPTAIN MESSAGE\n| - uid: "99"\nEND CAPTAIN MESSAGE' \
@@ -3285,27 +3285,89 @@ prompts[2]:
 EOF
 out=$(read_out) || fail "read failed on list-shaped attachments"
 assert_contains "$out" "complete: yes" "a capture with presented attachments was not marked complete"
-assert_contains "$out" $'CAPTAIN MESSAGE\n| Freeform message\nattachments:\n| - id: first.png\n|   name: first.png\n|   path: /tmp/first.png\n|   type: image\n| - id: second.png\n|   path: /tmp/second.png\n|   type: image\nEND CAPTAIN MESSAGE' \
+assert_contains "$out" $'CAPTAIN MESSAGE\n| Freeform message\nattachments:\n| [0].id: first.png\n| [0].name: first.png\n| [0].path: /tmp/first.png\n| [0].type: image\n| [1].id: second.png\n| [1].path: /tmp/second.png\n| [1].type: image\nEND CAPTAIN MESSAGE' \
   "an image-only freeform message lost its attachments"
-assert_contains "$out" $'attachments:\n| - id: third.png\n|   path: /tmp/third.png\n|   type: image\nEND ANNOTATIONS' \
+assert_contains "$out" $'attachments:\n| [0].id: third.png\n| [0].path: /tmp/third.png\n| [0].type: image\nEND ANNOTATIONS' \
   "a tabular attachment on an annotation was not presented"
 pass "read presents list and tabular attachments on messages and annotations"
 
-# Nested content the reader does not present is never certified as read.
-for hidden in $'    target:\n      type: mermaid-node\n      nodes[1]{id}:\n        a' \
-  $'    target:\n      meta:\n        a: b' \
-  $'    extra:\n      a: b' \
-  $'    tags[2]: x,y' \
-  $'    attachments[2]:\n      - id: only-one.png' \
-  $'    attachments[1]:\n      - id: deep.png\n        dims:\n          width: 1'; do
+# lavish-axi's text-selection, layout-warnings, and message targets nest
+# objects and arrays; every nested value reaches the handler as a flattened
+# field and the read is certified complete.
+cat > "$READ" <<'EOF'
+session:
+  file: /review.html
+  status: feedback
+prompts[3]:
+  - uid: "4"
+    prompt: reword this
+    selector: main > p
+    tag: p
+    text: selected words
+    target:
+      type: text-range
+      text: selected words
+      start:
+        selector: main > p
+        path[2]: 0,1
+        offset: 4
+      end:
+        selector: main > p
+        path[2]: 0,3
+        offset: 12
+  - uid: "5"
+    prompt: fix the overflow
+    selector: body
+    tag: body
+    text: ""
+    target:
+      type: layout-warnings
+      warnings[2]:
+        - kind: overflow
+          selector: "div.wide"
+          size[2]: 1200,80
+        - kind: overlap
+          selectors[2]: h1,h2
+  - uid: ""
+    prompt: about this part
+    selector: ""
+    tag: message
+    text: Freeform message
+    target:
+      type: element
+      selector: "section#intro"
+    attachments[1]:
+      - id: shot.png
+        type: image
+        path: /tmp/shot.png
+    extra[1]:
+      - [2]: a,b
+EOF
+out=$(read_out) || fail "read failed on nested targets"
+assert_contains "$out" "unpresented_items: 0" "nested targets were reported unpresented"
+assert_contains "$out" "complete: yes" "a capture with fully flattened nested content was not certified complete"
+assert_contains "$out" $'| reword this\ntarget:\n| end.offset: 12\n| end.path[0]: 0\n| end.path[1]: 3\n| end.selector: main > p\n| start.offset: 4\n| start.path[0]: 0\n| start.path[1]: 1\n| start.selector: main > p\n| text: selected words\n| type: text-range\nANNOTATION 2 of 2' \
+  "a text-selection comment lost its start or end"
+assert_contains "$out" $'target:\n| type: layout-warnings\n| warnings[0].kind: overflow\n| warnings[0].selector: div.wide\n| warnings[0].size[0]: 1200\n| warnings[0].size[1]: 80\n| warnings[1].kind: overlap\n| warnings[1].selectors[0]: h1\n| warnings[1].selectors[1]: h2\nEND ANNOTATIONS' \
+  "a layout-warnings comment lost its warnings"
+assert_contains "$out" $'CAPTAIN MESSAGE\n| about this part\ntarget:\n| selector: section#intro\n| type: element\nattachments:\n| [0].id: shot.png\n| [0].path: /tmp/shot.png\n| [0].type: image\nfields:\n| extra[0][0]: a\n| extra[0][1]: b\nEND CAPTAIN MESSAGE' \
+  "a message lost its target, image attachment, or other nested field"
+pass "read presents nested targets, attachments, and fields flattened and complete"
+
+# Nested content that cannot be parsed is never certified as read.
+for hidden in $'    attachments[2]:\n      - id: only-one.png' \
+  $'    tags[2]: x' \
+  $'    target:\n      text: "unterminated' \
+  $'    target:\n      rows[1]{a,b}:\n        1' \
+  $'    target:\n      type: x\n        stray: y'; do
   printf 'session:\n  file: /review.html\n  status: feedback\nprompts[1]:\n  - uid: "1"\n    prompt: kept\n    tag: div\n%s\n' "$hidden" > "$READ"
-  out=$(read_out) || fail "read failed on unpresented nested content: $hidden"
-  assert_contains "$out" "presented_items: 1" "an item with unpresented nested content was dropped: $hidden"
-  assert_contains "$out" "unpresented_items: 1" "unpresented nested content was not reported: $hidden"
-  assert_contains "$out" "complete: no" "unpresented nested content was certified complete: $hidden"
-  assert_contains "$out" "| kept" "an item with unpresented nested content lost its comment: $hidden"
+  out=$(read_out) || fail "read failed on unparseable nested content: $hidden"
+  assert_contains "$out" "presented_items: 1" "an item with unparseable nested content was dropped: $hidden"
+  assert_contains "$out" "unpresented_items: 1" "unparseable nested content was not reported: $hidden"
+  assert_contains "$out" "complete: no" "unparseable nested content was certified complete: $hidden"
+  assert_contains "$out" "| kept" "an item with unparseable nested content lost its comment: $hidden"
 done
-pass "read never certifies an item with unpresented nested content as complete"
+pass "read never certifies an item with unparseable nested content as complete"
 
 # A list whose items cannot all be parsed, or a content header in neither
 # published shape, is never certified as a complete empty read.
