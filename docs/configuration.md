@@ -394,6 +394,13 @@ An absent or blank file changes nothing, while a present path that is not a read
 The text is static and never executed or expanded; secondmate charters never take it, and the file is local to each home rather than part of secondmate inherited configuration.
 `bin/fm-brief.sh`'s header owns the placement rule and its safety argument.
 
+## ClickUp tickets (config/clickup.json)
+
+The optional local, gitignored `config/clickup.json` holds this home's settings for the internal [`clickup-tickets` skill](../.agents/skills/clickup-tickets/SKILL.md): the owner's ClickUp user id, the `cup` profile for each workspace with its workspace id and kind, the map from Firstmate project to ClickUp list and repository tag, and the list for non-software tickets.
+It never holds a token; tokens live only in the pinned `cup` CLI's own profiles.
+The file is local to each home and is not part of secondmate inherited configuration.
+The skill owns the file's fields and every ClickUp rule, while the [firstmate-clickup add-on](https://github.com/szobonyaerik/firstmate-clickup) owns the installer that creates the file from its example, the `cup` version pin, and the procedure for vetting a `cup` upgrade.
+
 ## Worker launch environment (config/launch-env-allowlist)
 
 The optional local, gitignored `config/launch-env-allowlist` limits the ambient environment passed to newly launched workers, scouts, and secondmates, including relaunches.
