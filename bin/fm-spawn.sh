@@ -3085,10 +3085,12 @@ if [ "$KIND" = ship ]; then
   BRIEF_BRANCH=$(sed -n 's/^Ship branch: //p' "$BRIEF" | head -n 1)
   # A brief without a Ship branch line still tells the worker which branch to
   # create, and briefs from both prefix eras exist, so that rendered branch is
-  # the one the spawn must record. Only a brief that renders none at all falls
+  # the one the spawn must record. The parse is anchored to the rendered
+  # "create your branch:" setup line so a checkout command quoted in the task
+  # text is never mistaken for it. Only a brief that renders none at all falls
   # back to the task-branch candidates.
   # shellcheck disable=SC2016 # Backticks are literal brief Markdown.
-  BRIEF_CHECKOUT=$(sed -n 's/.*`git checkout -b \([^` ]*\)\( --\)\{0,1\}`.*/\1/p' "$BRIEF" | head -n 1)
+  BRIEF_CHECKOUT=$(sed -n 's/.*create your branch: `git checkout -b \([^` ]*\)\( --\)\{0,1\}`.*/\1/p' "$BRIEF" | head -n 1)
   if [ -n "$BRIEF_BRANCH" ]; then
     [ "$BRIEF_BRANCH" = "$BRANCH" ] || {
       echo "error: branch mismatch for $ID: the brief says branch=$BRIEF_BRANCH but this spawn selected branch=$BRANCH" >&2

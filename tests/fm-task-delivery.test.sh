@@ -1384,9 +1384,11 @@ EOF
     "the refusal did not name the branch the brief renders"
   assert_absent "$home/state/branch-agree-a7.meta" "the refused legacy fm/ brief spawn still recorded a task"
 
+  # A checkout command quoted in the task text before the rendered setup line
+  # must not be mistaken for the branch the brief tells the worker to create.
   write_brief "$home" branch-agree-a8 no-mistakes
   # shellcheck disable=SC2016 # Backticks are literal generated Markdown.
-  printf '1. First action: create your branch: `git checkout -b feature/branch-agree-a8`\n' \
+  printf 'Try it first in `git checkout -b scratch`.\n1. First action: create your branch: `git checkout -b feature/branch-agree-a8`\n' \
     >>"$home/data/branch-agree-a8/brief.md"
   out=$(run_spawn "$home" "$fakebin" branch-agree-a8 "$proj" claude --mode no-mistakes --yolo off)
   assert_contains "$out" "records no ship branch; launching on branch feature/branch-agree-a8" \
