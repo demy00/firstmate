@@ -1,0 +1,16 @@
+### Default branch name for a new task (fork change #3)
+fm_task_branch demo-1            -> feature/demo-1
+fm_task_branch_candidates demo-1 -> feature/demo-1 fm/demo-1 
+
+### 1. Upstream-era legacy brief renders `git checkout -b fm/legacy-up`, spawned with default feature/ prefix
+error: /tmp/fmdemo.Ppdq/home/data/legacy-up/launch-brief.md records no ship branch and tells the worker to create fm/legacy-up; regenerate it with --branch-prefix before spawning feature/legacy-up
+exit=1  meta_written=no
+
+### 2. Fork-era legacy brief renders `git checkout -b feature/legacy-fork`, spawned with default prefix
+warning: /tmp/fmdemo.Ppdq/home/data/legacy-fork/launch-brief.md records no ship branch; launching on branch feature/legacy-fork
+exit=1 (fake tmux refuses only after all branch checks pass)
+
+### 3. Upstream-era brief spawned with matching --branch-prefix fm/
+warning: /tmp/fmdemo.Ppdq/home/data/legacy-up2/launch-brief.md records no ship branch; launching on branch fm/legacy-up2
+notice: legacy-up2 ships branch=fm/legacy-up2 while proj registers the ship-branch prefix 'feature/' (branch feature/legacy-up2) - the task's branch and PR will not follow the project's registered naming; proceed only on a current explicit captain instruction or an intake judgment you can state
+exit=1

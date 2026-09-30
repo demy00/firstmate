@@ -1,0 +1,3 @@
+### 1. Upstream-era legacy brief renders `git checkout -b fm/legacy-up`, spawned with default feature/ prefix
+warning: /tmp/fmdemo.bj44/home/data/legacy-up/launch-brief.md records no ship branch; launching on branch feature/legacy-up
+exit=1  meta_written=no

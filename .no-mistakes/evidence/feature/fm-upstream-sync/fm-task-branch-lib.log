@@ -1,0 +1,6 @@
+ok - fm_task_branch names a new worker branch feature/<task-id>
+ok - fm_task_branch_candidates lists feature/<id> before fm/<id>
+ok - fm_task_branch_prefixes_json mirrors the shell prefix order for jq consumers
+ok - fm_task_branch_resolve prefers feature/<id> and still finds fm/<id>
+ok - fm_task_branch_unrecorded resolves an existing branch and otherwise names feature/<id>
+ok - fm-merge-local lands a feature/<id> branch and a pre-rename fm/<id> branch
