@@ -103,7 +103,7 @@ FLEET="$SCRIPT_DIR/fm-fleet-snapshot.sh"
 . "$SCRIPT_DIR/fm-landed-lib.sh"  # FM_LANDED_JQ_DEFS: the shared landed selector
 # shellcheck source=bin/fm-task-branch-lib.sh
 # shellcheck disable=SC1091
-. "$SCRIPT_DIR/fm-task-branch-lib.sh"  # the worker branch prefixes that map a PR head back to its task
+. "$SCRIPT_DIR/fm-task-branch-lib.sh"  # the prefixes an unrecorded task's branch may carry
 TASK_BRANCH_PREFIXES_JSON=$(fm_task_branch_prefixes_json)
 
 # Bounds (overridable for tests / large fleets).
@@ -291,16 +291,17 @@ $(printf '%s' "$SNAP" | jq -r '.tasks[] | select(.kind != "secondmate") | .paths
 EOF
 
     for repo in $repos; do PR_REPOS_TOTAL=$((PR_REPOS_TOTAL + 1)); done
-    # A PR head names a task by its worker-branch prefix. Humans branch under
-    # feature/** too (that is why the worker prefix moved there), so a feature/<id>
-    # head is a task PR only when <id> has a record this snapshot already holds
-    # (in-flight task meta or any backlog row); otherwise its task stays "-".
-    # The legacy fm/ prefix was firstmate-only and still maps unconditionally.
-    # tests/fm-bearings-snapshot.test.sh pins both cases.
-    task_ids_json=$(printf '%s' "$SNAP" | jq -c '
-      [ (.tasks[].id | strings), (.backlog.records[].id | strings) ] | unique')
     nrepos=0; npr=0; nwarn=0; ncapped=0; rows='[]'
     pr_fetch_limit=$((FM_BEARINGS_PR_LIMIT + 1))
+    # The task side of the mapping rides a temp file, not an argv element: a
+    # fleet snapshot exceeds the ~128KB per-argument exec cap on large fleets,
+    # and an E2BIG there would drop the repo's PR rows into the warning count.
+    # It carries the task rows plus every id this snapshot holds a record for
+    # (in-flight task meta or any backlog row).
+    tasks_file=$(mktemp "${TMPDIR:-/tmp}/fm-bearings-tasks.XXXXXX") \
+      || { echo "fm-bearings-snapshot: cannot create a temporary tasks file" >&2; exit 1; }
+    printf '%s' "$SNAP" | jq '{tasks:(.tasks // []),
+      ids:([ (.tasks // [])[].id, (.backlog.records // [])[].id ] | map(strings) | unique)}' > "$tasks_file"
     for repo in $repos; do
       if [ "$ALL_PR_REPOS" != 1 ] && [ "$nrepos" -ge "$FM_BEARINGS_PR_REPOS" ]; then break; fi
       nrepos=$((nrepos + 1))
@@ -308,18 +309,28 @@ EOF
         --json number,title,url,headRefName,reviewDecision,mergeable,statusCheckRollup 2>/dev/null) \
         || { nwarn=$((nwarn + 1)); continue; }
       [ -n "$out" ] || out='[]'
-      repo_result=$(printf '%s' "$out" | jq --arg repo "$repo" --argjson limit "$FM_BEARINGS_PR_LIMIT" \
-        --argjson prefixes "$TASK_BRANCH_PREFIXES_JSON" --arg current "$FM_TASK_BRANCH_PREFIX" \
-        --argjson task_ids "$task_ids_json" '
+      # A PR head maps to the task whose recorded branch it is; a task recording
+      # no branch owns any candidate name bin/fm-task-branch-lib.sh lists for it.
+      # Otherwise the head is read by prefix: humans branch under the default
+      # feature/ prefix too, so a <default-prefix><id> head is a task PR only when
+      # <id> has a record this snapshot holds, while every legacy prefix was
+      # firstmate-only and still maps unconditionally.
+      repo_result=$(printf '%s' "$out" | jq --arg repo "$repo" --argjson limit "$FM_BEARINGS_PR_LIMIT" --slurpfile tasks "$tasks_file" \
+        --argjson prefixes "$TASK_BRANCH_PREFIXES_JSON" '
+        ($tasks[0].tasks // []) as $all_tasks
+        | ($tasks[0].ids // []) as $known_ids
+        | def task_for_branch($ref):
+            ( [ $all_tasks[] | .id as $id
+                | select(if .branch then .branch == $ref else any($prefixes[]; . + $id == $ref) end) | $id ] | .[0] )
+            // ( [ $prefixes | to_entries[] | .key as $i | .value as $pre
+                  | select(($ref | startswith($pre)) and (($ref | length) > ($pre | length)))
+                  | ($ref | ltrimstr($pre)) as $id
+                  | select($i > 0 or any($known_ids[]; . == $id)) | $id ] | .[0] )
+            // "-";
         [ .[] | {
           num:(.number|tostring),
           repo:$repo,
-          task:((.headRefName // "") as $h
-            | ([$prefixes[] | . as $pre | select(($h | startswith($pre + "/")) and (($h | length) > ($pre | length) + 1))] | first) as $p
-            | if $p == null then "-"
-              else ($h | ltrimstr($p + "/")) as $id
-                | if $p == $current and (any($task_ids[]; . == $id) | not) then "-" else $id end
-              end),
+          task:task_for_branch(.headRefName // ""),
           url:(.url // "-"),
           review:(.reviewDecision // "none"),
           mergeable:(.mergeable // "UNKNOWN"),
@@ -337,6 +348,7 @@ EOF
       npr=$((npr + cnt))
       rows=$(jq -n --argjson a "$rows" --argjson b "$repo_rows" '$a + $b')
     done
+    rm -f "$tasks_file"
     PR_REPOS_SHOWN=$nrepos
     PR_ROWS_CAPPED=$ncapped
     PR_ROWS_MIN_TOTAL=$((npr + ncapped))
