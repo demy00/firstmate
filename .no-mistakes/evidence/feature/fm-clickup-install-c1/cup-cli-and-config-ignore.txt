@@ -1,0 +1,26 @@
+$ cup --version
+1.46.1
+$ cup assigned --help | grep flag
+  --json             Force JSON output even in terminal
+$ cup comments --help | grep flag
+  --json      Force JSON output even in terminal
+$ cup comment --help | grep flag
+  -m, --message <text>   Comment text
+  --json                 Force JSON output even in terminal
+$ cup update --help | grep flag
+  --description-file <path>              Read description from a file ("-" for stdin); avoids shell quoting. Mutually exclusive with -d
+  --json                                 Force JSON output even in terminal
+$ cup config --help
+  get <key>          Print a config value
+  path               Print config file path
+$ cup bulk --help
+Usage: cup bulk [options] [command]
+
+Bulk task operations
+$ cup -p ownd-team assigned --json   (no profile configured -> expected clean failure, no network write)
+No ClickUp CLI configuration found.
+
+To get started:
+
+$ echo {...} > config/clickup.json && git status --porcelain && git check-ignore -v config/clickup.json
+.gitignore:13:config/	config/clickup.json
