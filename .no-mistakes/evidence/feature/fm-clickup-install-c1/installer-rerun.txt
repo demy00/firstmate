@@ -1,0 +1,40 @@
+$ (fork root) install.sh <addon>   # stub cup on PATH reports 1.46.1
+skill: /tmp/nm-cu.dEDP/fork/.agents/skills/clickup-tickets/SKILL.md
+config: created /tmp/nm-cu.dEDP/fork/config/clickup.json from the example (fill it in)
+cup: 1.46.1 already installed
+
+Remaining manual steps (see docs/SETUP.md in the add-on checkout):
+  1. Create one cup profile per workspace:  cup profile add <name>
+     (it prompts for the token; do not paste a token on a command line)
+  2. Fill in config/clickup.json (owner id, profiles, project map, life list).
+  3. Commit .agents/skills/clickup-tickets/ and .gitignore to your fork.
+  4. Smoke check (read-only): cup profile list; cup -p <profile> auth; cup -p <profile> assigned
+
+$ git status --porcelain
+ M .agents/skills/clickup-tickets/SKILL.md
+
+$ git diff
+diff --git a/.agents/skills/clickup-tickets/SKILL.md b/.agents/skills/clickup-tickets/SKILL.md
+index 691f259..8dc2a6c 100644
+--- a/.agents/skills/clickup-tickets/SKILL.md
++++ b/.agents/skills/clickup-tickets/SKILL.md
+@@ -1,9 +1,6 @@
+ ---
+ name: clickup-tickets
+-description: Rules for managing the owner's ClickUp tickets through the pinned `cup` CLI. Use the first time ClickUp work comes up in a session (never at session start), for any ClickUp read or write, when filing new project work, when a task changes state (started, PR ready, decision needed, failed, merged, cancelled), and when the owner asks what is on their plate.
+-user-invocable: false
+-metadata:
+-  internal: true
++description: Rules for managing the owner's ClickUp tickets through the pinned `cup` CLI. Use at session start, for any ClickUp read or write, when filing new project work, when a task changes state (started, PR ready, decision needed, failed, merged, cancelled), and when the owner asks what is on their plate.
+ ---
+ 
+ # ClickUp tickets
+
+$ bash tests/fm-documentation-audiences.test.sh (after re-install)
+ok - documentation inventory classifies every maintained prose surface exactly once
+ok - classification, setup routing, and maintained-prose scope fail safely
+ok - required documentation owner pointers cannot silently disappear
+ok - local links resolve while dates, versions, commands, and incident prose remain semantically reviewed
+exit=
+$ bin/fm-doc-audience-check.sh
+fm-doc-audience-check: ok surfaces=118 local_links=708

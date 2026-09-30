@@ -1,0 +1,45 @@
+$ git check-ignore -v config/clickup.json
+.gitignore:13:config/	config/clickup.json
+
+$ echo {} > config/clickup.json && git status --porcelain -- config/
+(empty = not tracked)
+
+$ npm view @krodak/clickup-cli@1.46.1 name version bin
+name = '@krodak/clickup-cli'
+version = '1.46.1'
+bin = { cup: 'dist/index.js' }
+
+$ npx -y @krodak/clickup-cli@1.46.1 --version
+1.46.1
+
+$ npx -y @krodak/clickup-cli@1.46.1 --help | head -30
+Usage: cup [options] [command]
+
+ClickUp CLI for AI agents
+
+Options:
+  -V, --version                                 output the version number
+  -p, --profile <name>                          Use a specific profile
+  -h, --help                                    display help for command
+
+Commands:
+  init [options]                                Set up cup (interactive). Use --token and --team for non-interactive/agent setup
+  auth [options]                                Validate API token and show current user
+  tasks [options]                               List tasks assigned to you by default. Use --all to search across all assignees.
+  task [options] <taskId>                       Get task details
+  update [options] <taskId>                     Update a task
+  create [options]                              Create a new task
+  export                                        Export tasks and docs to a local archive (lossless JSON + rendered markdown)
+  sprint [options]                              List my tasks in the current active sprint (auto-detected)
+  sprints [options]                             List all sprints in sprint folders
+  subtasks [options] <taskId>                   List subtasks of a task or initiative
+  comment [options] <taskId>                    Post a comment on a task
+  comments [options] <taskId>                   List comments on a task
+  comment-edit [options] <commentId>            Edit an existing comment
+  comment-delete [options] [commentId]          Delete a comment by ID, or use --task with --mine to find and delete your comment
+  replies [options] <commentId>                 List threaded replies on a comment
+  reply [options] <commentId>                   Reply to a comment
+  activity [options] <taskId>                   Show task details and comments combined
+  time-in-status [options] <taskId>             Show how long a task has been in each status
+  lists [options] <spaceId>                     List all lists in a space (including lists inside folders)
+  spaces [options]                              List spaces in your workspace

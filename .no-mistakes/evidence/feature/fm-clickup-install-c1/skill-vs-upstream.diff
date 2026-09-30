@@ -1,0 +1,9 @@
+$ diff <upstream firstmate-clickup skill/clickup-tickets/SKILL.md> .agents/skills/clickup-tickets/SKILL.md
+3c3,6
+< description: Rules for managing the owner's ClickUp tickets through the pinned `cup` CLI. Use at session start, for any ClickUp read or write, when filing new project work, when a task changes state (started, PR ready, decision needed, failed, merged, cancelled), and when the owner asks what is on their plate.
+---
+> description: Rules for managing the owner's ClickUp tickets through the pinned `cup` CLI. Use the first time ClickUp work comes up in a session (never at session start), for any ClickUp read or write, when filing new project work, when a task changes state (started, PR ready, decision needed, failed, merged, cancelled), and when the owner asks what is on their plate.
+> user-invocable: false
+> metadata:
+>   internal: true
+diff exit=1

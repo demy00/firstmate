@@ -1,0 +1,22 @@
+Subcommands referenced by clickup-tickets SKILL.md vs cup 1.46.1 --help:
+  ok      activity
+  ok      archive
+  ok      assigned
+  ok      auth
+  ok      bulk
+  ok      checklist
+  ok      comment
+  ok      comments
+  ok      config
+  ok      create
+  ok      delete
+  ok      folder-delete
+  ok      inbox
+  ok      list-delete
+  ok      profile
+  ok      search
+  ok      space-delete
+  ok      tag
+  ok      task
+  ok      tasks
+  ok      update
