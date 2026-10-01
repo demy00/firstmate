@@ -517,6 +517,10 @@
       "audience": "maintainer-verification"
     },
     {
+      "path": "docs/verification/skill-select.md",
+      "audience": "maintainer-verification"
+    },
+    {
       "path": "docs/verification/stow-memory.md",
       "audience": "maintainer-verification"
     },
