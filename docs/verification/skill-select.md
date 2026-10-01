@@ -74,7 +74,7 @@ The brief gained one `# Required skills` section between `# Task` and the next s
 
 `tests/fm-skill-select.test.sh` drives the public interface with an isolated `HOME`, home, and project clone, and a fake `curl` that answers each yes/no question by skill name.
 It proves the absent key, an unsupported harness, no candidates, and a never-send match are off with no network call and an unchanged brief.
-It proves candidates follow each harness's directories, frontmatter names, folded and quoted descriptions, the pinned Claude root, and the exclusion of description-less and `disable-model-invocation` skills.
+It proves candidates follow each harness's directories, frontmatter names, folded and quoted descriptions, the pinned Claude root (an unresolvable pin exits 2 once with no network call), and the exclusion of description-less and `disable-model-invocation` skills.
 It proves one yes/no question per candidate carrying only the name and description, never a skill body or the scaffold boilerplate, with the key only on file descriptor 3.
 It proves the 0.8 floor at its boundary, `none` and `error` outcomes that leave the brief untouched, the section's position and in-place rewrite, `--set` validation, and `--clear`.
 
