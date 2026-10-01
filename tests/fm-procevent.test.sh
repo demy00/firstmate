@@ -3360,6 +3360,236 @@ assert_contains "$out" "SESSION-ENDING MESSAGE: (none)" \
 assert_contains "$out" "ANNOTATIONS: (none)" "an empty board close invented annotations"
 pass "read distinguishes a feedback capture from an ended-with-nothing close"
 
+# lavish-axi frames queued feedback as a TOON LIST instead of a table whenever
+# an item carries a nested object such as a table-cell `target`. Every item in
+# that shape must reach the handler exactly as the tabular shape does.
+cat > "$READ" <<'EOF'
+session:
+  file: /review.html
+  status: feedback
+prompts[4]:
+  - uid: "1"
+    prompt: "first comment, with a comma\nand a second line"
+    selector: "body > main > div:nth-of-type(1)"
+    tag: div
+    text: Sample heading
+  - uid: "6"
+    prompt: cell comment
+    selector: "table > tbody > tr:nth-of-type(2) > td:nth-of-type(3)"
+    tag: td
+    text: "42"
+    target:
+      type: table-cell
+      selector: "table > tbody > tr:nth-of-type(2) > td:nth-of-type(3)"
+      rowLabel: Sample row
+      columnLabel: Sample column
+      text: "42"
+    attachments[1]:
+      - id: att-1
+        path: /tmp/sample.png
+        name: "sample, shot.png"
+  - uid: "7"
+    prompt: "- uid: \"99\""
+    tag: message
+    text: Freeform message
+  - uid: "8"
+    prompt: "Pick one\n\nContext data: {\"schema\":\"fm-bearings-answer.v1\",\"question\":\"sample-list-call\",\"selection\":\"opt-a\",\"note\":\"\"}"
+    selector: "section#call > button"
+    tag: choice
+    text: Option A
+EOF
+out=$(read_out) || fail "read failed on a list-shaped capture"
+assert_contains "$out" "declared_items: 4" "a list-shaped capture hid its declared count"
+assert_contains "$out" "presented_items: 4" "a list-shaped capture dropped queued items"
+assert_contains "$out" "complete: yes" "a complete list-shaped capture was not marked complete"
+assert_contains "$out" "annotation_count: 3" "list-shaped annotations were not counted"
+assert_contains "$out" $'| first comment, with a comma\n| and a second line' \
+  "a list-shaped comment lost its text"
+assert_contains "$out" "element_selector: body > main > div:nth-of-type(1)" \
+  "a list-shaped annotation lost its selector"
+assert_contains "$out" "| cell comment" "a table-cell comment was dropped"
+assert_contains "$out" $'target:\n| columnLabel: Sample column' "a table-cell comment lost its column"
+assert_contains "$out" "| rowLabel: Sample row" "a table-cell comment lost its row"
+assert_contains "$out" $'attachments:\n| [0].id: att-1\n| [0].name: sample, shot.png\n| [0].path: /tmp/sample.png\nANNOTATION 3 of 3' \
+  "a table-cell comment lost its image attachment"
+assert_contains "$out" "unpresented_items: 0" "a fully presented list-shaped capture reported unpresented items"
+assert_contains "$out" $'CAPTAIN MESSAGE\n| - uid: "99"\nfields:\n| text: Freeform message\n| uid: 7\nEND CAPTAIN MESSAGE' \
+  "a list-shaped freeform message was not presented as the captain message"
+assert_contains "$out" "| Option A" "a list-shaped choice lost its label"
+assert_not_contains "$out" "Context data:" "a list-shaped choice surfaced its context as a comment"
+cp "$READ" "$SIL"
+silent_says no "a list-shaped capture carries queued content"
+sed 's/status: feedback/status: ended/' "$READ" > "$SIL"
+silent_says no "an ended session carrying a list-shaped block is never assumed empty"
+list_answers=$("$ROOT/bin/fm-procevent-lavish.sh" answers "$READ") \
+  || fail "answers failed on a list-shaped capture"
+[ "$list_answers" = "$(printf 'sample-list-call\topt-a\tOption A')" ] \
+  || fail "a list-shaped choice did not reach the keyed-answer intake: $list_answers"
+pass "read, silent, and answers consume the list-shaped queued-content block"
+
+# An image-only freeform message carries its image as attachments, in either
+# nested array shape; that image must reach the handler with the message.
+cat > "$READ" <<'EOF'
+session:
+  file: /review.html
+  status: feedback
+prompts[2]:
+  - uid: ""
+    prompt: ""
+    selector: ""
+    tag: message
+    text: Freeform message
+    attachments[2]:
+      - id: first.png
+        type: image
+        path: /tmp/first.png
+        name: first.png
+      - id: second.png
+        type: image
+        path: /tmp/second.png
+  - uid: "3"
+    prompt: see image
+    selector: div
+    tag: div
+    text: Sample
+    attachments[1]{id,type,path}:
+      third.png,image,/tmp/third.png
+EOF
+out=$(read_out) || fail "read failed on list-shaped attachments"
+assert_contains "$out" "complete: yes" "a capture with presented attachments was not marked complete"
+assert_contains "$out" $'CAPTAIN MESSAGE\n| Freeform message\nattachments:\n| [0].id: first.png\n| [0].name: first.png\n| [0].path: /tmp/first.png\n| [0].type: image\n| [1].id: second.png\n| [1].path: /tmp/second.png\n| [1].type: image\nEND CAPTAIN MESSAGE' \
+  "an image-only freeform message lost its attachments"
+assert_contains "$out" $'attachments:\n| [0].id: third.png\n| [0].path: /tmp/third.png\n| [0].type: image\nEND ANNOTATIONS' \
+  "a tabular attachment on an annotation was not presented"
+pass "read presents list and tabular attachments on messages and annotations"
+
+# lavish-axi's text-selection, layout-warnings, and message targets nest
+# objects and arrays; every nested value reaches the handler as a flattened
+# field and the read is certified complete.
+cat > "$READ" <<'EOF'
+session:
+  file: /review.html
+  status: feedback
+prompts[3]:
+  - uid: "4"
+    prompt: reword this
+    selector: main > p
+    tag: p
+    text: selected words
+    target:
+      type: text-range
+      text: selected words
+      start:
+        selector: main > p
+        path[2]: 0,1
+        offset: 4
+      end:
+        selector: main > p
+        path[2]: 0,3
+        offset: 12
+  - uid: "5"
+    prompt: fix the overflow
+    selector: body
+    tag: body
+    text: ""
+    target:
+      type: layout-warnings
+      warnings[2]:
+        - kind: overflow
+          selector: "div.wide"
+          size[2]: 1200,80
+        - kind: overlap
+          selectors[2]: h1,h2
+  - uid: ""
+    prompt: about this part
+    selector: ""
+    tag: message
+    text: Freeform message
+    target:
+      type: element
+      selector: "section#intro"
+    attachments[1]:
+      - id: shot.png
+        type: image
+        path: /tmp/shot.png
+    extra[1]:
+      - [2]: a,b
+EOF
+out=$(read_out) || fail "read failed on nested targets"
+assert_contains "$out" "unpresented_items: 0" "nested targets were reported unpresented"
+assert_contains "$out" "complete: yes" "a capture with fully flattened nested content was not certified complete"
+assert_contains "$out" $'| reword this\ntarget:\n| end.offset: 12\n| end.path[0]: 0\n| end.path[1]: 3\n| end.selector: main > p\n| start.offset: 4\n| start.path[0]: 0\n| start.path[1]: 1\n| start.selector: main > p\n| text: selected words\n| type: text-range\nANNOTATION 2 of 2' \
+  "a text-selection comment lost its start or end"
+assert_contains "$out" $'target:\n| type: layout-warnings\n| warnings[0].kind: overflow\n| warnings[0].selector: div.wide\n| warnings[0].size[0]: 1200\n| warnings[0].size[1]: 80\n| warnings[1].kind: overlap\n| warnings[1].selectors[0]: h1\n| warnings[1].selectors[1]: h2\nEND ANNOTATIONS' \
+  "a layout-warnings comment lost its warnings"
+assert_contains "$out" $'CAPTAIN MESSAGE\n| about this part\ntarget:\n| selector: section#intro\n| type: element\nattachments:\n| [0].id: shot.png\n| [0].path: /tmp/shot.png\n| [0].type: image\nfields:\n| extra[0][0]: a\n| extra[0][1]: b\n| text: Freeform message\nEND CAPTAIN MESSAGE' \
+  "a message lost its target, image attachment, or other nested field"
+pass "read presents nested targets, attachments, and fields flattened and complete"
+
+# A message's own uid, selector, and label text reach the handler beside its
+# body; only the message tag, which the section label already states, is folded.
+cat > "$READ" <<'EOF'
+session:
+  file: /review.html
+  status: feedback
+prompts[1]:
+  - uid: "3"
+    prompt: about this block
+    selector: "#x"
+    tag: message
+    text: Freeform message
+EOF
+out=$(read_out) || fail "read failed on a message carrying a selector"
+assert_contains "$out" "complete: yes" "a fully presented message was not certified complete"
+assert_contains "$out" $'CAPTAIN MESSAGE\n| about this block\nfields:\n| selector: #x\n| text: Freeform message\n| uid: 3\nEND CAPTAIN MESSAGE' \
+  "a message dropped its uid, selector, or text"
+pass "read presents a message's uid, selector, and text beside its body"
+
+# Nested content that cannot be parsed is never certified as read.
+for hidden in $'    attachments[2]:\n      - id: only-one.png' \
+  $'    tags[2]: x' \
+  $'    target:\n      text: "unterminated' \
+  $'    target:\n      rows[1]{a,b}:\n        1' \
+  $'    target:\n      type: x\n        stray: y'; do
+  printf 'session:\n  file: /review.html\n  status: feedback\nprompts[1]:\n  - uid: "1"\n    prompt: kept\n    tag: div\n%s\n' "$hidden" > "$READ"
+  out=$(read_out) || fail "read failed on unparseable nested content: $hidden"
+  assert_contains "$out" "presented_items: 1" "an item with unparseable nested content was dropped: $hidden"
+  assert_contains "$out" "unpresented_items: 1" "unparseable nested content was not reported: $hidden"
+  assert_contains "$out" "complete: no" "unparseable nested content was certified complete: $hidden"
+  assert_contains "$out" "| kept" "an item with unparseable nested content lost its comment: $hidden"
+done
+pass "read never certifies an item with unparseable nested content as complete"
+
+# A list whose items cannot all be parsed, or a content header in neither
+# published shape, is never certified as a complete empty read.
+cat > "$READ" <<'EOF'
+session:
+  file: /review.html
+  status: feedback
+prompts[2]:
+  - uid: "1"
+    prompt: kept comment
+    tag: div
+    text: Sample
+  - uid: "2"
+    prompt: "unterminated
+    tag: div
+EOF
+out=$(read_out) || fail "read failed on a list with a malformed item"
+assert_contains "$out" "presented_items: 1" "a malformed list item was certified as presented"
+assert_contains "$out" "malformed_items: 1" "a malformed list item was not reported"
+assert_contains "$out" "complete: no" "a list with a malformed item was certified complete"
+assert_contains "$out" "| kept comment" "a valid list item beside a malformed one was dropped"
+for bad_header in 'prompts[many]:' 'prompts[2]: a,b' 'prompts: something'; do
+  printf 'session:\n  file: /review.html\n  status: feedback\n%s\n  - uid: "1"\n' "$bad_header" > "$READ"
+  out=$(read_out) || fail "read failed on an unparseable content header: $bad_header"
+  assert_contains "$out" "complete: no" "an unparseable content header was certified complete: $bad_header"
+done
+printf 'session:\n  file: /review.html\n  status: feedback\nprompts[1]:\n  uid: "1"\n' > "$READ"
+out=$(read_out) || fail "read failed on a list block that is not a list of items"
+assert_contains "$out" "complete: no" "a list block with no items was certified complete"
+pass "read never certifies an unparseable content block as a complete empty read"
+
 # The runner's silence seam is generic and closed by default: an adapter with no
 # `silent` command must keep announcing, so adding the seam changed nothing for
 # every adapter that has no notion of a no-op.
