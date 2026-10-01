@@ -11,10 +11,13 @@
 #   (d) pr= present but PR head unreachable -> fallback to local branch + warning
 #   (e) pr= + STALE recorded pr_head= + newer remote pull head -> must use fetched head
 #       (this is the class that bit reviewers holding merges over "missing" fixes)
-#   (f) the worker branch resolves under the current feature/<id> name, and a
-#       branch created under the earlier fm/<id> name still resolves; when the
-#       worktree holds neither, a stray checked-out branch is not mistaken for
-#       the task (bin/fm-task-branch-lib.sh)
+#   (f) meta records branch=<custom-prefix> -> the recorded ship branch is
+#       reviewed even when the worktree HEAD has moved off it
+#   (g) meta records a corrupt branch= -> refused, never silently reviewed as
+#       the moved worktree HEAD
+#   (h) meta records no branch= -> the task's feature/<id> or earlier fm/<id>
+#       branch is reviewed, feature/<id> first (bin/fm-task-branch-lib.sh); the
+#       cases above that record no branch exercise the fm/<id> half
 set -u
 
 # shellcheck source=tests/lib.sh
@@ -25,7 +28,7 @@ REVIEW_DIFF="$ROOT/bin/fm-review-diff.sh"
 TMP_ROOT=$(fm_test_tmproot fm-review-diff-tests)
 
 make_case() {  # <name> [<worker-branch>]
-  local name=$1 branch=${2:-feature/task-x1} case_dir
+  local name=$1 branch=${2:-fm/task-x1} case_dir
   case_dir="$TMP_ROOT/$name"
   mkdir -p "$case_dir/state"
 
@@ -57,7 +60,7 @@ write_task_meta() {
 }
 
 stale_and_pr_commits() {  # <case-dir> [<worker-branch>]
-  local case_dir=$1 branch=${2:-feature/task-x1}
+  local case_dir=$1 branch=${2:-fm/task-x1}
   printf 'stale-local\n' > "$case_dir/wt/feature.txt"
   git -C "$case_dir/wt" add feature.txt
   git -C "$case_dir/wt" commit -qm "stale local branch"
@@ -101,7 +104,7 @@ test_stale_recorded_pr_head_loses_to_fetched_pull_head() {
   local case_dir out stale_sha
   case_dir=$(make_case stale-recorded)
   stale_and_pr_commits "$case_dir"
-  stale_sha=$(git -C "$case_dir/wt" rev-parse feature/task-x1)
+  stale_sha=$(git -C "$case_dir/wt" rev-parse fm/task-x1)
   # Remote PR head is newer (pipeline fix); meta still points at the older local tip.
   git -C "$case_dir/wt" push -q origin "pr-head-tmp:refs/pull/9/head"
   write_task_meta "$case_dir" \
@@ -152,42 +155,6 @@ test_no_pr_meta_uses_local_branch() {
   pass "fm-review-diff without pr= keeps the worktree-branch diff"
 }
 
-# (f) The task's worker branch is looked up by name, so the lookup must follow
-# the naming convention: a new worker's feature/<id> branch (exercised by every
-# case above), and a branch created under the earlier fm/<id> name, which a
-# running lane still owns and which is never renamed out from under it.
-test_legacy_fm_branch_still_resolves() {
-  local case_dir out
-  case_dir=$(make_case legacy-fm fm/task-x1)
-  stale_and_pr_commits "$case_dir" fm/task-x1
-  write_task_meta "$case_dir"
-  # Park the worktree on the unrelated PR scratch branch: the diff must come
-  # from the task's own fm/ branch, not from whatever happens to be checked out.
-  git -C "$case_dir/wt" checkout -q pr-head-tmp
-
-  out=$(run_review_diff "$case_dir" task-x1 2> "$case_dir/stderr")
-
-  assert_contains "$out" '+stale-local' "legacy-fm: diff must come from the task's fm/ branch"
-  assert_not_contains "$out" '+pr-fixed' "legacy-fm: diff must not follow the checked-out scratch branch"
-  pass "fm-review-diff resolves a worker branch created under the earlier fm/ prefix"
-}
-
-# The current name wins when both exist, so a task whose worker recreated its
-# branch under feature/ is never read through a stale fm/ twin.
-test_feature_branch_wins_over_legacy_twin() {
-  local case_dir out
-  case_dir=$(make_case feature-over-legacy)
-  stale_and_pr_commits "$case_dir"
-  git -C "$case_dir/wt" branch -q fm/task-x1 pr-head-tmp
-  write_task_meta "$case_dir"
-
-  out=$(run_review_diff "$case_dir" task-x1 2> "$case_dir/stderr")
-
-  assert_contains "$out" '+stale-local' "feature-over-legacy: diff must come from the feature/ branch"
-  assert_not_contains "$out" '+pr-fixed' "feature-over-legacy: diff must not read the fm/ twin"
-  pass "fm-review-diff prefers the feature/ branch over an fm/ twin of the same task"
-}
-
 test_unreachable_pr_head_falls_back_with_warning() {
   local case_dir out err
   case_dir=$(make_case fetch-fallback)
@@ -209,10 +176,89 @@ test_unreachable_pr_head_falls_back_with_warning() {
   pass "fm-review-diff falls back to local branch with a warning when PR head is unreachable"
 }
 
+test_recorded_branch_beats_moved_worktree_head() {
+  local case_dir out
+  case_dir=$(make_case recorded-branch)
+  # The task ships on its recorded custom-prefix branch; the worktree's HEAD
+  # has since moved to an unrelated branch and the legacy fm/<id> branch is
+  # gone, so only meta can anchor the diff to the shipped work.
+  git -C "$case_dir/wt" checkout -q -b fix/task-x1
+  printf 'recorded-ship\n' > "$case_dir/wt/feature.txt"
+  git -C "$case_dir/wt" add feature.txt
+  git -C "$case_dir/wt" commit -qm "recorded ship work"
+  git -C "$case_dir/wt" checkout -q -b roam main
+  git -C "$case_dir/wt" branch -q -D fm/task-x1
+  write_task_meta "$case_dir" "branch=fix/task-x1"
+
+  out=$(run_review_diff "$case_dir" task-x1 2> "$case_dir/stderr")
+
+  assert_contains "$out" '+recorded-ship' \
+    "recorded-branch: diff must use the meta-recorded ship branch, not the moved worktree HEAD"
+  pass "fm-review-diff reviews the meta-recorded ship branch even when the worktree HEAD moved off it"
+}
+
+test_corrupt_recorded_branch_is_refused() {
+  local case_dir out status
+  case_dir=$(make_case corrupt-branch)
+  stale_and_pr_commits "$case_dir"
+  # A space can never be part of a branch name, so this record can only be a
+  # hand-edited or corrupt one: refusing is the only outcome that cannot diff
+  # the wrong content by falling back to the moved worktree HEAD.
+  write_task_meta "$case_dir" "branch=fix task-x1"
+
+  set +e
+  out=$(run_review_diff "$case_dir" task-x1 2> "$case_dir/stderr")
+  status=$?
+  set -e
+
+  [ "$status" -ne 0 ] || fail "corrupt-branch: a corrupt recorded ship branch was accepted and reviewed the worktree HEAD"
+  assert_contains "$(cat "$case_dir/stderr")" "invalid recorded ship branch 'fix task-x1'" \
+    "corrupt-branch: the refusal did not name the branch it refused"
+  assert_not_contains "$out" '+stale-local' \
+    "corrupt-branch: the corrupt branch silently fell back to the worktree HEAD diff"
+  pass "fm-review-diff refuses a corrupt recorded ship branch instead of reviewing the wrong content"
+}
+
+# (h) A record naming no branch resolves the task's worker branch by name: a
+# new worker's feature/<id>, and the earlier fm/<id> a running lane still owns.
+# The worktree is parked on an unrelated branch so the diff can only come from
+# the task's own branch, never from whatever happens to be checked out.
+test_unrecorded_feature_branch_resolves() {
+  local case_dir out
+  case_dir=$(make_case unrecorded-feature feature/task-x1)
+  stale_and_pr_commits "$case_dir" feature/task-x1
+  write_task_meta "$case_dir"
+  git -C "$case_dir/wt" checkout -q pr-head-tmp
+
+  out=$(run_review_diff "$case_dir" task-x1 2> "$case_dir/stderr")
+
+  assert_contains "$out" '+stale-local' "unrecorded-feature: diff must come from the task's feature/ branch"
+  assert_not_contains "$out" '+pr-fixed' "unrecorded-feature: diff must not follow the checked-out scratch branch"
+  pass "fm-review-diff resolves an unrecorded task's feature/<id> branch"
+}
+
+# The default prefix wins when both exist, so a task whose worker recreated its
+# branch under feature/ is never read through a stale fm/ twin.
+test_unrecorded_feature_branch_wins_over_legacy_twin() {
+  local case_dir out
+  case_dir=$(make_case feature-over-legacy feature/task-x1)
+  stale_and_pr_commits "$case_dir" feature/task-x1
+  git -C "$case_dir/wt" branch -q fm/task-x1 pr-head-tmp
+  write_task_meta "$case_dir"
+
+  out=$(run_review_diff "$case_dir" task-x1 2> "$case_dir/stderr")
+
+  assert_contains "$out" '+stale-local' "feature-over-legacy: diff must come from the feature/ branch"
+  assert_not_contains "$out" '+pr-fixed' "feature-over-legacy: diff must not read the fm/ twin"
+  pass "fm-review-diff prefers an unrecorded task's feature/ branch over an fm/ twin"
+}
+
 test_pr_meta_uses_pr_head_not_stale_local
 test_pr_meta_fetches_pull_head_without_recorded_sha
 test_stale_recorded_pr_head_loses_to_fetched_pull_head
 test_no_pr_meta_uses_local_branch
-test_legacy_fm_branch_still_resolves
-test_feature_branch_wins_over_legacy_twin
 test_unreachable_pr_head_falls_back_with_warning
+test_recorded_branch_beats_moved_worktree_head
+test_corrupt_recorded_branch_is_refused
+test_unrecorded_feature_branch_resolves
+test_unrecorded_feature_branch_wins_over_legacy_twin
