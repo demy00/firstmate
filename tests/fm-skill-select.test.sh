@@ -178,6 +178,17 @@ assert_contains "$out" 'pinned-only [user]' "a pinned Claude account root suppli
 assert_not_contains "$out" 'typescript [user]' "the pinned root replaces ~/.claude"
 pass "candidates follow each harness's directories, frontmatter names, and exclusions"
 
+# --- an unresolvable Claude account root is a configuration error ------------
+reset
+export TYPESAFE_API_KEY=$KEY
+printf '%s\n' "$TMP_ROOT/missing-root" > "$HOME_DIR/config/claude-account"
+run code out err "${SELECT[@]}" --apply
+expect_code 2 "$code" "an unresolvable config/claude-account exits 2"
+assert_equals 1 "$(grep -c 'error: config/claude-account does not resolve' <<<"$err")" "the error prints once"
+assert_absent "$LOG/argv" "an unresolvable account root never calls curl"
+cmp -s "$BASE_BRIEF" "$BRIEF" || fail "an unresolvable account root leaves the brief unchanged"
+pass "an unresolvable Claude account root exits 2 once with no network call"
+
 # --- unsupported harness and empty candidate set are off ---------------------
 reset
 export TYPESAFE_API_KEY=$KEY

@@ -210,7 +210,7 @@ skill_dirs() {
   local d
   case "$HARNESS" in
     claude)
-      printf 'user\t%s/skills\n' "$(claude_user_root)"
+      printf 'user\t%s/skills\n' "$CLAUDE_USER_ROOT"
       printf 'project\t.claude/skills\n' ;;
     codex)
       for d in .agents/skills .codex/skills; do printf 'project\t%s\n' "$d"; done
@@ -295,6 +295,8 @@ candidates_json() {
   } | jq -sc '.'
 }
 
+CLAUDE_USER_ROOT=''
+[ "$HARNESS" != claude ] || CLAUDE_USER_ROOT=$(claude_user_root) || exit 2
 skill_dirs >/dev/null || off "harness $HARNESS has no established skill directories; nothing sent"
 CANDIDATES=$(candidates_json) || die "could not read skill directories"
 
