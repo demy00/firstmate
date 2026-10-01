@@ -2817,13 +2817,15 @@ TS
     return 1
   }
 
+  # The transient status can render and clear between two viewport polls, so
+  # it is proven from the pane's piped output stream, which keeps every byte.
   wait_for_geometry_transition() {
-    local file=$1 transient_text=$2 final_text=$3 attempt=0 saw_transient=0
+    local file=$1 stream=$2 transient_text=$3 final_text=$4 attempt=0
     while [ "$attempt" -lt 600 ]; do
       capture_geometry_viewport "$file" || true
-      if grep -Fq "$transient_text" "$file" 2>/dev/null; then
-        saw_transient=1
-      elif [ "$saw_transient" -eq 1 ] && grep -Fq "$final_text" "$file" 2>/dev/null; then
+      if grep -Fq "$transient_text" "$stream" 2>/dev/null \
+        && ! grep -Fq "$transient_text" "$file" 2>/dev/null \
+        && grep -Fq "$final_text" "$file" 2>/dev/null; then
         return 0
       fi
       sleep 0.01
@@ -2876,13 +2878,18 @@ TS
   grep -Fq 'tool result one' "$session_file" \
     || fail "Calm removed hidden tool results from persisted history"
 
+  reload_stream="$TMP_ROOT/geometry-reload-stream.txt"
+  : >"$reload_stream"
+  tmux -L "$TMUX_SOCKET" pipe-pane -o -t "$TMUX_SESSION" "cat >>'$reload_stream'"
   tmux -L "$TMUX_SOCKET" send-keys -t "$TMUX_SESSION" -l '/reload'
   tmux -L "$TMUX_SOCKET" send-keys -t "$TMUX_SESSION" Enter
   wait_for_geometry_transition \
     "$snapshot" \
-    "Reloading keybindings, extensions, skills, prompts, themes, and context files..." \
+    "$reload_stream" \
+    "Reloading keybindings" \
     "CALM_GEOMETRY_FINAL" \
     || fail "Pi Calm hidden-block geometry E2E did not complete the /reload viewport transition"
+  tmux -L "$TMUX_SOCKET" pipe-pane -t "$TMUX_SESSION"
   assert_geometry_gap "$snapshot" "reloaded native Calm transcript"
 
   tmux -L "$TMUX_SOCKET" send-keys -t "$TMUX_SESSION" C-t
