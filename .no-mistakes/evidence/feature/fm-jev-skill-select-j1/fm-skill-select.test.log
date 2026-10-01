@@ -1,0 +1,13 @@
+ok - absent key is off: one stderr line, exit 0, no network call, brief unchanged
+ok - candidates follow each harness's directories, frontmatter names, and exclusions
+ok - an unresolvable Claude account root exits 2 once with no network call
+ok - unsupported harness and no candidates are off with no network call
+ok - one yes/no question per candidate, key on fd 3 only, floor 0.8 applied in code
+ok - --apply writes one scaffold-placed section and rewrites it in place
+ok - none and error outcomes exit 0 and never touch the brief
+ok - the shared never-send list stops the request before the network
+ok - the home .env key turns the tool on
+ok - --set overrides and --clear removes the section without a key or network
+ok - usage errors exit 2 before any network call
+# all fm-skill-select tests passed
+exit=0

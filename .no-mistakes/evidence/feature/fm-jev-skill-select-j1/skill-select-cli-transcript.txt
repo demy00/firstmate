@@ -1,0 +1,50 @@
+$ fm-skill-select.sh --candidates --project web --harness claude
+skill-select candidates (3):
+  shadcn [user] <tmp>/home/.claude/skills/shadcn/SKILL.md
+  tdd [user] <tmp>/home/.claude/skills/tdd/SKILL.md
+  vitest [project] .claude/skills/vitest/SKILL.md
+[exit 0]
+
+$ fm-skill-select.sh /var/folders/y9/b8qt1d396lv9cfh42ft2gt7r0000gn/T/tmp.64poee349u/brief.md --project web --harness claude --apply
+skill-select: off (TYPESAFE_API_KEY absent from the environment and <tmp>/fm/.env)
+[exit 0]
+
+$ fm-skill-select.sh /var/folders/y9/b8qt1d396lv9cfh42ft2gt7r0000gn/T/tmp.64poee349u/brief.md --project web --harness claude --set shadcn,vitest
+skill-select:
+  status: set
+  skills: shadcn vitest
+  brief: written
+[exit 0]
+
+$ cat brief.md
+# Task
+Add a settings dialog with shadcn components and tests.
+
+# Required skills
+Load each of these skills before any other task work (after the Setup isolation check), with your tool's skill mechanism or by reading the SKILL.md at the path shown, and follow it throughout this task:
+- `shadcn` (`/var/folders/y9/b8qt1d396lv9cfh42ft2gt7r0000gn/T/tmp.64poee349u/home/.claude/skills/shadcn/SKILL.md`)
+- `vitest` (`.claude/skills/vitest/SKILL.md`)
+If one of them cannot be loaded, append `blocked [at=<epoch>]: required skill <name> cannot be loaded` and stop.
+List the skills you loaded in your final report or PR description.
+
+# Definition of done
+- tests pass
+
+$ fm-skill-select.sh /var/folders/y9/b8qt1d396lv9cfh42ft2gt7r0000gn/T/tmp.64poee349u/brief.md --project web --harness claude --set nosuch
+error: not a skill available to a claude worker in web: nosuch (see --candidates)
+[exit 2]
+
+$ fm-skill-select.sh /var/folders/y9/b8qt1d396lv9cfh42ft2gt7r0000gn/T/tmp.64poee349u/brief.md --clear
+skill-select:
+  status: cleared
+  brief: written
+[exit 0]
+
+$ cmp brief.md brief.orig
+identical
+
+$ fm-skill-select.sh --candidates --project web --harness claude
+error: config/claude-account must name a readable, searchable existing directory (ordinary means ~/.claude with CLAUDE_CONFIG_DIR unset): <tmp>/fm/config/claude-account -> <tmp>/fm/missing-account
+error: config/claude-account does not resolve
+[exit 2]
+
