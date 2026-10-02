@@ -35,7 +35,8 @@
 #   docs/configuration.md "Crew dispatch profiles" owns the declared fields and
 #   "Typed dispatch resolution" owns this tool's operator contract.
 #
-# Never-send check: when the optional $FM_HOME/config/dispatch-never-send list
+# Never-send check (owned by bin/fm-typesafe-lib.sh, with the key gate, brief
+#   text, and POST): when the optional $FM_HOME/config/dispatch-never-send list
 #   exists, every string value of the built request is checked against it
 #   before the POST. Each non-blank, non-# line is a literal matched
 #   case-insensitively, with surrounding whitespace trimmed and every run of
@@ -83,17 +84,10 @@ CONFIG="${FM_CONFIG_OVERRIDE:-$FM_HOME/config}"
 . "$SCRIPT_DIR/fm-quota-axi-lib.sh"
 # shellcheck source=bin/fm-control-lib.sh
 . "$SCRIPT_DIR/fm-control-lib.sh"
-# shellcheck source=bin/fm-env-lib.sh
-. "$SCRIPT_DIR/fm-env-lib.sh"
-# shellcheck source=bin/fm-timing-lib.sh
-. "$SCRIPT_DIR/fm-timing-lib.sh"
-# shellcheck source=bin/fm-brief-heading-lib.sh
-. "$SCRIPT_DIR/fm-brief-heading-lib.sh"
+# shellcheck source=bin/fm-typesafe-lib.sh
+. "$SCRIPT_DIR/fm-typesafe-lib.sh"
 
 CONFIDENCE_FLOOR=0.6
-TS_MODEL=jev-latest
-TS_BASE=https://api.typesafe.ai
-TS_TIMEOUT=5
 DEFAULT_WHEN="No listed rule applies to this task."
 
 die() { printf 'error: %s\n' "$1" >&2; exit 2; }
@@ -121,10 +115,7 @@ while [ $# -gt 0 ]; do
 done
 
 # ---- opt-in gate ---------------------------------------------------------------
-if [ -z "$TYPESAFE_API_KEY_PRIVATE" ]; then
-  TYPESAFE_API_KEY_PRIVATE=$(fmx_env_get TYPESAFE_API_KEY "$FM_HOME/.env")
-fi
-if [ -z "$TYPESAFE_API_KEY_PRIVATE" ]; then
+if ! fm_ts_key_resolve "$FM_HOME"; then
   echo "dispatch-resolve: off (TYPESAFE_API_KEY absent from the environment and $FM_HOME/.env)" >&2
   exit 0
 fi
@@ -247,89 +238,28 @@ TASK_TEXT=$(mktemp) || { rm -f "$RESP_FILE" "$QUOTA"; die "mktemp failed"; }
 SEND_TEXT=$(mktemp) || { rm -f "$RESP_FILE" "$QUOTA" "$TASK_TEXT"; die "mktemp failed"; }
 trap 'rm -f "$RULES" "$RESP_FILE" "$QUOTA" "$TASK_TEXT" "$SEND_TEXT"' EXIT
 
-never_send_off() {
-  echo "dispatch-resolve: off ($1; nothing sent)" >&2
-  exit 0
-}
-
-# Checks every string the request carries, so no text reaches the network
-# unchecked. grep's own stderr is discarded because it can echo the pattern.
-never_send_check() {
-  local list value n=0 rc
-  [ -e "$NEVER_SEND_PATH" ] || [ -L "$NEVER_SEND_PATH" ] || return 0
-  { [ -f "$NEVER_SEND_PATH" ] && [ -r "$NEVER_SEND_PATH" ]; } \
-    || never_send_off "$NEVER_SEND_PATH is not a readable regular file"
-  # Collapse whitespace runs on both sides so a value the brief wraps across
-  # lines or spaces differently still matches
-  jq -r '.. | strings | gsub("\\s+"; " ")' <<<"$REQUEST" > "$SEND_TEXT" 2>/dev/null \
-    || never_send_off "could not extract the request text to check"
-  list=$(jq -Rr 'gsub("\\s+"; " ")' "$NEVER_SEND_PATH" 2>/dev/null) \
-    || never_send_off "could not read $NEVER_SEND_PATH"
-  while IFS= read -r value; do
-    n=$((n + 1))
-    value=${value# }
-    value=${value% }
-    case "$value" in
-      ''|'#'*) continue ;;
-    esac
-    grep -qiF -e "$value" "$SEND_TEXT" 2>/dev/null; rc=$?
-    case "$rc" in
-      0) never_send_off "brief text matches $NEVER_SEND_PATH line $n" ;;
-      1) ;;
-      *) never_send_off "could not check the request text against $NEVER_SEND_PATH line $n" ;;
-    esac
-  done <<<"$list"
-}
-
-# Send Jev only the task-specific sections bin/fm-brief.sh scaffolds, plus a
-# scout tag from the scout contract line; the rest of a scaffolded brief is
-# standard boilerplate whose safety language reads as high stakes on every task.
-# A brief with neither section goes whole. Ship delivery mode is deliberately
-# not sent: live runs showed it pushing routine ship briefs to the top tier.
-brief_kind() {
-  if grep -qxF 'This is a SCOUT task: the deliverable is a written report, not a PR.' "$BRIEF"; then
-    printf 'Brief kind: scout (report only)\n\n'
-  fi
-}
-task_sections() {
-  local heading
-  for heading in "## Captain's intent" "## Firstmate spec"; do
-    fm_brief_task_heading_present "$BRIEF" "$heading" || continue
-    printf '%s\n%s\n\n' "$heading" "$(fm_brief_task_heading_body "$BRIEF" "$heading")"
-  done
-}
-SECTIONS=$(task_sections)
-if [ -n "$SECTIONS" ]; then
-  { brief_kind; printf '%s\n' "$SECTIONS"; } > "$TASK_TEXT" || die "could not read brief: $BRIEF"
-else
-  cp "$BRIEF" "$TASK_TEXT" || die "could not read brief: $BRIEF"
-fi
+fm_ts_task_text "$BRIEF" "$TASK_TEXT" || die "could not read brief: $BRIEF"
 LAT_MS=null
 command -v curl >/dev/null 2>&1 || emit_error "curl not installed"
-  REQUEST=$(jq -n --rawfile brief "$TASK_TEXT" --arg project "$PROJECT" --arg model "$TS_MODEL" \
-    --arg none_criterion "$DEFAULT_WHEN" --slurpfile rules "$RULES" '
-    ($rules[0]) as $cfg |
-    ($cfg.rules | to_entries | map({key: ("rule_" + ((.key + 1) | tostring)), value: .value.when}) | from_entries) as $criteria |
-    {
-      model: $model,
-      state: {task: {project: $project, brief: $brief}},
-      questions: {
-        rule: {
-          type: "choice",
-          instructions: "Which ONE dispatch rule best fits `task` (read `task.brief` and `task.project`)? Each option is the rule'"'"'s own matching condition; pick `default` when no rule'"'"'s condition is met, including when a rule'"'"'s own exemption text excludes this task.",
-          criteria: ($criteria + {default: $none_criterion})
-        }
+REQUEST=$(jq -n --rawfile brief "$TASK_TEXT" --arg project "$PROJECT" --arg model "$FM_TS_MODEL" \
+  --arg none_criterion "$DEFAULT_WHEN" --slurpfile rules "$RULES" '
+  ($rules[0]) as $cfg |
+  ($cfg.rules | to_entries | map({key: ("rule_" + ((.key + 1) | tostring)), value: .value.when}) | from_entries) as $criteria |
+  {
+    model: $model,
+    state: {task: {project: $project, brief: $brief}},
+    questions: {
+      rule: {
+        type: "choice",
+        instructions: "Which ONE dispatch rule best fits `task` (read `task.brief` and `task.project`)? Each option is the rule'"'"'s own matching condition; pick `default` when no rule'"'"'s condition is met, including when a rule'"'"'s own exemption text excludes this task.",
+        criteria: ($criteria + {default: $none_criterion})
       }
-    }')
-  never_send_check
-  T0=$(fm_timing_now_ms)
-  HTTP=$(printf '%s' "$REQUEST" | curl -sS --max-time "$TS_TIMEOUT" -o "$RESP_FILE" -w '%{http_code}' \
-    -X POST "$TS_BASE/v1/systemone" -H 'Content-Type: application/json' \
-    -H @/dev/fd/3 3< <(printf 'Authorization: Bearer %s\n' "$TYPESAFE_API_KEY_PRIVATE") \
-    --data-binary @- 2>/dev/null) || HTTP=000
-  T1=$(fm_timing_now_ms)
-  LAT_MS=$(( T1 - T0 ))
-  [ "$HTTP" = 200 ] || emit_error "http $HTTP after ${LAT_MS} ms: $(head -c 200 "$RESP_FILE" 2>/dev/null | tr '\n' ' ')"
+    }
+  }')
+fm_ts_never_send_check dispatch-resolve "$REQUEST" "$NEVER_SEND_PATH" "$SEND_TEXT"
+fm_ts_post "$REQUEST" "$RESP_FILE"
+LAT_MS=$FM_TS_LAT_MS
+[ "$FM_TS_HTTP" = 200 ] || emit_error "http $FM_TS_HTTP after ${LAT_MS} ms: $(head -c 200 "$RESP_FILE" 2>/dev/null | tr '\n' ' ')"
 jq -e --slurpfile rules "$RULES" '
     (($rules[0].rules | to_entries | map("rule_" + ((.key + 1) | tostring))) + ["default"] | sort) as $choices |
     (.answers.rule.choice | type) == "string" and

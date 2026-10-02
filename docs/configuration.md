@@ -1218,6 +1218,55 @@ Firstmate passes its profile line unless it states a reason to override, such as
 
 The live rule-match evidence is recorded in [`verification/dispatch-resolve.md`](verification/dispatch-resolve.md).
 
+## Typed skill selection (.env TYPESAFE_API_KEY)
+
+Workers do not load installed skills unprompted, so `bin/fm-skill-select.sh` asks the same System One model (Jev) which installed skills fit a written brief and writes the confident picks into the brief as an explicit instruction to load them.
+It shares the resolver's opt-in key, never-send list, task text, and key handling above through `bin/fm-typesafe-lib.sh`, and it is off exactly when the resolver is off.
+This section is the single owner of the tool's operator contract; the script header owns its exact flags, per-harness directory list, and output lines.
+
+```sh
+bin/fm-skill-select.sh data/<id>/brief.md --project <name> --harness <h> --apply
+```
+
+**When firstmate invokes it**
+
+Firstmate runs it with `--apply` after the brief is written and the worker's harness is resolved, before spawn, and reads the printed selection.
+To override, `--set <skill>[,<skill>...]` writes exactly the named skills and `--clear` removes the instruction; neither needs the key or the network.
+`--candidates` lists the skills the worker can load.
+
+**Candidates**
+
+A candidate is a skill the chosen harness discovers for a worker in a task worktree of the project: one `<skill>/SKILL.md` under the harness's project-level skill directories, read from the project's local clone (`projects/<name>`, or `--project-dir`), or under its user-level skill directories.
+A pinned `config/claude-account` root supplies Claude's user skills.
+A skill whose frontmatter has no description, or sets `disable-model-invocation: true`, is not a candidate, because the worker model cannot invoke it.
+A harness without established skill directories, or a project with no candidates, is off.
+
+**What the model receives**
+
+The project name and the same brief task text the resolver sends, plus one yes/no question per candidate made from that skill's name and frontmatter description.
+Skill bodies and paths are never sent.
+
+**Selection and outcomes**
+
+Code selects every skill whose yes probability is at least 0.8; the model never sees the floor.
+
+| Result | Meaning |
+| --- | --- |
+| `clear` | At least one skill reached the floor; `--apply` wrote the instruction. |
+| `none` | No skill reached the floor; the brief is unchanged. |
+| `error` | API, network, or malformed response; the brief is unchanged. |
+
+Off prints one `skill-select: off (...)` line on stderr, nothing on stdout, and changes nothing.
+Every outcome and off exit 0, so dispatch continues exactly as without the tool; only a usage or configuration error exits 2.
+
+**The instruction in the brief**
+
+The selection is written as a `# Required skills` section directly after the brief's `# Task` section, so it stays out of the task text the classifiers and the no-mistakes `--intent` read.
+It names each skill with its `SKILL.md` path, tells the worker to load them before any other task work and to report `blocked` if one cannot be loaded, and asks it to list the skills it loaded.
+A rerun rewrites the section in place; everything else in the brief is left byte-identical.
+
+The live comparison that chose one yes/no question per skill and the 0.8 floor is recorded in [`verification/skill-select.md`](verification/skill-select.md).
+
 ## Toolchain
 
 On session start the first mate detects what its required toolchain is missing or too old and lists each problem with either an exact install command or manual instructions.
@@ -2327,7 +2376,7 @@ FMX_RELAY_URL=https://myfirstmate.io   # optional Relay endpoint override, mainl
 FMX_ENV_FILE=           # optional alternate .env file for direct Relay client invocations; bootstrap still checks $FM_HOME/.env
 FMX_DRY_RUN=            # truthy previews Relay replies and dismissals to state/x-outbox/ without posting or requiring a token
 FMX_X_REPLY_MAX_CHARS=280   # X reply per-message split budget; values below 50 clamp to 50
-TYPESAFE_API_KEY=       # typed dispatch resolution opt-in, from the environment or .env; absent means bin/fm-dispatch-resolve.sh is off (docs/configuration.md "Typed dispatch resolution")
+TYPESAFE_API_KEY=       # typed dispatch resolution and skill selection opt-in, from the environment or .env; absent means bin/fm-dispatch-resolve.sh and bin/fm-skill-select.sh are off (docs/configuration.md "Typed dispatch resolution")
 FMX_DISCORD_REPLY_MAX_CHARS=1900   # Discord reply per-message split budget; values below 50 clamp to 50, values above 2000 reset to 1900
 FMX_X_THREAD_MAX=25     # maximum messages in one auto-split reply thread
 FMX_FOLLOWUP_MAX_AGE_SECS=604800   # local window for posting Relay completion follow-ups (7 days)
