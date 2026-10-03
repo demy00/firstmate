@@ -53,7 +53,8 @@
 # required context name even for an app-bound requirement, and never waives an
 # unreadable required source or producer read. A repeated name counts once, and
 # an empty name or one containing a line break is refused. After the forge
-# accepts the merge, each waived name is recorded in the task metadata as one
+# accepts the merge, each name that waived a check at the verified head is
+# recorded in the task metadata as one
 # merge_waived_red=<name> or merge_waived_missing=<name> line, replacing any
 # earlier merge's waiver lines; a failure to record them is reported as
 # actionable without failing the accepted merge. Both flags are
@@ -222,6 +223,8 @@ waiver_name_valid() {  # <flag> <name>
 ATTENDED_OVERRIDE=false
 ALLOW_RED=()
 ALLOW_MISSING=()
+WAIVED_RED=()
+WAIVED_MISSING=()
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --attended-override)
@@ -811,14 +814,18 @@ FIELDS
     || refusals="$refusals  - mergeStateStatus is DIRTY (conflicts)
 "
 
+  WAIVED_RED=()
+  WAIVED_MISSING=()
   uncovered=''
   while IFS= read -r name; do
     [ -n "$name" ] || continue
-    waiver_names_include "$name" "${ALLOW_RED[@]+"${ALLOW_RED[@]}"}" || {
-      refusals="$refusals  - check '$name' is not green
+    if waiver_names_include "$name" "${ALLOW_RED[@]+"${ALLOW_RED[@]}"}"; then
+      WAIVED_RED+=("$name")
+      continue
+    fi
+    refusals="$refusals  - check '$name' is not green
 "
-      uncovered="${uncovered:+$uncovered, }$name"
-    }
+    uncovered="${uncovered:+$uncovered, }$name"
   done <<EOF
 $red
 EOF
@@ -851,7 +858,10 @@ EOF
   else
     while IFS= read -r name; do
       [ -n "$name" ] || continue
-      waiver_names_include "$name" "${ALLOW_MISSING[@]+"${ALLOW_MISSING[@]}"}" && continue
+      if waiver_names_include "$name" "${ALLOW_MISSING[@]+"${ALLOW_MISSING[@]}"}"; then
+        WAIVED_MISSING+=("$name")
+        continue
+      fi
       refusals="$refusals  - required check '$name' has not reported at head $live_head
 "
       unreported="${unreported:+$unreported, }$name"
@@ -1169,7 +1179,7 @@ require_current_away_authority() {
 record_merge_waivers() {
   local tmp line state_device name stale=false
   grep -qE '^merge_waived_(red|missing)=' "$META" && stale=true
-  [ "$stale" = true ] || [ "${#ALLOW_RED[@]}" -gt 0 ] || [ "${#ALLOW_MISSING[@]}" -gt 0 ] \
+  [ "$stale" = true ] || [ "${#WAIVED_RED[@]}" -gt 0 ] || [ "${#WAIVED_MISSING[@]}" -gt 0 ] \
     || return 0
   [ -f "$META" ] && [ ! -L "$META" ] && [ "$(fm_pr_file_link_count "$META")" = 1 ] || return 1
   state_device=$(fm_pr_file_device "$STATE") || return 1
@@ -1183,11 +1193,14 @@ record_merge_waivers() {
       esac
     done < "$META"
     for name in "${ALLOW_RED[@]+"${ALLOW_RED[@]}"}"; do
-      printf 'merge_waived_red=%s\n' "$name"
+      waiver_names_include "$name" "${WAIVED_RED[@]+"${WAIVED_RED[@]}"}" \
+        && printf 'merge_waived_red=%s\n' "$name"
     done
     for name in "${ALLOW_MISSING[@]+"${ALLOW_MISSING[@]}"}"; do
-      printf 'merge_waived_missing=%s\n' "$name"
+      waiver_names_include "$name" "${WAIVED_MISSING[@]+"${WAIVED_MISSING[@]}"}" \
+        && printf 'merge_waived_missing=%s\n' "$name"
     done
+    :
   } > "$tmp" \
     && chmod 0600 "$tmp" \
     && fm_pr_private_file_valid "$tmp" 600 "$state_device" \

@@ -3049,6 +3049,15 @@ test_allow_red_repeats_once_per_named_check() {
   [ "$(recorded_waivers "$case_dir" merge_waived_red)" = lint ] \
     || fail "allow-red-repeated-name: the repeated name was not recorded once: $(cat "$case_dir/state/task-x1.meta")"
 
+  case_dir=$(make_case github-allow-red-unused-name)
+  add_gh_mocks "$case_dir" "$head"
+  write_github_red_checks_json "$case_dir" "$head" lint
+  run_required_case "$case_dir" 127 --allow-red lint --allow-red unit
+  expect_code 0 "$RC" "allow-red-unused-name: a waiver naming a green check should still merge: $(cat "$case_dir/stderr")"
+  assert_logged_gh_merge "$case_dir" 127 example/repo --squash
+  [ "$(recorded_waivers "$case_dir" merge_waived_red)" = lint ] \
+    || fail "allow-red-unused-name: a waiver that covered no red check was recorded: $(cat "$case_dir/state/task-x1.meta")"
+
   case_dir=$(make_case github-allow-red-repeated-name-other-red)
   add_gh_mocks "$case_dir" "$head"
   write_github_red_checks_json "$case_dir" "$head" lint unit
@@ -3894,6 +3903,15 @@ test_allow_missing_follows_the_allow_red_rules() {
   assert_logged_gh_merge "$case_dir" 101 example/repo --squash
   [ "$(recorded_waivers "$case_dir" merge_waived_missing)" = $'validate\ne2e' ] \
     || fail "allow-missing-repeated: the waived names were not each recorded once: $(cat "$case_dir/state/task-x1.meta")"
+
+  case_dir=$(make_case github-allow-missing-unused-name)
+  add_gh_mocks "$case_dir" "$head"
+  write_github_required "$case_dir" ruleset:validate
+  run_required_case "$case_dir" 105 --allow-missing validate --allow-missing e2e
+  expect_code 0 "$RC" "allow-missing-unused-name: a waiver naming no unreported check should still merge: $(cat "$case_dir/stderr")"
+  assert_logged_gh_merge "$case_dir" 105 example/repo --squash
+  [ "$(recorded_waivers "$case_dir" merge_waived_missing)" = validate ] \
+    || fail "allow-missing-unused-name: a waiver that covered no unreported check was recorded: $(cat "$case_dir/state/task-x1.meta")"
 
   case_dir=$(make_case github-allow-missing-repeated-third-unnamed)
   add_gh_mocks "$case_dir" "$head"
