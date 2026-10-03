@@ -1,0 +1,41 @@
+================ base (52cec4f) ================
+
+$ fm-pr-merge.sh task-x1 https://github.com/owndivision/owndivision-control-plane/pull/92 --allow-red Browser\ journeys\ \(Playwright\) --allow-red Contracts\ +\ Unit\ tests --allow-red Deploy\ integration\ tests\ \(real\ Docker\) --allow-red Integration\ tests\ \(API\ +\ Postgres\) --allow-red Model/migration\ drift\ \(alembic\ check\)
+error: --allow-red may be specified only once
+exit=2
+--- gh pr merge invocations:
+(none)
+--- task metadata waiver lines:
+(none)
+================ head (a97d7c5) ================
+
+$ fm-pr-merge.sh task-x1 https://github.com/owndivision/owndivision-control-plane/pull/92 --allow-red Browser\ journeys\ \(Playwright\) --allow-red Contracts\ +\ Unit\ tests --allow-red Deploy\ integration\ tests\ \(real\ Docker\) --allow-red Integration\ tests\ \(API\ +\ Postgres\) --allow-red Model/migration\ drift\ \(alembic\ check\)
+armed: state/task-x1.check.sh
+verified: https://github.com/example/repo/pull/92 is merged (state=MERGED, merged=true, isInMergeQueue=false)
+verified: https://github.com/example/repo/pull/92 is open and mergeable, with every unwaived required check reported and every unwaived check green at head 9292929292929292929292929292929292929292
+exit=0
+--- gh pr merge invocations:
+pr merge 92 --repo example/repo --match-head-commit 9292929292929292929292929292929292929292 --squash
+--- task metadata waiver lines:
+merge_waived_red=Browser journeys (Playwright)
+merge_waived_red=Contracts + Unit tests
+merge_waived_red=Deploy integration tests (real Docker)
+merge_waived_red=Integration tests (API + Postgres)
+merge_waived_red=Model/migration drift (alembic check)
+================ head: sixth unwaived red check still refuses ================
+
+$ fm-pr-merge.sh task-x1 https://github.com/owndivision/owndivision-control-plane/pull/92 --allow-red Browser\ journeys\ \(Playwright\) --allow-red Contracts\ +\ Unit\ tests --allow-red Deploy\ integration\ tests\ \(real\ Docker\) --allow-red Integration\ tests\ \(API\ +\ Postgres\) --allow-red Model/migration\ drift\ \(alembic\ check\)
+armed: state/task-x1.check.sh
+error: refusing to merge https://github.com/example/repo/pull/92
+  - check 'Security scan' is not green
+error: these checks are not green: Security scan
+exit=1
+--- gh pr merge invocations:
+(none)
+================ head: --allow-red lint --allow-red unit, only lint red ================
+armed: state/task-x1.check.sh
+verified: https://github.com/example/repo/pull/92 is merged (state=MERGED, merged=true, isInMergeQueue=false)
+verified: https://github.com/example/repo/pull/92 is open and mergeable, with every unwaived required check reported and every unwaived check green at head 9292929292929292929292929292929292929292
+exit=0
+--- task metadata waiver lines:
+merge_waived_red=lint
