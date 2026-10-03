@@ -42,15 +42,21 @@
 # --match-head-commit, so a push that lands between that read and the merge
 # fails the merge instead of landing commits nothing verified. Reading that
 # state needs gh and jq, and either one absent stops the merge before any
-# state is recorded. An attended --allow-red <check-name> may be passed once,
-# with the name as a separate argument; it waives only checks with that exact
-# name, still requires every other check green, and still binds the head. Its
-# twin, an attended --allow-missing <check-name>, follows the same rules for one
-# required check that has not reported: it waives only that exact name, still
-# requires every other required check to have reported and every check to be
-# green unless separately waived by --allow-red. It matches the required
-# context name even for an app-bound requirement, and never waives an unreadable
-# required source or producer read. Both are
+# state is recorded. An attended --allow-red <check-name> may be repeated, each
+# naming one check as a separate argument; it waives only checks whose name
+# exactly matches a named one, still requires every other check green, and
+# still binds the head.
+# Its twin, an attended --allow-missing <check-name>, may be repeated the same
+# way for required checks that have not reported: it waives only those exact
+# names, still requires every other required check to have reported and every
+# check to be green unless separately waived by --allow-red. It matches the
+# required context name even for an app-bound requirement, and never waives an
+# unreadable required source or producer read. A repeated name counts once, and
+# an empty name or one containing a line break is refused. After the forge
+# accepts the merge, each waived name is recorded in the task metadata as one
+# merge_waived_red=<name> or merge_waived_missing=<name> line, replacing any
+# earlier merge's waiver lines; a failure to record them is reported as
+# actionable without failing the accepted merge. Both flags are
 # refused while the away-posture record exists, and neither
 # applies on GitLab, where a merge already requires the head pipeline to have
 # succeeded. After gh returns success, GitHub's live state is read back and
@@ -135,7 +141,7 @@
 # explicit captain instruction and never skips the live green check, the
 # away-record read, or a captain hold.
 #
-# Usage: fm-pr-merge.sh <task-id> <pr-url> [--attended-override] [--allow-red <check-name>] [--allow-missing <check-name>] [-- <extra forge merge args>]
+# Usage: fm-pr-merge.sh <task-id> <pr-url> [--attended-override] [--allow-red <check-name>]... [--allow-missing <check-name>]... [-- <extra forge merge args>]
 #
 # On GitLab, this script confirms the MR is actually merged before reporting it;
 # an auto-merge-queued or unconfirmed request leaves the poll armed and records
@@ -193,6 +199,26 @@ if [ "$PROVIDER" = gerrit ]; then
   exit 2
 fi
 shift 2
+
+# Succeeds when <name> is one of the remaining arguments.
+waiver_names_include() {  # <name> [<waived-name>...]
+  local name=$1 waived
+  shift
+  for waived in "$@"; do
+    [ "$waived" = "$name" ] && return 0
+  done
+  return 1
+}
+
+# A waived name is recorded as one task metadata line, so a line break in it is
+# refused rather than allowed to forge another metadata key.
+waiver_name_valid() {  # <flag> <name>
+  case "$2" in
+    '') printf 'error: %s requires a check name\n' "$1" >&2; return 1 ;;
+    *$'\n'*|*$'\r'*) printf 'error: %s check name must not contain a line break\n' "$1" >&2; return 1 ;;
+  esac
+}
+
 ATTENDED_OVERRIDE=false
 ALLOW_RED=()
 ALLOW_MISSING=()
@@ -207,9 +233,8 @@ while [ "$#" -gt 0 ]; do
       exit 2
       ;;
     --allow-red)
-      [ -n "${2:-}" ] || { echo "error: --allow-red requires a check name" >&2; exit 2; }
-      [ "${#ALLOW_RED[@]}" -eq 0 ] || { echo "error: --allow-red may be specified only once" >&2; exit 2; }
-      ALLOW_RED+=("$2")
+      waiver_name_valid --allow-red "${2:-}" || exit 2
+      waiver_names_include "$2" "${ALLOW_RED[@]+"${ALLOW_RED[@]}"}" || ALLOW_RED+=("$2")
       shift 2
       ;;
     --allow-red=*)
@@ -217,9 +242,8 @@ while [ "$#" -gt 0 ]; do
       exit 2
       ;;
     --allow-missing)
-      [ -n "${2:-}" ] || { echo "error: --allow-missing requires a check name" >&2; exit 2; }
-      [ "${#ALLOW_MISSING[@]}" -eq 0 ] || { echo "error: --allow-missing may be specified only once" >&2; exit 2; }
-      ALLOW_MISSING+=("$2")
+      waiver_name_valid --allow-missing "${2:-}" || exit 2
+      waiver_names_include "$2" "${ALLOW_MISSING[@]+"${ALLOW_MISSING[@]}"}" || ALLOW_MISSING+=("$2")
       shift 2
       ;;
     --allow-missing=*)
@@ -719,7 +743,7 @@ github_required_checks_missing() {
 # the usual 1, when mergeable=UNKNOWN is the only failing condition, so the
 # caller can retry a still-computing mergeability read instead of refusing.
 github_verify_mergeable() {
-  local json fields line red name covered missing unreported producers runs
+  local json fields line red name uncovered missing unreported producers runs
   local total=0 named=0 refusals='' mergeable_refusal=''
   local state='' draft='' mergeable='' merge_state='' live_head='' base=''
 
@@ -790,13 +814,7 @@ FIELDS
   uncovered=''
   while IFS= read -r name; do
     [ -n "$name" ] || continue
-    covered=0
-    if [ "${#ALLOW_RED[@]}" -gt 0 ]; then
-      for check in "${ALLOW_RED[@]}"; do
-        [ "$check" = "$name" ] && covered=1
-      done
-    fi
-    [ "$covered" -eq 1 ] || {
+    waiver_names_include "$name" "${ALLOW_RED[@]+"${ALLOW_RED[@]}"}" || {
       refusals="$refusals  - check '$name' is not green
 "
       uncovered="${uncovered:+$uncovered, }$name"
@@ -833,7 +851,7 @@ EOF
   else
     while IFS= read -r name; do
       [ -n "$name" ] || continue
-      [ "${#ALLOW_MISSING[@]}" -gt 0 ] && [ "${ALLOW_MISSING[0]}" = "$name" ] && continue
+      waiver_names_include "$name" "${ALLOW_MISSING[@]+"${ALLOW_MISSING[@]}"}" && continue
       refusals="$refusals  - required check '$name' has not reported at head $live_head
 "
       unreported="${unreported:+$unreported, }$name"
@@ -1143,15 +1161,59 @@ require_current_away_authority() {
   fi
 }
 
+# Replaces any earlier merge's waiver lines in the task metadata with one
+# merge_waived_red=<name> or merge_waived_missing=<name> line per check this
+# merge waived, so the metadata describes the accepted merge of its pr= alone.
+# The caller holds the metadata lock. Metadata with nothing to record or clear
+# is left untouched.
+record_merge_waivers() {
+  local tmp line state_device name stale=false
+  grep -qE '^merge_waived_(red|missing)=' "$META" && stale=true
+  [ "$stale" = true ] || [ "${#ALLOW_RED[@]}" -gt 0 ] || [ "${#ALLOW_MISSING[@]}" -gt 0 ] \
+    || return 0
+  [ -f "$META" ] && [ ! -L "$META" ] && [ "$(fm_pr_file_link_count "$META")" = 1 ] || return 1
+  state_device=$(fm_pr_file_device "$STATE") || return 1
+  [ "$(fm_pr_file_device "$META")" = "$state_device" ] || return 1
+  tmp=$(umask 077 && mktemp "$STATE/.fm-pr-merge-meta.XXXXXX") || return 1
+  {
+    while IFS= read -r line || [ -n "$line" ]; do
+      case "$line" in
+        merge_waived_red=*|merge_waived_missing=*) ;;
+        *) printf '%s\n' "$line" ;;
+      esac
+    done < "$META"
+    for name in "${ALLOW_RED[@]+"${ALLOW_RED[@]}"}"; do
+      printf 'merge_waived_red=%s\n' "$name"
+    done
+    for name in "${ALLOW_MISSING[@]+"${ALLOW_MISSING[@]}"}"; do
+      printf 'merge_waived_missing=%s\n' "$name"
+    done
+  } > "$tmp" \
+    && chmod 0600 "$tmp" \
+    && fm_pr_private_file_valid "$tmp" 600 "$state_device" \
+    && fm_pr_regular_destination_on_device_or_absent "$META" "$state_device" \
+    && mv -f -- "$tmp" "$META" \
+    && return 0
+  rm -f -- "$tmp"
+  return 1
+}
+
 persist_accepted_merge_authority() {
-  local status=0
+  local status=0 waivers_status=0
   MERGE_META_LOCK=$(fm_meta_lock_path "$META") || return 1
   fm_lock_acquire_wait "$MERGE_META_LOCK" || return 1
   fm_merge_authority_persist "$STATE" "$ID" "$META" \
     "$PROVIDER" "$PR_HOST" "$PR_PATH" "$PR_NUMBER" "$FM_PR_MERGE_AUTHORITY" \
     || status=1
+  record_merge_waivers || waivers_status=1
   fm_lock_release "$MERGE_META_LOCK" || status=1
   MERGE_META_LOCK=
+  # The waivers are a record of the accepted merge, so failing to write them
+  # is reported without misreporting that merge as failed.
+  if [ "$waivers_status" -ne 0 ]; then
+    printf 'actionable: the forge accepted the merge request for %s but its check waivers could not be recorded in the task metadata\n' \
+      "$URL" >&2
+  fi
   if [ "$status" -eq 0 ]; then
     return 0
   fi

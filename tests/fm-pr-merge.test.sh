@@ -2952,7 +2952,7 @@ test_quiet_record_keeps_merges_attended() {
   pass "fm-pr-merge keeps a quiet-mode home's merges attended, the named red-check waiver included"
 }
 
-test_allow_red_requires_one_separate_name() {
+test_allow_red_requires_a_separate_name() {
   local case_dir rc head
   head=afafafafafafafafafafafafafafafafafafafaf
 
@@ -2968,20 +2968,129 @@ test_allow_red_requires_one_separate_name() {
   expect_code 2 "$rc" "github-allow-red-equals: equals form must be refused"
   assert_no_grep 'pr merge' "$case_dir/gh.log" \
     "github-allow-red-equals: gh pr merge ran for the equals alias"
+  pass "fm-pr-merge takes each red-check waiver name as a separate argument"
+}
 
-  case_dir=$(make_case github-allow-red-duplicate)
-  mkdir -p "$case_dir/wt"
+# The five checks a repository's CI reports when no job can start, named the way
+# GitHub reports them, spaces and punctuation included.
+UNSTARTED_CHECKS=(
+  'Browser journeys (Playwright)'
+  'Contracts + Unit tests'
+  'Deploy integration tests (real Docker)'
+  'Integration tests (API + Postgres)'
+  'Model/migration drift (alembic check)'
+)
+
+# Args: case_dir head_sha <red-check-name>... ; a green ci check run is always
+# included, so every case also proves the unwaived checks are still read.
+write_github_red_checks_json() {
+  local case_dir=$1 head=$2 name entries=()
+  shift 2
+  entries=("$(check_run ci COMPLETED SUCCESS)")
+  for name in "$@"; do
+    entries+=("$(check_run "$name" COMPLETED FAILURE)")
+  done
+  write_github_rollup_json "$case_dir" "$head" "${entries[@]}"
+}
+
+# Prints the waived names the task metadata records under <key>, one per line.
+recorded_waivers() {
+  local case_dir=$1 key=$2
+  grep "^$key=" "$case_dir/state/task-x1.meta" | cut -d= -f2- || true
+}
+
+test_allow_red_repeats_once_per_named_check() {
+  local case_dir rc head name args=()
+  head=a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7
+
+  case_dir=$(make_case github-allow-red-two)
   add_gh_mocks "$case_dir" "$head"
-  write_github_red_json "$case_dir" "$head" lint
-  set +e
-  run_pr_merge "$case_dir" task-x1 https://github.com/example/repo/pull/88 \
-    --allow-red lint --allow-red unit > "$case_dir/stdout" 2> "$case_dir/stderr"
-  rc=$?
-  set -e
-  expect_code 2 "$rc" "github-allow-red-duplicate: duplicate waiver must be refused"
+  write_github_red_checks_json "$case_dir" "$head" lint unit
+  run_required_case "$case_dir" 120 --allow-red lint --allow-red unit
+  expect_code 0 "$RC" "allow-red-two: two named waivers should merge: $(cat "$case_dir/stderr")"
+  assert_logged_gh_merge "$case_dir" 120 example/repo --squash
+  [ "$(recorded_waivers "$case_dir" merge_waived_red)" = $'lint\nunit' ] \
+    || fail "allow-red-two: both waived names were not recorded: $(cat "$case_dir/state/task-x1.meta")"
+
+  args=()
+  for name in "${UNSTARTED_CHECKS[@]}"; do
+    args+=(--allow-red "$name")
+  done
+  case_dir=$(make_case github-allow-red-five)
+  add_gh_mocks "$case_dir" "$head"
+  write_github_red_checks_json "$case_dir" "$head" "${UNSTARTED_CHECKS[@]}"
+  printf '%s\n' 'merge_waived_red=stale' 'merge_waived_missing=stale' >> "$case_dir/state/task-x1.meta"
+  run_required_case "$case_dir" 121 "${args[@]}"
+  expect_code 0 "$RC" "allow-red-five: five named waivers should merge: $(cat "$case_dir/stderr")"
+  assert_logged_gh_merge "$case_dir" 121 example/repo --squash
+  [ "$(recorded_waivers "$case_dir" merge_waived_red)" = "$(printf '%s\n' "${UNSTARTED_CHECKS[@]}")" ] \
+    || fail "allow-red-five: the five waived names were not recorded in place of the stale one: $(cat "$case_dir/state/task-x1.meta")"
+  [ -z "$(recorded_waivers "$case_dir" merge_waived_missing)" ] \
+    || fail "allow-red-five: a stale missing-check waiver survived the merge: $(cat "$case_dir/state/task-x1.meta")"
+
+  case_dir=$(make_case github-allow-red-sixth-unnamed)
+  add_gh_mocks "$case_dir" "$head"
+  write_github_red_checks_json "$case_dir" "$head" "${UNSTARTED_CHECKS[@]}" 'Security scan'
+  run_required_case "$case_dir" 122 "${args[@]}"
+  expect_code 1 "$RC" "allow-red-sixth-unnamed: an unnamed sixth red check must still refuse"
+  assert_grep 'these checks are not green: Security scan' "$case_dir/stderr" \
+    "allow-red-sixth-unnamed: the refusal did not name only the unwaived check"
   assert_no_grep 'pr merge' "$case_dir/gh.log" \
-    "github-allow-red-duplicate: gh pr merge ran for duplicate waivers"
-  pass "fm-pr-merge accepts exactly one separately named red-check waiver"
+    "allow-red-sixth-unnamed: gh pr merge ran with an unwaived red check"
+  [ -z "$(recorded_waivers "$case_dir" merge_waived_red)" ] \
+    || fail "allow-red-sixth-unnamed: a refused merge recorded waivers"
+
+  case_dir=$(make_case github-allow-red-repeated-name)
+  add_gh_mocks "$case_dir" "$head"
+  write_github_red_checks_json "$case_dir" "$head" lint
+  run_required_case "$case_dir" 123 --allow-red lint --allow-red lint
+  expect_code 0 "$RC" "allow-red-repeated-name: a repeated name should be harmless: $(cat "$case_dir/stderr")"
+  assert_logged_gh_merge "$case_dir" 123 example/repo --squash
+  [ "$(recorded_waivers "$case_dir" merge_waived_red)" = lint ] \
+    || fail "allow-red-repeated-name: the repeated name was not recorded once: $(cat "$case_dir/state/task-x1.meta")"
+
+  case_dir=$(make_case github-allow-red-repeated-name-other-red)
+  add_gh_mocks "$case_dir" "$head"
+  write_github_red_checks_json "$case_dir" "$head" lint unit
+  run_required_case "$case_dir" 124 --allow-red lint --allow-red lint
+  expect_code 1 "$RC" "allow-red-repeated-name-other-red: repeating one name must not waive another"
+  assert_grep 'these checks are not green: unit' "$case_dir/stderr" \
+    "allow-red-repeated-name-other-red: the unwaived check was not named"
+  assert_no_grep 'pr merge' "$case_dir/gh.log" \
+    "allow-red-repeated-name-other-red: gh pr merge ran with an unwaived red check"
+
+  # The waivers are recorded after the forge accepted the merge, so a failure
+  # to write them is reported without turning the landed merge into a failure.
+  case_dir=$(make_case github-allow-red-unrecorded)
+  add_gh_mocks "$case_dir" "$head"
+  write_github_red_checks_json "$case_dir" "$head" lint
+  cat > "$case_dir/fakebin/mktemp" <<SH
+#!/usr/bin/env bash
+case "\$*" in
+  *.fm-pr-merge-meta.*) exit 1 ;;
+esac
+exec $(command -v mktemp) "\$@"
+SH
+  chmod +x "$case_dir/fakebin/mktemp"
+  run_required_case "$case_dir" 126 --allow-red lint
+  expect_code 0 "$RC" "allow-red-unrecorded: the landed merge must not be reported as failed: $(cat "$case_dir/stderr")"
+  assert_logged_gh_merge "$case_dir" 126 example/repo --squash
+  assert_grep 'its check waivers could not be recorded in the task metadata' "$case_dir/stderr" \
+    "allow-red-unrecorded: the unrecorded waivers were not reported"
+  assert_grep 'is merged' "$case_dir/stdout" \
+    "allow-red-unrecorded: the landed merge was not reported"
+
+  for name in '' $'lint\nmerge_waived_red=unit'; do
+    case_dir=$(make_case github-allow-red-bad-name)
+    add_gh_mocks "$case_dir" "$head"
+    write_github_red_checks_json "$case_dir" "$head" lint unit
+    run_required_case "$case_dir" 125 --allow-red lint --allow-red "$name"
+    expect_code 2 "$RC" "allow-red-bad-name: the name '$name' must be refused"
+    assert_no_grep 'pr merge' "$case_dir/gh.log" \
+      "allow-red-bad-name: gh pr merge ran for the name '$name'"
+    rm -rf "$case_dir"
+  done
+  pass "fm-pr-merge --allow-red repeats once per exact check name and records every waived name"
 }
 
 test_away_record_permits_any_green_merge_under_away_authority() {
@@ -3777,15 +3886,32 @@ test_allow_missing_follows_the_allow_red_rules() {
   assert_no_grep 'pr merge' "$case_dir/gh.log" \
     "allow-missing-equals: gh pr merge ran for the equals form"
 
-  case_dir=$(make_case github-allow-missing-duplicate)
+  case_dir=$(make_case github-allow-missing-repeated)
   add_gh_mocks "$case_dir" "$head"
-  write_github_required "$case_dir" ruleset:validate ruleset:e2e
-  run_required_case "$case_dir" 101 --allow-missing validate --allow-missing e2e
-  expect_code 2 "$RC" "allow-missing-duplicate: a second waiver must be refused"
-  assert_grep '--allow-missing may be specified only once' "$case_dir/stderr" \
-    "allow-missing-duplicate: the refusal did not say single use"
+  write_github_required "$case_dir" ruleset:validate classic:e2e
+  run_required_case "$case_dir" 101 --allow-missing validate --allow-missing e2e --allow-missing e2e
+  expect_code 0 "$RC" "allow-missing-repeated: each named unreported check should be waived: $(cat "$case_dir/stderr")"
+  assert_logged_gh_merge "$case_dir" 101 example/repo --squash
+  [ "$(recorded_waivers "$case_dir" merge_waived_missing)" = $'validate\ne2e' ] \
+    || fail "allow-missing-repeated: the waived names were not each recorded once: $(cat "$case_dir/state/task-x1.meta")"
+
+  case_dir=$(make_case github-allow-missing-repeated-third-unnamed)
+  add_gh_mocks "$case_dir" "$head"
+  write_github_required "$case_dir" ruleset:validate ruleset:e2e ruleset:docs
+  run_required_case "$case_dir" 103 --allow-missing validate --allow-missing e2e
+  expect_code 1 "$RC" "allow-missing-repeated-third-unnamed: an unnamed unreported check must still refuse"
+  assert_grep 'these required checks have not reported: docs' "$case_dir/stderr" \
+    "allow-missing-repeated-third-unnamed: the refusal did not name only the unwaived check"
   assert_no_grep 'pr merge' "$case_dir/gh.log" \
-    "allow-missing-duplicate: gh pr merge ran for two waivers"
+    "allow-missing-repeated-third-unnamed: gh pr merge ran with an unwaived unreported check"
+
+  case_dir=$(make_case github-allow-missing-empty)
+  add_gh_mocks "$case_dir" "$head"
+  write_github_required "$case_dir" ruleset:validate
+  run_required_case "$case_dir" 104 --allow-missing validate --allow-missing ''
+  expect_code 2 "$RC" "allow-missing-empty: an empty name must be refused"
+  assert_no_grep 'pr merge' "$case_dir/gh.log" \
+    "allow-missing-empty: gh pr merge ran for an empty name"
 
   case_dir=$(make_case github-allow-missing-away)
   add_gh_mocks "$case_dir" "$head"
@@ -3829,7 +3955,7 @@ test_allow_missing_follows_the_allow_red_rules() {
   assert_grep '--allow-missing does not apply to GitLab' "$case_dir/stderr" \
     "gitlab-allow-missing: the refusal did not name GitLab"
   [ ! -s "$case_dir/glab.log" ] || fail "gitlab-allow-missing: glab ran despite the waiver"
-  pass "fm-pr-merge --allow-missing is single use, attended-only, and GitHub-only like --allow-red"
+  pass "fm-pr-merge --allow-missing repeats once per exact name, is attended-only, and is GitHub-only like --allow-red"
 }
 
 test_gitlab_head_override_args_refuse_before_recording
@@ -3864,7 +3990,8 @@ test_undated_runs_never_supersede
 test_allow_red_still_waives_only_the_current_failure
 test_allow_red_is_refused_while_away
 test_quiet_record_keeps_merges_attended
-test_allow_red_requires_one_separate_name
+test_allow_red_requires_a_separate_name
+test_allow_red_repeats_once_per_named_check
 test_away_record_permits_any_green_merge_under_away_authority
 test_away_branch_actor_merges_green_under_the_record
 test_away_branch_refuses_when_record_archived_during_preflight
