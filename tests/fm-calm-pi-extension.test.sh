@@ -1648,14 +1648,24 @@ for (const { name, actual } of rows) {
     throw new Error(`${name} was not hidden before export rendering`);
   }
 }
+// Stands in for Pi's own HTML exporter, which falls back to the registered tool
+// when no extension registers a tool-renderer resolver, as Calm does not. Pi 1.0.1
+// renamed the exporter's lookup dependency from getToolDefinition to
+// getToolRenderers and the exporter swallows the error a missing one raises, so
+// pass the lookup under both names and count lookups: an exporter that never
+// consults the tools would make the negative export assertion below vacuous.
+let exportToolLookups = 0;
+function createExportHtmlRenderer() {
+  const lookup = (name) => {
+    exportToolLookups += 1;
+    return tools.find((tool) => tool.name === name);
+  };
+  return createToolHtmlRenderer({ getToolRenderers: lookup, getToolDefinition: lookup, theme, cwd: process.cwd() });
+}
 async function assertStockHtmlRendering(command, submitData) {
   editorText = command;
   terminalInputHandler(submitData);
-  const htmlRenderer = createToolHtmlRenderer({
-    getToolDefinition: (name) => tools.find((tool) => tool.name === name),
-    theme,
-    cwd: process.cwd(),
-  });
+  const htmlRenderer = createExportHtmlRenderer();
   const exportCases = [
     ...cases.filter(([toolName]) => toolName === "grep" || toolName === "find"),
     ["fm_watch_arm_pi", watchArgs, watchResult],
@@ -1682,13 +1692,13 @@ await assertStockHtmlRendering("/export calm.html", "\r");
 getKeybindings().setUserBindings({ "tui.input.submit": "alt+s" });
 editorText = "/export remapped.html";
 terminalInputHandler("\r");
-const unmatchedRenderer = createToolHtmlRenderer({
-  getToolDefinition: (name) => tools.find((tool) => tool.name === name),
-  theme,
-  cwd: process.cwd(),
-});
+const lookupsBeforeUnmatched = exportToolLookups;
+const unmatchedRenderer = createExportHtmlRenderer();
 if (unmatchedRenderer.renderCall("unmatched-submit", "grep", { pattern: "alpha", path: "." })) {
   throw new Error("ordinary non-submit input activated HTML export rendering");
+}
+if (exportToolLookups === lookupsBeforeUnmatched) {
+  throw new Error("the stand-in HTML exporter never consulted the registered tools");
 }
 editorText = "";
 await assertStockHtmlRendering("/share", "\x1bs");
@@ -3858,7 +3868,7 @@ JS
 # that only succeeds after Chrome's start-up flake, and one that never renders
 # and must report enough to tell a Chrome failure apart from a Pi export change.
 test_export_dom_render_guard() {
-  local dir source_file out_file report
+  local dir source_file out_file report hang_attempts
 
   dir="$TMP_ROOT/render-guard"
   mkdir -p "$dir"
@@ -3892,7 +3902,6 @@ SH
   cat >"$dir/chrome-hang" <<'SH'
 #!/bin/sh
 case "${1:-}" in --version) echo "FakeChrome 1.2.3"; exit 0 ;; esac
-echo attempt >>"$FM_FAKE_CHROME_ATTEMPTS"
 printf '<html><head></head><body>export'
 exec sleep 30
 SH
@@ -3933,18 +3942,20 @@ SH
   assert_contains "$report" "timed_out=no" "the render failure did not report that Chrome exited on its own"
   assert_contains "$report" "FAKE_CHROME_STARTUP_MARKER" "the render failure discarded Chrome's own diagnostic"
 
-  : >"$dir/attempts-hang"
   : >"$out_file"
-  if FM_FAKE_CHROME_ATTEMPTS="$dir/attempts-hang" FM_CHROME_RENDER_WAIT_TICKS=3 \
+  if FM_CHROME_RENDER_WAIT_TICKS=3 \
     render_export_dom "$dir/chrome-hang" "$source_file" "$out_file" 9.9.9 >"$dir/report-hang"
   then
     fail "render_export_dom accepted a Chrome that never finished the DOM"
   fi
-  [ "$(wc -l <"$dir/attempts-hang")" -eq 3 ] \
-    || fail "render_export_dom did not exhaust its bounded retries on a Chrome that never finished"
-  report=$(cat "$dir/report-hang")
-  assert_contains "$report" "timed_out=yes" \
-    "the render failure reported its own kill signal without saying the attempt was timed out"
+  # Read the attempts from the guard's own report, not from a counter the fake
+  # writes: each attempt here is killed after three ticks, and macOS can spend
+  # that long assessing a freshly written script before its first line runs, so
+  # a fake-side counter can miss an attempt the guard really made.
+  hang_attempts=$(grep -Eo 'attempt [0-9]+: exit=[^ ]* timed_out=[a-z]+' "$dir/report-hang" \
+    | sed 's/ exit=[^ ]*//' | tr '\n' ' ')
+  [ "$hang_attempts" = "attempt 1: timed_out=yes attempt 2: timed_out=yes attempt 3: timed_out=yes " ] \
+    || fail "render_export_dom did not exhaust its bounded retries on a Chrome that never finished, each reported as timed out: $hang_attempts"
 
   pass "the rendered-export-DOM guard renders in one pass, retries a bounded number of Chrome start-up failures, and reports the Chrome binary, Chrome version, Pi version, exit status, and Chrome diagnostic when every attempt fails"
 }
@@ -4174,7 +4185,11 @@ export default function (pi: ExtensionAPI): void {
 }
 TS
   printf '%s\n' '{"tui.input.submit":"alt+s"}' >"$config/keybindings.json"
-  printf '%s\n' '{"hideThinkingBlock":true}' >"$config/settings.json"
+  # Pin the main-screen layout Firstmate launches Pi in (fm-spawn's --tui-mode
+  # regular): these assertions read restored rows from tmux scrollback, and Pi
+  # 1.0.0 made the alternate-screen fullscreen layout the default, which keeps no
+  # scrollback and leaves only the viewport for capture-pane to read.
+  printf '%s\n' '{"hideThinkingBlock":true,"tuiMode":"regular"}' >"$config/settings.json"
   now=$(date -u +%Y-%m-%dT%H:%M:%S.000Z)
   cat >"$session_file" <<JSON
 {"type":"session","version":3,"id":"11111111-1111-4111-8111-111111111111","timestamp":"$now","cwd":"$project"}
