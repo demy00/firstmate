@@ -102,13 +102,23 @@ stop_reply_listener() {
 
 # Block until this generation's capture has been applied. A live listener keeps
 # its claim across polls, so start is only launched when nothing owns the source.
+# Ownership is rechecked for the whole wait, not once: the manual `handle` replay
+# after a capture re-arms the source, and a listener that already adopted the
+# previous registration then exits as superseded at its next launch-floor check,
+# which can land just after a check that still saw it live. The watcher's
+# reconcile cycle restarts such a source in production; this wait stands in for
+# that cycle, keeping at most one start of its own in flight.
+REPLY_START_PID=
 await_reply_result() { # <result-path>
-  local result=$1 handled=${1%.result}.handled _
-  if [ "$(reply_owner)" != live ]; then
-    remote_env "$ROOT/bin/fm-procevent.sh" start "$SID" >/dev/null 2>&1 &
-  fi
-  for _ in $(seq 1 800); do
+  local result=$1 handled=${1%.result}.handled i
+  for i in $(seq 0 799); do
     [ -s "$result" ] && [ -f "$handled" ] && return 0
+    if [ $((i % 10)) -eq 0 ] \
+      && { [ -z "$REPLY_START_PID" ] || ! kill -0 "$REPLY_START_PID" 2>/dev/null; } \
+      && [ "$(reply_owner)" != live ]; then
+      remote_env "$ROOT/bin/fm-procevent.sh" start "$SID" >/dev/null 2>&1 &
+      REPLY_START_PID=$!
+    fi
     sleep 0.05
   done
   return 1

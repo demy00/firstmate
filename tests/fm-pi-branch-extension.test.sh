@@ -5214,12 +5214,27 @@ if (JSON.stringify(actualRow.render(100)) !== JSON.stringify(stockRow.render(100
 }
 
 pi.events.emit("firstmate:calm-presentation", { active: true, stockExportRendering: true });
-const stockHtml = createToolHtmlRenderer({ getToolDefinition: () => stockDefinition, theme, cwd: process.cwd() });
-const actualHtml = createToolHtmlRenderer({ getToolDefinition: () => actualDefinition, theme, cwd: process.cwd() });
+// Pi 1.0.1 renamed the lookup dependency of the HTML exporter from getToolDefinition
+// to getToolRenderers, and the exporter swallows the error a missing one raises,
+// which also yields undefined. Pass the lookup under both names and require that the
+// exporter consulted it, so the undefined results below come from the definitions.
+const exportLookups = { stock: 0, actual: 0 };
+const exportRenderer = (name, definition) => {
+  const lookup = () => {
+    exportLookups[name] += 1;
+    return definition;
+  };
+  return createToolHtmlRenderer({ getToolRenderers: lookup, getToolDefinition: lookup, theme, cwd: process.cwd() });
+};
+const stockHtml = exportRenderer("stock", stockDefinition);
+const actualHtml = exportRenderer("actual", actualDefinition);
 const stockCall = stockHtml.renderCall("stock-html", "fm_branch_outcomes", args);
 const actualCall = actualHtml.renderCall("actual-html", "fm_branch_outcomes", args);
 const stockResult = stockHtml.renderResult("stock-html", "fm_branch_outcomes", result.content, result.details, false);
 const actualResult = actualHtml.renderResult("actual-html", "fm_branch_outcomes", result.content, result.details, false);
+if (exportLookups.stock < 1 || exportLookups.actual < 1) {
+  throw new Error(`the HTML exporter did not consult every tool definition: ${JSON.stringify(exportLookups)}`);
+}
 if (actualCall !== undefined || actualResult !== undefined || stockCall !== undefined || stockResult !== undefined) {
   throw new Error("stock export rendering did not delegate to Pi's structured fallback");
 }
