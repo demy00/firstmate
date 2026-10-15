@@ -21,8 +21,10 @@
 #            It is read-only over the capture: it does not arm, poll, or change
 #            what Lavish delivered. The freeform message (tag=message) is its
 #            own labeled field, printed first and distinct from per-element
-#            annotations; it is labeled SESSION-ENDING MESSAGE only when the
-#            session ended. Declared and presented item counts,
+#            annotations; it is labeled SESSION-ENDING MESSAGE, and counted as
+#            session_ending_message_count, only when the session ended, and is
+#            otherwise CAPTAIN MESSAGE and captain_message_count. Declared and
+#            presented item counts,
 #            plus a completeness verdict, follow before all annotations so a
 #            partial read is obvious; a content block in neither published
 #            shape is never certified complete. Each annotation retains its
@@ -38,6 +40,11 @@
 #            Captain-supplied body lines are visibly prefixed so they cannot
 #            forge structural labels. Empty message and annotation sections
 #            are reported explicitly.
+#            Both table-form and list-form captures are supported; the shared
+#            parser below owns the wire format. Malformed content or a
+#            declared/presented count mismatch yields complete: no; inspect
+#            that verdict, not just the command's exit status. A declared
+#            nonempty block parsed as empty is incomplete.
 # poll       The registered listener command `arm` publishes, not a command to
 #            run in a conversational turn. It runs the published blocking poll
 #            and prints its response verbatim, absorbing only the one exact
@@ -108,6 +115,10 @@
 #
 # Only rows tagged `choice` are read. A freeform captain message is prose that may
 # contain anything, and must never be able to forge a decision key.
+# `answers` and `reconciles` use the same parser as `read` for either emission
+# form. Malformed content or a declared/parsed count mismatch prints a diagnostic
+# to stderr and exits 3, even if valid choices were already printed to stdout;
+# callers must not treat that output as a complete extraction.
 #
 # `read` is the presentation command summarized above; keyed intake remains
 # the separate `answers` contract described here.
@@ -544,8 +555,9 @@ cmd_terminal() {
 # rather than its own header match. The header anchors on
 # column zero: an indented payload line is captain-supplied text and must never
 # be able to forge a content header. A top-level prompts or feedback line that
-# is neither shape is unparsed, and every consumer treats that as incomplete
-# rather than as an empty block.
+# is neither shape is unparsed and counted malformed, keeping any declared
+# count, and every consumer treats that as incomplete rather than as an empty
+# block.
 # shellcheck disable=SC2016 # Perl source, expanded by perl rather than bash.
 LAVISH_ITEMS_PERL='
 use strict; use warnings;
@@ -761,6 +773,7 @@ sub lavish_items {  # <path> <block-name regex>
         $r{found} = 1;
       } else {
         $r{unparsed} = 1;
+        $r{want} = $1 if $line =~ /^(?:$names)\[(\d+)\]/;
         last;
       }
       next;
@@ -770,9 +783,12 @@ sub lavish_items {  # <path> <block-name regex>
     push @block, $line;
   }
   close $fh;
-  return \%r unless $r{found};
-  my $body = lavish_array($r{want}, $fields, \@block);
-  $r{$_} = $body->{$_} for qw(items malformed unparsed unpresented);
+  if ($r{found}) {
+    my $body = lavish_array($r{want}, $fields, \@block);
+    $r{$_} = $body->{$_} for qw(items malformed unparsed unpresented);
+  }
+  # A block this reader cannot account for is malformed, never an empty result.
+  $r{malformed}++ if $r{unparsed};
   return \%r;
 }
 '
@@ -914,6 +930,11 @@ cmd_choice_rows() {
         ? "$choice->{key}\t$choice->{answer}\t$choice->{label}\t$choice->{mode}\n"
         : "$choice->{key}\t$choice->{answer}\t$choice->{label}\n";
     }
+    if ($block->{malformed} || @{$block->{items}} != $block->{want}) {
+      print STDERR "error: the result is not fully accounted for: declared $block->{want}, parsed ",
+        scalar(@{$block->{items}}), ", malformed $block->{malformed}\n";
+      exit 3;
+    }
   ' "$selection" "$file"
 }
 
@@ -989,9 +1010,9 @@ cmd_read() {
       emit_section("attachments", $f, 11, @attachments);
       emit_section("fields", $f, 0, @other);
     }
+    my $ended = $session_ended =~ /^(?:true|True|TRUE)$/;
     if (@messages) {
-      my $message_label = $session_ended =~ /^(?:true|True|TRUE)$/
-        ? "SESSION-ENDING MESSAGE" : "CAPTAIN MESSAGE";
+      my $message_label = $ended ? "SESSION-ENDING MESSAGE" : "CAPTAIN MESSAGE";
       print "$message_label\n";
       for my $i (0 .. $#messages) {
         print "$message_label PART ", ($i + 1), " of ", scalar(@messages), "\n" if @messages > 1;
@@ -1014,7 +1035,8 @@ cmd_read() {
     print "lifecycle: $lifecycle\n";
     print "session_ended: ", (length $session_ended ? $session_ended : "(unset)"), "\n";
     print "annotation_count: ", scalar(@annotations), "\n";
-    print "session_ending_message_count: ", scalar(@messages), "\n";
+    my $message_count_key = $ended ? "session_ending_message_count" : "captain_message_count";
+    print "$message_count_key: ", scalar(@messages), "\n";
     print "\n";
     if (@annotations) {
       print "ANNOTATIONS\n";
