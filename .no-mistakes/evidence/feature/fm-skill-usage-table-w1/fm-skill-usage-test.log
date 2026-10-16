@@ -1,0 +1,8 @@
+ok - the weekly table merges relaunches, normalizes loads, and ignores non-worker sessions
+ok - --since/--until is an inclusive local-date range
+ok - range membership follows each task's first message
+ok - the tool is read-only
+ok - the default root is the one workers launch under
+ok - usage errors exit 2
+ok - --help prints the header
+# all fm-skill-usage tests passed
