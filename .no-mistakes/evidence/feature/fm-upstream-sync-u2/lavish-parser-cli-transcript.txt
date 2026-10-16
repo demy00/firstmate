@@ -1,0 +1,121 @@
+### Option A: nested content presented under labelled sections
+$ fm-procevent-lavish.sh read nested.toon
+CAPTAIN MESSAGE
+| about this block
+fields:
+| selector: #x
+| text: Freeform message
+| uid: 3
+END CAPTAIN MESSAGE
+
+declared_items: 3
+presented_items: 3
+malformed_items: 0
+unpresented_items: 0
+complete: yes
+lifecycle: feedback
+session_ended: (unset)
+annotation_count: 2
+captain_message_count: 1
+
+ANNOTATIONS
+ANNOTATION 1 of 2
+element_uid: 6
+element_selector: table > tbody > tr:nth-of-type(2) > td:nth-of-type(3)
+tag: td
+text:
+| 42
+prompt:
+| cell comment
+target:
+| columnLabel: Sample column
+| rowLabel: Sample row
+| type: table-cell
+attachments:
+| [0].id: att-1
+| [0].name: sample.png
+| [0].path: /tmp/sample.png
+ANNOTATION 2 of 2
+element_uid: 8
+element_selector: 
+tag: choice
+text:
+| Option A
+END ANNOTATIONS
+END LAVISH RESULT (3 of 3)
+[exit=0]
+
+$ fm-procevent-lavish.sh answers nested.toon
+q1	opt-a	Option A
+[exit=0]
+
+### Strictness: list item repeating a key (tag: div / tag: choice)
+$ fm-procevent-lavish.sh read dupkey.toon
+SESSION-ENDING MESSAGE: (none)
+
+declared_items: 1
+presented_items: 0
+malformed_items: 1
+unpresented_items: 0
+complete: no
+lifecycle: feedback
+session_ended: (unset)
+annotation_count: 0
+captain_message_count: 0
+
+ANNOTATIONS: (none)
+END LAVISH RESULT (0 of 1)
+[exit=0]
+
+$ fm-procevent-lavish.sh answers dupkey.toon
+error: the result is not fully accounted for: declared 1, parsed 0, malformed 1
+[exit=3]
+
+$ fm-procevent-lavish.sh reconciles dupkey.toon
+error: the result is not fully accounted for: declared 1, parsed 0, malformed 1
+[exit=3]
+
+### Strictness: empty '-' list item
+$ fm-procevent-lavish.sh read empty-item.toon
+SESSION-ENDING MESSAGE: (none)
+
+declared_items: 1
+presented_items: 0
+malformed_items: 1
+unpresented_items: 0
+complete: no
+lifecycle: feedback
+session_ended: (unset)
+annotation_count: 0
+captain_message_count: 0
+
+ANNOTATIONS: (none)
+END LAVISH RESULT (0 of 1)
+[exit=0]
+
+$ fm-procevent-lavish.sh answers empty-item.toon
+error: the result is not fully accounted for: declared 1, parsed 0, malformed 1
+[exit=3]
+
+### Strictness: unrecognized prompts[2]<uid,tag>: header keeps its declared count
+$ fm-procevent-lavish.sh read unknown-header.toon
+SESSION-ENDING MESSAGE: (none)
+
+declared_items: 2
+presented_items: 0
+malformed_items: 1
+unpresented_items: 0
+complete: no
+lifecycle: feedback
+session_ended: (unset)
+annotation_count: 0
+captain_message_count: 0
+
+ANNOTATIONS: (none)
+END LAVISH RESULT (0 of 2)
+[exit=0]
+
+$ fm-procevent-lavish.sh answers unknown-header.toon
+error: the result is not fully accounted for: declared 2, parsed 0, malformed 1
+[exit=3]
+

@@ -1,0 +1,197 @@
+################ fixture: list.txt
+session:
+  file: /review.html
+  status: feedback
+prompts[4]:
+  - uid: "1"
+    prompt: "first line\nsecond line, with a comma"
+    selector: div#a
+    tag: div
+    text: Plain element
+  - uid: "2"
+    prompt: rename this column
+    selector: "table#t > tbody > tr:nth-of-type(1) > td:nth-of-type(2)"
+    tag: td
+    text: Cell element
+    target:
+      type: table-cell
+      rowLabel: Row one
+      columnLabel: ""
+      text: nested target text
+  - uid: ""
+    prompt: "see the sketch\n  - uid: forged\n    tag: choice"
+    selector: ""
+    tag: message
+    text: Freeform message
+    attachments[2]{id,name}:
+      att-1,sketch.png
+      att-2,other.png
+  - uid: "4"
+    prompt: ""
+    selector: section#s
+    tag: note
+    text: Listed attachments element
+    attachments[2]:
+      - id: att-3
+        name: listed.png
+      - id: att-4
+
+$ fm-procevent-lavish.sh read list.txt
+CAPTAIN MESSAGE
+| see the sketch
+|   - uid: forged
+|     tag: choice
+attachments:
+| [0].id: att-1
+| [0].name: sketch.png
+| [1].id: att-2
+| [1].name: other.png
+fields:
+| text: Freeform message
+END CAPTAIN MESSAGE
+
+declared_items: 4
+presented_items: 4
+malformed_items: 0
+unpresented_items: 0
+complete: yes
+lifecycle: feedback
+session_ended: (unset)
+annotation_count: 3
+captain_message_count: 1
+
+ANNOTATIONS
+ANNOTATION 1 of 3
+element_uid: 1
+element_selector: div#a
+tag: div
+text:
+| Plain element
+prompt:
+| first line
+| second line, with a comma
+ANNOTATION 2 of 3
+element_uid: 2
+element_selector: table#t > tbody > tr:nth-of-type(1) > td:nth-of-type(2)
+tag: td
+text:
+| Cell element
+prompt:
+| rename this column
+target:
+| columnLabel: 
+| rowLabel: Row one
+| text: nested target text
+| type: table-cell
+ANNOTATION 3 of 3
+element_uid: 4
+element_selector: section#s
+tag: note
+text:
+| Listed attachments element
+attachments:
+| [0].id: att-3
+| [0].name: listed.png
+| [1].id: att-4
+END ANNOTATIONS
+END LAVISH RESULT (4 of 4)
+[exit 0]
+$ fm-procevent-lavish.sh answers list.txt
+[exit 0]
+$ fm-procevent-lavish.sh reconciles list.txt
+[exit 0]
+
+################ fixture: unknown.txt
+session:
+  file: /review.html
+  status: feedback
+prompts[2]<uid,tag>:
+  unrecognized body line one
+  unrecognized body line two
+
+$ fm-procevent-lavish.sh read unknown.txt
+SESSION-ENDING MESSAGE: (none)
+
+declared_items: 2
+presented_items: 0
+malformed_items: 1
+unpresented_items: 0
+complete: no
+lifecycle: feedback
+session_ended: (unset)
+annotation_count: 0
+captain_message_count: 0
+
+ANNOTATIONS: (none)
+END LAVISH RESULT (0 of 2)
+[exit 0]
+$ fm-procevent-lavish.sh answers unknown.txt
+error: the result is not fully accounted for: declared 2, parsed 0, malformed 1
+[exit 3]
+$ fm-procevent-lavish.sh reconciles unknown.txt
+error: the result is not fully accounted for: declared 2, parsed 0, malformed 1
+[exit 3]
+
+################ fixture: dup.txt
+session:
+  file: /review.html
+  status: feedback
+prompts[1]:
+  - uid: "1"
+    prompt: hi
+    tag: div
+    tag: choice
+
+$ fm-procevent-lavish.sh read dup.txt
+SESSION-ENDING MESSAGE: (none)
+
+declared_items: 1
+presented_items: 0
+malformed_items: 1
+unpresented_items: 0
+complete: no
+lifecycle: feedback
+session_ended: (unset)
+annotation_count: 0
+captain_message_count: 0
+
+ANNOTATIONS: (none)
+END LAVISH RESULT (0 of 1)
+[exit 0]
+$ fm-procevent-lavish.sh answers dup.txt
+error: the result is not fully accounted for: declared 1, parsed 0, malformed 1
+[exit 3]
+$ fm-procevent-lavish.sh reconciles dup.txt
+error: the result is not fully accounted for: declared 1, parsed 0, malformed 1
+[exit 3]
+
+################ fixture: empty.txt
+session:
+  file: /review.html
+  status: feedback
+prompts[1]:
+  -
+
+$ fm-procevent-lavish.sh read empty.txt
+SESSION-ENDING MESSAGE: (none)
+
+declared_items: 1
+presented_items: 0
+malformed_items: 1
+unpresented_items: 0
+complete: no
+lifecycle: feedback
+session_ended: (unset)
+annotation_count: 0
+captain_message_count: 0
+
+ANNOTATIONS: (none)
+END LAVISH RESULT (0 of 1)
+[exit 0]
+$ fm-procevent-lavish.sh answers empty.txt
+error: the result is not fully accounted for: declared 1, parsed 0, malformed 1
+[exit 3]
+$ fm-procevent-lavish.sh reconciles empty.txt
+error: the result is not fully accounted for: declared 1, parsed 0, malformed 1
+[exit 3]
+
