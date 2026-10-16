@@ -22,9 +22,10 @@
 #   messages carry a Firstmate launch brief is one worker task, identified by
 #   the steering inbox the brief's own inbox line names (else the first inbox
 #   it mentions), so a relaunched task's transcripts merge. A task belongs to
-#   the range when its first message falls on a local date inside it. Its repo is the treehouse worktree directory the session
-#   ran in. A brief carrying a "Delivery contract: mode=" line is a ship;
-#   any other is a scout.
+#   the range when its first message falls on a local date inside it. Its
+#   repo is the treehouse worktree directory the session ran in. A brief
+#   carrying a "Delivery contract: mode=" line is a ship; any other is a
+#   scout.
 #
 # Loaded skills: a Skill tool call, a "Base directory for this skill:" skill
 #   load (a slash invocation), a Read of a */SKILL.md file, or a Bash
@@ -36,7 +37,8 @@
 #   table row per skill with the tasks that loaded it, the tasks whose brief
 #   named it, and the loading tasks per repo; the named skills a task did not
 #   load; the tasks that loaded no skill beyond the baseline no-mistakes and
-#   captain-hold-lifecycle, by repo, with scouts marked; and the installed <root>/skills a task never loaded.
+#   captain-hold-lifecycle, by repo, with scouts marked; and the installed
+#   <root>/skills a task never loaded.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
