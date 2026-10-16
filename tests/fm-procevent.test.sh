@@ -3756,6 +3756,20 @@ fi
 if "$ROOT/bin/fm-procevent-lavish.sh" reconciles "$ANS" >/dev/null 2>&1; then
   fail "reconciles accepted a declared block it could not parse"
 fi
+dup_key_item='prompts[1]:\n  - uid: "1"\n    prompt: "Context data:\\n{\\n  \\"schema\\": \\"fm-bearings-answer.v1\\",\\n  \\"question\\": \\"sample-dup-call\\",\\n  \\"selection\\": \\"reconcile\\",\\n  \\"note\\": \\"\\"\\n}"\n    tag: div\n    tag: choice\n'
+empty_item='prompts[1]:\n  -\n'
+for shape in dup_key_item empty_item; do
+  printf "session:\n  file: /review.html\n  status: feedback\n${!shape}" > "$ANS"
+  out=$("$ROOT/bin/fm-procevent-lavish.sh" read "$ANS") || fail "read failed on a $shape list"
+  assert_contains "$out" "presented_items: 0" "a $shape list was presented"
+  assert_contains "$out" "malformed_items: 1" "a $shape list was not reported malformed"
+  assert_contains "$out" "complete: no" "a $shape list was certified complete"
+  for cmd in answers reconciles; do
+    rc=0
+    "$ROOT/bin/fm-procevent-lavish.sh" "$cmd" "$ANS" >/dev/null 2>&1 || rc=$?
+    [ "$rc" = 3 ] || fail "$cmd did not refuse a $shape list with exit 3: $rc"
+  done
+done
 pass "answers reads list-form choices and refuses a block it cannot account for"
 
 # The runner's silence seam is generic and closed by default: an adapter with no

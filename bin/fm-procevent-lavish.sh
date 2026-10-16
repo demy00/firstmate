@@ -639,7 +639,8 @@ sub lavish_value {  # <out> <key prefix> <field text> <deeper lines>
 sub lavish_object {  # <out> <key> <field lines>
   my ($out, $key, $lines) = @_;
   my $groups = lavish_split($lines) or return 0;
-  my $ok = 1;
+  my ($ok, %seen) = (1);
+  $ok = 0 for grep { my ($k) = lavish_field($_->[0]); defined $k && $seen{$k}++ } @$groups;
   $ok = 0 for grep { !lavish_value($out, $key, $_->[0], $_->[2]) } @$groups;
   return $ok;
 }
@@ -748,8 +749,9 @@ sub lavish_array {  # <count> <fields or undef> <lines>
     $body = "" unless defined $body;
     my @lines = ((length $body ? (" " x ($indent + 2)) . $body : ()), @$sub);
     my $fieldset = lavish_split(\@lines);
-    if (!$fieldset || (@$fieldset && $fieldset->[0][1] != $indent + 2)
-        || grep { !(() = lavish_field($_->[0])) } @$fieldset) {
+    my %seen;
+    if (!$fieldset || !@$fieldset || $fieldset->[0][1] != $indent + 2
+        || grep { my ($k) = lavish_field($_->[0]); !defined $k || $seen{$k}++ } @$fieldset) {
       $r{malformed}++;
       next;
     }
