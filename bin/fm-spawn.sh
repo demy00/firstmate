@@ -22,6 +22,9 @@
 #   ship or scout spawn also refuses leftover `{TASK}` / `{FIRSTMATE_SPEC}`
 #   placeholders, an empty Task, an incomplete pair of Task subsections, or a
 #   `## Captain's intent` line opening with a Captain label or address.
+#   A fresh ship or scout spawn whose brief declares a `# Needs` section first
+#   runs bin/fm-spawn-preflight.sh, which owns that section, and refuses with
+#   its one blocker line when a declared resource is missing.
 #   Every ship or scout spawn renders `launch-brief.md`; for a no-mistakes ship
 #   it also carries the current `--intent` contract and the extracted captain
 #   intent. A legacy mixed Task is accepted there only under bin/fm-dod-lib.sh's
@@ -1558,6 +1561,16 @@ spawn_refuse_if_away_spend_cap() {
 # exists, so a refusal costs nothing to unwind; rechecked after the task-set
 # lock so two fresh spawns cannot both publish from a stale count.
 spawn_refuse_if_away_spend_cap
+# Shared-resource preflight: a fresh ship or scout whose brief declares a
+# `# Needs` section refuses here, with the preflight's one blocker line, when
+# a declared tool, credential, app, or Docker resource is missing. It runs
+# before every lock because its Docker probes take seconds and the locks below
+# refuse rather than wait. bin/fm-spawn-preflight.sh owns the section and its
+# checks; a missing brief is left to the brief check below.
+if [ "$RELAUNCH" -eq 0 ] && { [ "$KIND" = ship ] || [ "$KIND" = scout ]; } &&
+  [ -f "$DATA/$ID/brief.md" ]; then
+  "$SCRIPT_DIR/fm-spawn-preflight.sh" "$DATA/$ID/brief.md" || exit 1
+fi
 spawn_require_relocated_queued_work() {
   local actor
   [ "$RELAUNCH" -ne 1 ] || return 0

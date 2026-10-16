@@ -300,6 +300,7 @@ family_for_basename() {
     fm-harness-adapter-references.test.sh|\
     fm-send-popup-settle.test.sh|fm-send-settle.test.sh|\
     fm-subagent-pretool-check.test.sh|\
+    fm-spawn-preflight.test.sh|\
     fm-supervision-instructions.test.sh|fm-task-delivery.test.sh|\
     fm-timeout-lib.test.sh|\
     fm-tmux-submit-busy.test.sh|fm-trace-context-lib.test.sh|\
@@ -1528,6 +1529,9 @@ families_for_changed_path() {
       ;;
     bin/fm-skill-select.sh)
       printf '%s\n' "__script__:fm-skill-select.test.sh"
+      ;;
+    bin/fm-spawn-preflight.sh)
+      printf '%s\n' "__script__:fm-spawn-preflight.test.sh"
       ;;
     bin/fm-typesafe-lib.sh)
       printf '%s\n' "__script__:fm-dispatch-resolve.test.sh"
