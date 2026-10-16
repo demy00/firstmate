@@ -1,0 +1,11 @@
+$ bin/fm-spawn-preflight.sh sample/brief-ok.md
+exit=0
+
+$ bin/fm-spawn-preflight.sh sample/brief-missing.md
+error: spawn preflight refused sample/brief-missing.md: tool cargo-fm-absent is not on PATH; environment variable FM_PREFLIGHT_UNSET_VAR is not set; DEMO_LOGIN_PASSWORD is not set in sample/demo.env; file /Users/demy00/fm-absent-mailbox-password.txt is missing or empty; app FmAbsentPaperApp is not running
+exit=1
+
+$ bin/fm-spawn-preflight.sh sample/brief-typo.md
+error: sample/brief-typo.md # Needs line '- dockr-disk: 12G' is not a valid need (kinds: tool, env, file, app, docker-disk, docker-networks; see bin/fm-spawn-preflight.sh --help)
+exit=2
+

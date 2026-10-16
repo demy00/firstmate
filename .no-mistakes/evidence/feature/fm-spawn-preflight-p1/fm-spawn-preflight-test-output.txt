@@ -1,0 +1,13 @@
+ok - a task that declares no needs gets no checks
+ok - tool needs refuse only for a command missing from PATH
+ok - env needs refuse for an unset or empty variable
+ok - env-file needs check the named key is assigned without printing its value
+ok - file needs refuse for a missing or empty file
+ok - app needs refuse for a process that is not running
+ok - docker-disk needs compare free space inside Docker with the declared size
+ok - docker-networks needs prove the networks can be created and leave none behind
+ok - Docker needs refuse when the engine is unreachable
+ok - every missing need is named on one blocker line
+ok - a malformed declaration exits 2 naming the line, before any check runs
+ok - fm-spawn refuses a missing or malformed need before any endpoint exists
+# all fm-spawn-preflight tests passed
