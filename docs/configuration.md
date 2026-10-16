@@ -1267,6 +1267,25 @@ A rerun rewrites the section in place; everything else in the brief is left byte
 
 The live comparison that chose one yes/no question per skill and the 0.8 floor is recorded in [`verification/skill-select.md`](verification/skill-select.md).
 
+## Spawn preflight (brief `# Needs`)
+
+A task that needs shared machine resources declares them in its brief, so a spawn refuses with one blocker line instead of a worker discovering the gap an hour in.
+Firstmate adds an optional top-level `# Needs` section to the brief after scaffolding, one bullet per need: a tool on PATH, an environment variable, a credential in an env file, a credential file, a running app, free Docker disk, or room for new Docker networks.
+
+```markdown
+# Needs
+- tool: cargo
+- env: OPENROUTER_API_KEY from ~/.config/demo/env
+- app: Paper
+- docker-disk: 12G
+- docker-networks: 2
+```
+
+Every fresh ship or scout spawn runs [`bin/fm-spawn-preflight.sh`](../bin/fm-spawn-preflight.sh) on the brief before any lock, endpoint, worktree, or record exists, and refuses when a need is missing or a line is malformed; a relaunch is exempt.
+A brief without the section gets no checks, and needs are never guessed from the project or the task text.
+The script's header owns the section's syntax and what each check measures; run it by hand on a brief to see the result before spawning.
+A bare `env: <NAME>` checks the spawning firstmate's environment, which a worker does not necessarily inherit (see [Worker launch environment](#worker-launch-environment-configlaunch-env-allowlist)), so prefer `env: <NAME> from <file>` for a credential the worker reads from a file.
+
 ## Toolchain
 
 On session start the first mate detects what its required toolchain is missing or too old and lists each problem with either an exact install command or manual instructions.

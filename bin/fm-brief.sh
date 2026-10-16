@@ -106,6 +106,9 @@
 # pointer file are themselves additions.
 # The optional `# Required skills` section after `# Task` is written and owned
 # by bin/fm-skill-select.sh, never by this scaffold.
+# The optional `# Needs` section, declaring the shared machine resources a
+# task needs, is added by Firstmate after scaffolding and is owned by
+# bin/fm-spawn-preflight.sh, which fm-spawn.sh runs before any launch.
 # Scaffolds carry no role scope: fm-spawn.sh supplies fm_brief_worker_role from
 # fm-dod-lib.sh to every ship/scout launch brief, so this file never becomes a
 # second owner of a contract that must stay current across relaunches.
