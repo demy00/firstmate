@@ -1,0 +1,150 @@
+################ capture: nested
+session:
+  file: /review.html
+  status: feedback
+prompts[2]:
+  - uid: "1"
+    prompt: Please shorten this cell
+    tag: td
+    target:
+      selector: "table > tr:nth-child(2) > td"
+      text: Old cell text
+    attachments[1]:
+      - name: shot.png
+  - uid: "2"
+    prompt: "Context data:\n{\n  \"schema\": \"fm-bearings-answer.v1\",\n  \"question\": \"q-demo\",\n  \"selection\": \"yes\",\n  \"note\": \"\"\n}"
+    tag: choice
+---- $ fm-procevent-lavish.sh read nested.txt
+SESSION-ENDING MESSAGE: (none)
+
+declared_items: 2
+presented_items: 2
+malformed_items: 0
+unpresented_items: 0
+complete: yes
+lifecycle: feedback
+session_ended: (unset)
+annotation_count: 2
+captain_message_count: 0
+
+ANNOTATIONS
+ANNOTATION 1 of 2
+element_uid: 1
+element_selector: 
+tag: td
+text:
+| Please shorten this cell
+prompt:
+| Please shorten this cell
+target:
+| selector: table > tr:nth-child(2) > td
+| text: Old cell text
+attachments:
+| [0].name: shot.png
+ANNOTATION 2 of 2
+element_uid: 2
+element_selector: 
+tag: choice
+text:
+| Context data:
+| {
+|   "schema": "fm-bearings-answer.v1",
+|   "question": "q-demo",
+|   "selection": "yes",
+|   "note": ""
+| }
+END ANNOTATIONS
+END LAVISH RESULT (2 of 2)
+[exit 0]
+---- $ fm-procevent-lavish.sh answers nested.txt
+q-demo	yes	
+[exit 0]
+---- $ fm-procevent-lavish.sh reconciles nested.txt
+[exit 0]
+################ capture: dup
+session:
+  file: /review.html
+  status: feedback
+prompts[1]:
+  - uid: "1"
+    prompt: "Context data:\n{\n  \"schema\": \"fm-bearings-answer.v1\",\n  \"question\": \"q\",\n  \"selection\": \"reconcile\",\n  \"note\": \"\"\n}"
+    tag: div
+    tag: choice
+---- $ fm-procevent-lavish.sh read dup.txt
+SESSION-ENDING MESSAGE: (none)
+
+declared_items: 1
+presented_items: 0
+malformed_items: 1
+unpresented_items: 0
+complete: no
+lifecycle: feedback
+session_ended: (unset)
+annotation_count: 0
+captain_message_count: 0
+
+ANNOTATIONS: (none)
+END LAVISH RESULT (0 of 1)
+[exit 0]
+---- $ fm-procevent-lavish.sh answers dup.txt
+error: the result is not fully accounted for: declared 1, parsed 0, malformed 1
+[exit 3]
+---- $ fm-procevent-lavish.sh reconciles dup.txt
+error: the result is not fully accounted for: declared 1, parsed 0, malformed 1
+[exit 3]
+################ capture: empty
+session:
+  file: /review.html
+  status: feedback
+prompts[1]:
+  -
+---- $ fm-procevent-lavish.sh read empty.txt
+SESSION-ENDING MESSAGE: (none)
+
+declared_items: 1
+presented_items: 0
+malformed_items: 1
+unpresented_items: 0
+complete: no
+lifecycle: feedback
+session_ended: (unset)
+annotation_count: 0
+captain_message_count: 0
+
+ANNOTATIONS: (none)
+END LAVISH RESULT (0 of 1)
+[exit 0]
+---- $ fm-procevent-lavish.sh answers empty.txt
+error: the result is not fully accounted for: declared 1, parsed 0, malformed 1
+[exit 3]
+---- $ fm-procevent-lavish.sh reconciles empty.txt
+error: the result is not fully accounted for: declared 1, parsed 0, malformed 1
+[exit 3]
+################ capture: hdr
+session:
+  file: /review.html
+  status: feedback
+prompts[1]<uid,tag>:
+  "1",choice
+---- $ fm-procevent-lavish.sh read hdr.txt
+SESSION-ENDING MESSAGE: (none)
+
+declared_items: 1
+presented_items: 0
+malformed_items: 1
+unpresented_items: 0
+complete: no
+lifecycle: feedback
+session_ended: (unset)
+annotation_count: 0
+captain_message_count: 0
+
+ANNOTATIONS: (none)
+END LAVISH RESULT (0 of 1)
+[exit 0]
+---- $ fm-procevent-lavish.sh answers hdr.txt
+error: the result is not fully accounted for: declared 1, parsed 0, malformed 1
+[exit 3]
+---- $ fm-procevent-lavish.sh reconciles hdr.txt
+error: the result is not fully accounted for: declared 1, parsed 0, malformed 1
+[exit 3]
