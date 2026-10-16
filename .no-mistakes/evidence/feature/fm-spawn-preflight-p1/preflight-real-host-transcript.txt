@@ -1,0 +1,14 @@
+$ bin/fm-spawn-preflight.sh brief-none.md
+[exit 0]
+
+$ bin/fm-spawn-preflight.sh brief-all-ok.md
+[exit 0]
+
+$ bin/fm-spawn-preflight.sh brief-blocked.md
+error: spawn preflight refused /tmp/demo/brief-blocked.md: tool rustup-missing-zz is not on PATH; DEMO_PASSWORD is not set in /tmp/demo/env; environment variable MAILBOX_PASSWORD is not set; app Paper is not running; Docker is not running (docker info failed)
+[exit 1]
+
+$ bin/fm-spawn-preflight.sh brief-typo.md
+error: /tmp/demo/brief-typo.md # Needs line '- tol: cargo' is not a valid need (kinds: tool, env, file, app, docker-disk, docker-networks; see bin/fm-spawn-preflight.sh --help)
+[exit 2]
+
