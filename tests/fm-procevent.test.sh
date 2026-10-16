@@ -3759,7 +3759,11 @@ fi
 dup_key_item='prompts[1]:\n  - uid: "1"\n    prompt: "Context data:\\n{\\n  \\"schema\\": \\"fm-bearings-answer.v1\\",\\n  \\"question\\": \\"sample-dup-call\\",\\n  \\"selection\\": \\"reconcile\\",\\n  \\"note\\": \\"\\"\\n}"\n    tag: div\n    tag: choice\n'
 empty_item='prompts[1]:\n  -\n'
 for shape in dup_key_item empty_item; do
-  printf 'session:\n  file: /review.html\n  status: feedback\n%b' "${!shape}" > "$ANS"
+  case $shape in
+    dup_key_item) body=$dup_key_item ;;
+    empty_item) body=$empty_item ;;
+  esac
+  printf 'session:\n  file: /review.html\n  status: feedback\n%b' "$body" > "$ANS"
   out=$("$ROOT/bin/fm-procevent-lavish.sh" read "$ANS") || fail "read failed on a $shape list"
   assert_contains "$out" "presented_items: 0" "a $shape list was presented"
   assert_contains "$out" "malformed_items: 1" "a $shape list was not reported malformed"
