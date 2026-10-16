@@ -1675,9 +1675,15 @@ ${context.command}
     // getEntries() here loses the captain request that the next wake may answer.
     // Stage it verbatim and remember the future persisted index for turn_end's
     // duplicate suppression. Operational extension injections are not dialog.
-    const prompt = event.prompt;
+    // Pi 1.2+ also fires this for a run opened by a triggerTurn custom
+    // message, which carries that message instead of a prompt. Such a run can
+    // be our own processing request but is never captain dialog.
+    const prompt = event.messageType === "custom"
+      ? (typeof event.message.content === "string" ? event.message.content : "")
+      : event.prompt;
     processingOpenedThisRun = queuedProcessingContent !== null && prompt === queuedProcessingContent;
     if (processingOpenedThisRun) queuedProcessingContent = null;
+    if (event.messageType === "custom") return;
     const trimmed = prompt.trim();
     if (!trimmed || isOperationalUserText(trimmed)) return;
     const file = currentMainSession.getSessionFile() ?? "";

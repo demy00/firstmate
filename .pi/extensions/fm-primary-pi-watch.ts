@@ -1118,6 +1118,8 @@ export default function (pi: ExtensionAPI) {
   }
 
   pi.on?.("before_agent_start", (event) => {
+    // Wakes are user messages; Pi 1.2+ also fires this for custom-message runs.
+    if (event.messageType === "custom") return;
     consumeWake(generation, event.prompt);
   });
   pi.on?.("message_start", (event) => {
