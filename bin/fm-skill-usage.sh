@@ -20,9 +20,9 @@
 #
 # Tasks: every top-level <root>/projects/*treehouse*/*.jsonl transcript whose
 #   messages carry a Firstmate launch brief is one worker task, identified by
-#   the steering inbox the brief names, so a relaunched task's transcripts
-#   merge. A task belongs to the range when its first message falls on a local
-#   date inside it. Its repo is the treehouse worktree directory the session
+#   the steering inbox the brief's own inbox line names (else the first inbox
+#   it mentions), so a relaunched task's transcripts merge. A task belongs to
+#   the range when its first message falls on a local date inside it. Its repo is the treehouse worktree directory the session
 #   ran in. A brief carrying a "Delivery contract: mode=" line is a ship;
 #   any other is a scout.
 #
@@ -35,8 +35,8 @@
 #   briefs had a `# Required skills` section (bin/fm-skill-select.sh); one
 #   table row per skill with the tasks that loaded it, the tasks whose brief
 #   named it, and the loading tasks per repo; the named skills a task did not
-#   load; the tasks that loaded no skill beyond no-mistakes, by repo, with
-#   scouts marked; and the installed <root>/skills a task never loaded.
+#   load; the tasks that loaded no skill beyond the baseline no-mistakes and
+#   captain-hold-lifecycle, by repo, with scouts marked; and the installed <root>/skills a task never loaded.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

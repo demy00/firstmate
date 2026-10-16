@@ -15,6 +15,9 @@ BRIEF_MARKER = "FIRSTMATE_OP: v1 launch-brief"
 # ship or scout, so loading one says nothing about the task's own skills.
 BASELINE_SKILLS = ("no-mistakes", "captain-hold-lifecycle")
 INBOX_RE = re.compile(r"state/([A-Za-z0-9._-]+)\.inbox")
+OWN_INBOX_RE = re.compile(
+    r"(?:Firstmate steers you through durable message files in|Your steering inbox is)[^\n]*?state/([A-Za-z0-9._-]+)\.inbox"
+)
 TREEHOUSE_RE = re.compile(r"/\.treehouse/[^/]+/[^/]+/([^/]+)")
 READ_LINE_PREFIX_RE = re.compile(r"^\s*\d+\t")
 REQUIRED_ITEM_RE = re.compile(r"^- `([^`]+)`")
@@ -117,7 +120,7 @@ def scan_transcript(path):
                         loads.add(skill_name(match.group(1)))
     if brief is None or start is None:
         return None
-    task_match = INBOX_RE.search(brief)
+    task_match = OWN_INBOX_RE.search(brief) or INBOX_RE.search(brief)
     required = required_skills(brief)
     repo_match = TREEHOUSE_RE.search(cwd or "")
     return {

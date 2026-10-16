@@ -69,9 +69,10 @@ transcript -w-treehouse-api-3c4d-2-api s4 \
   "$(entry user 2026-10-09T08:00:00Z "$API" '{"role":"user","content":"FIRSTMATE_OP: v1 launch-brief: inbox `/h/state/api-t2.inbox`\nDelivery contract: mode=direct-PR"}')" \
   "$(entry user 2026-10-09T08:05:00Z "$API" '{"role":"user","content":[{"type":"text","text":"Base directory for this skill: /u/.claude/skills/no-mistakes\n\n# no-mistakes"}]}')" \
   "$(entry assistant 2026-10-09T08:06:00Z "$API" "$(tool_use Bash '{"command":"for d in a b; do head -3 $d/SKILL.md; done"}')")"
-# Outside every tested week: a task started on 2026-10-13.
+# Outside every tested week: a task started on 2026-10-13, whose task text
+# mentions another task's inbox before the scaffold's own inbox line.
 transcript -w-treehouse-api-3c4d-2-api s5 \
-  "$(entry user 2026-10-13T08:00:00Z "$API" '{"role":"user","content":"FIRSTMATE_OP: v1 launch-brief: inbox `/h/state/api-later.inbox`"}')" \
+  "$(entry user 2026-10-13T08:00:00Z "$API" '{"role":"user","content":"FIRSTMATE_OP: v1 launch-brief: # Task\nFollow up on /h/state/web-t1.inbox.\n# Firstmate instruction inbox\nFirstmate steers you through durable message files in '"'"'/h/state/api-later.inbox'"'"'."}')" \
   "$(entry assistant 2026-10-13T08:01:00Z "$API" "$(tool_use Skill '{"skill":"ui-design"}')")"
 # Not worker tasks: a treehouse session with no launch brief, and a session
 # outside the treehouse transcript directories.
@@ -130,6 +131,7 @@ pass "--since/--until is an inclusive local-date range"
 run code out err --since 2026-10-13 --until 2026-10-13 --claude-root "$CLAUDE"
 assert_contains "$out" '| `ui-design` | 1 | 0 | api 1 |' "a task counts in the range its first message falls in"
 assert_not_contains "$out" 'webapp' "earlier tasks stay out of a later range"
+assert_contains "$out" '1 worker tasks started (api 1)' "a task naming another task's inbox keeps its own id"
 run code out err --week 2026-W30 --claude-root "$CLAUDE"
 assert_equals $'## Skill usage 2026-07-20..2026-07-26\n\nNo worker tasks started in this range.' "$out" "an empty range says so"
 pass "range membership follows each task's first message"
