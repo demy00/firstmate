@@ -549,7 +549,15 @@ Dated measurement: docs/verification/runtime-backends.md "Claude exit behind the
 That comparison ignores whitespace and U+2063, the invisible mark that starts operational inputs and ends the from-firstmate label.
 It ignores U+2063 because Claude's Herdr read-back never shows it.
 
-A composer that holds a shorter suffix, or a placeholder plus a literal remainder, does not receive Enter.
+Claude shows a bounded number of composer rows (six in a default-size 54x23 Herdr pane, more in a taller one) and keeps the cursor row in view, so a payload that wraps past them reads back as only its last rows.
+A steering doorbell to a Claude worker in a default-size pane always takes that shape.
+For a single-line payload whose read-back is such a suffix, the adapter presses Ctrl+A, which scrolls the composer's head into view, then Ctrl+E, which returns the cursor to the end.
+It continues only when the head window is a prefix of the payload and differs from the tail window, the two windows together cover every byte, and the view after Ctrl+E is the tail window again.
+A composer that genuinely lost its head shows that suffix's own head after Ctrl+A, so it is still refused.
+A multi-line payload is never tried, because Ctrl+A reaches only the start of the cursor's logical line.
+Dated measurement: docs/verification/runtime-backends.md "Claude doorbell scrolled past the composer view".
+
+Any other shorter suffix, or a placeholder plus a literal remainder, does not receive Enter.
 Instead:
 
 1. The adapter presses Ctrl+U until the shared classifier reads the composer as empty.
