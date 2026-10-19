@@ -1,0 +1,3 @@
+ok - live Herdr submit confirm: Claude Code (2.1.303 (Claude Code)) on herdr 0.7.4 reports empty and renders the requested reply in isolated session fm-lab-herdr-submit-con-75391-28815
+ok - live Herdr submit confirm: Claude Code (2.1.303 (Claude Code)) on herdr 0.7.4 submits a U+2063 away-supervisor payload whose read-back drops the mark
+not ok - Claude Code (2.1.303 (Claude Code)) on herdr 0.7.4: fm-send did not ring a 457-character doorbell into the idle worker: fm-send: doorbell did not reach fm-lab-herdr-submit-con-75391-28815:w1:p1; the steer is durably recorded at /private/var/folders/y9/b8qt1d396lv9cfh42ft2gt7r0000gn/T/fm-herdr-submit-confirm-live.4DE2cl/doorbell-home-padded-past-the-composer-rows/state/doorbell-live.inbox/001.msg and the watcher will re-ring
