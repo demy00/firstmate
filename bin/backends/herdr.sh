@@ -3095,6 +3095,10 @@ fm_backend_herdr_normalize_key() {  # <key>
     # C-u clears a composer line. fm-send.sh's muse interrupt path needs it to
     # drop the prompt muse restores into the composer after Escape.
     C-u|c-u|ctrl+u|Ctrl+U) printf 'ctrl+u' ;;
+    # C-a and C-e move a Claude composer's cursor to the start and end of its
+    # line; the scrolled-composer payload proof reads both windows with them.
+    C-a|c-a|ctrl+a|Ctrl+A) printf 'ctrl+a' ;;
+    C-e|c-e|ctrl+e|Ctrl+E) printf 'ctrl+e' ;;
     *) printf '%s' "$1" ;;
   esac
 }
@@ -3239,11 +3243,13 @@ fm_backend_herdr_rendered_busy_state() {  # <target> [harness] -> busy|idle|unkn
 # (Enter only, never retyped) until native agent-state, a cleared composer, or
 # fm_composer_queued_enter_verdict confirms delivery. When native identity is
 # Claude, text is typed only into an empty composer and Enter is sent only
-# after the composer shows the payload (fm_backend_herdr_composer_payload_shown).
-# A missing read, a shorter suffix, or a paste placeholder followed by a
-# literal remainder does not press Enter: the composer is cleared back to
-# empty and the verdict is send-failed, or unknown when the clear cannot be
-# verified. Other harnesses skip this proof. Verified hazard
+# after the composer shows the payload (fm_backend_herdr_composer_payload_shown),
+# or, for a single-line payload taller than Claude's visible composer rows, its
+# head and tail windows (fm_backend_herdr_composer_scrolled_payload_shown).
+# A missing read, a shorter suffix not proven to be a scrolled window, or a
+# paste placeholder followed by a literal remainder does not press Enter: the
+# composer is cleared back to empty and the verdict is send-failed, or unknown
+# when the clear cannot be verified. Other harnesses skip this proof. Verified hazard
 # (herdr-verification-p2.md "slash/$ autocomplete popup"): a `/`- or
 # `$`-prefixed send opens a completion popup within ~0.1s, exactly like tmux's
 # claude/codex popups, so the caller's <settle> before the first Enter matters
@@ -3386,15 +3392,13 @@ fm_backend_herdr_composer_content() {  # <target>
 # multi-line form, verified live on Claude 2.1.278), with no literal remainder,
 # is the same proof for one fast burst: Claude collapses that burst into the
 # placeholder and expands it on submit. A shorter literal suffix, or a placeholder followed by a literal
-# remainder, is the head-truncation shape and is not proof.
+# remainder, is the head-truncation shape and is not proof, unless
+# fm_backend_herdr_composer_scrolled_payload_shown proves the suffix is only
+# the last window of a scrolled composer.
 fm_backend_herdr_composer_payload_shown() {  # <text> <after>
   local text=$1 after=$2 literal
-  fm_composer_normalize_spaces_var text
-  fm_composer_normalize_spaces_var after
-  text=${text//[$' \t\r\n\v\f']/}
-  text=${text//$'\xE2\x81\xA3'/}
-  after=${after//[$' \t\r\n\v\f']/}
-  after=${after//$'\xE2\x81\xA3'/}
+  fm_backend_herdr_proof_form_var text
+  fm_backend_herdr_proof_form_var after
   [ -n "$text" ] && [ -n "$after" ] || return 1
   [ "$after" = "$text" ] && return 0
   literal=$after
@@ -3402,6 +3406,58 @@ fm_backend_herdr_composer_payload_shown() {  # <text> <after>
     literal=${literal/"${BASH_REMATCH[0]}"/}
   done
   [ -z "$literal" ]
+}
+
+# fm_backend_herdr_proof_form_var: the comparison form both payload proofs
+# read, in place through the named variable: Unicode spaces normalized, then
+# every whitespace byte and U+2063 removed, so neither wrapping nor the mark
+# Claude's read-back drops can decide a proof.
+fm_backend_herdr_proof_form_var() {  # <varname>
+  local __fmhp_name=$1 __fmhp_text
+  fm_composer_normalize_spaces_var "$__fmhp_name"
+  __fmhp_text=${!__fmhp_name}
+  __fmhp_text=${__fmhp_text//[$' \t\r\n\v\f']/}
+  __fmhp_text=${__fmhp_text//$'\xE2\x81\xA3'/}
+  printf -v "$__fmhp_name" '%s' "$__fmhp_text"
+}
+
+# fm_backend_herdr_composer_scrolled_payload_shown: 0 when <tail>, a composer
+# read that is a strict suffix of single-line <text>, is the last window of a
+# Claude composer that scrolled because <text> wraps past its visible rows,
+# not a composer that lost the payload's head.
+# Claude shows a bounded number of composer rows (six in a default 54x23
+# Herdr pane, more in a taller one; verified live on 2.1.303) and keeps the
+# cursor row in view, so after typing, a longer payload reads as its last rows
+# only - the same shape as the genuine head loss the proof above refuses
+# (issue #3473). Every steering doorbell to a Claude worker in a default-size
+# pane took that shape and was cleared as truncated.
+# Ctrl+A moves the cursor to the start of the line, which scrolls the head into
+# view, and Ctrl+E moves it back to the end. The proof holds only when the head
+# window is a prefix of <text> and differs from the tail window (the composer
+# really scrolled), the two windows together cover every byte of <text>, and
+# the view after Ctrl+E is the tail window again. A composer that lost its head
+# shows that suffix's own head after Ctrl+A, so it is still refused. A
+# multi-line payload is never tried, because Ctrl+A reaches only the start of
+# the cursor's logical line. Ctrl+E is sent even after a failed head read so a
+# refused proof leaves the cursor where the Ctrl+U clear expects it.
+fm_backend_herdr_composer_scrolled_payload_shown() {  # <target> <text> <tail> <settle>
+  local target=$1 text=$2 tail=$3 settle=$4 head restored head_read=1
+  case "$text" in *$'\n'*) return 1 ;; esac
+  fm_backend_herdr_proof_form_var text
+  fm_backend_herdr_proof_form_var tail
+  [ -n "$tail" ] && [ "${#tail}" -lt "${#text}" ] && [ "${text%"$tail"}" != "$text" ] || return 1
+  fm_backend_herdr_send_key "$target" C-a || return 1
+  sleep "$settle"
+  head=$(fm_backend_herdr_composer_content "$target") || head_read=0
+  fm_backend_herdr_send_key "$target" C-e || return 1
+  sleep "$settle"
+  restored=$(fm_backend_herdr_composer_content "$target") || return 1
+  [ "$head_read" = 1 ] || return 1
+  fm_backend_herdr_proof_form_var head
+  fm_backend_herdr_proof_form_var restored
+  [ -n "$head" ] && [ "$head" != "$tail" ] && [ "$restored" = "$tail" ] \
+    && [ "${text#"$head"}" != "$text" ] \
+    && [ "$(( ${#head} + ${#tail} ))" -ge "${#text}" ]
 }
 
 # fm_backend_herdr_composer_clear: after a refused proof, press Ctrl+U until
@@ -3442,7 +3498,8 @@ fm_backend_herdr_send_text_submit() {  # <target> <text> <retries> <enter-sleep>
   sleep "$settle"
   if [ "$proof" = 1 ]; then
     if ! content=$(fm_backend_herdr_composer_content "$target") \
-      || ! fm_backend_herdr_composer_payload_shown "$text" "$content"; then
+      || { ! fm_backend_herdr_composer_payload_shown "$text" "$content" \
+        && ! fm_backend_herdr_composer_scrolled_payload_shown "$target" "$text" "$content" "$settle"; }; then
       if fm_backend_herdr_composer_clear "$target" "$text"; then
         printf 'send-failed'
       else

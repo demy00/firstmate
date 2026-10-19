@@ -825,6 +825,7 @@ Two findings from the run shaped the shipped behavior: an OpenCode vendor update
 The current pending-composer ring contract is owned by `bin/fm-task-inbox-lib.sh`.
 Kimi was not installed on the verification machine; its receive path is the same one-line-plus-shell contract, and the portable ladder and enqueue regressions in `tests/fm-task-inbox.test.sh` and `tests/fm-send-inbox.test.sh` cover every harness-independent half.
 This guard is the refresh command after any harness upgrade; it spends a small number of real tokens per installed harness, reports an absent harness explicitly, and refuses a run that verified nothing.
+Its 220x50 tmux window shows every doorbell whole; the Claude doorbell in a default-size Herdr pane, which wraps past the composer view, is covered by [Claude doorbell scrolled past the composer view](#claude-doorbell-scrolled-past-the-composer-view).
 
 ## Gemini
 
@@ -1178,7 +1179,7 @@ ok - fm_backend_herdr_composer_state: a slash-command popup cannot hide a typed 
 ok - fm_backend_herdr_send_text_submit: a typed slash command hidden behind its popup is still proven and submitted
 ```
 
-Live guard (third scenario of the opt-in guard, verifying the agent actually exited):
+Live guard (last scenario of the opt-in guard, verifying the agent actually exited):
 
 ```sh
 FM_HERDR_SUBMIT_CONFIRM_LIVE=1 tests/fm-herdr-submit-confirm-live-e2e.test.sh
@@ -1186,6 +1187,57 @@ FM_HERDR_SUBMIT_CONFIRM_LIVE=1 tests/fm-herdr-submit-confirm-live-e2e.test.sh
 
 ```text
 ok - live Herdr submit confirm: Claude Code (2.1.283 (Claude Code)) on herdr 0.9.0 proves and submits a typed /exit behind its command popup
+```
+
+### Claude doorbell scrolled past the composer view
+
+Measured 2026-10-19 on macOS arm64 (Darwin 25.6.0) against Herdr 0.7.4 and Claude Code 2.1.303 in an isolated `fm-lab-` session.
+
+A pane created while no client is attached is 54 columns by 23 rows, the size of the fleet's real worker panes; a pane keeps the size of the last attached client after it detaches.
+In that pane Claude's composer shows at most six rows and keeps the cursor row in view, so typed text that wraps past six rows reads back as only its last six.
+At 39 rows the same composer showed ten rows of an 800-character draft, so the bound grows with the pane.
+Ctrl+A brings the composer's first rows into view and Ctrl+E scrolls back to the last ones; neither changes the draft.
+
+Real `bin/fm-send.sh` steers to an idle Claude worker in that pane printed `doorbell did not reach` three times out of three: the pre-Enter proof read the scrolled tail as the head loss of issue #3473, cleared the doorbell, and reported `send-failed`, so the record sat unread until relaunch.
+The same steer sent after a 120x40 viewer had resized the pane rang, and the worker handled and acknowledged every queued record.
+Doorbells for real primary-home inbox paths cross the six-row bound in that pane: typing the doorbells for 12-, 22-, and 24-character task ids into the idle composer, then reading each back with the adapter's proof, gave, in that order:
+
+```text
+len=273 shown=yes composer_rows=6
+len=293 shown=no composer_rows=6
+len=297 shown=no composer_rows=6
+```
+
+For a 437-character doorbell, the tail read, the read after Ctrl+A, and the read after Ctrl+E (whitespace removed) gave `payload=416 tail=271 head=278 back=271`: the head window is a prefix, the tail window a suffix, they cover every byte, and the restored view matches the tail.
+Enter then submitted the whole line and the worker acted on and acknowledged three queued records.
+Claude 2.1.303 still loses the head of a long burst, and the head window shows it: a 1,097-character burst kept 61 characters, and a 1,497-character burst kept a suffix whose head window began mid-payload (`02 w203 w204 ...`), so neither is a prefix and both stay refused.
+A doorbell rung while the worker was mid-turn was proven the same way and queued; the worker handled it when the turn ended.
+
+Portable regressions (the first fails against the tail-only proof and passes with the head-window proof; the second pins each refusal):
+
+```sh
+tests/fm-backend-herdr.test.sh
+```
+
+```text
+ok - fm_backend_herdr_send_text_submit: a doorbell scrolled past a six-row Claude composer is proven by its head window and submitted once
+ok - fm_backend_herdr_send_text_submit: a lost head, an unseen middle, an unrestored cursor, an unscrolled view, an unreadable head, and a multi-line payload are never proven by the scrolled-composer check
+```
+
+Live guard (third of the opt-in guard's four scenarios; it asserts the doorbell overflows the composer view before steering through the real `bin/fm-send.sh`, and requires the worker to act on and acknowledge the record):
+
+```sh
+FM_HERDR_SUBMIT_CONFIRM_LIVE=1 tests/fm-herdr-submit-confirm-live-e2e.test.sh
+```
+
+Observed 2026-10-19 without the head-window proof, then with it:
+
+```text
+not ok - Claude Code (2.1.303 (Claude Code)) on herdr 0.7.4: fm-send did not ring a 457-character doorbell into the idle worker: fm-send: doorbell did not reach fm-lab-herdr-submit-con-84352-30791:w1:p1; ...
+ok - live Herdr submit confirm: Claude Code (2.1.303 (Claude Code)) on herdr 0.7.4 reports empty and renders the requested reply in isolated session fm-lab-herdr-submit-con-8660-12949
+ok - live Herdr submit confirm: Claude Code (2.1.303 (Claude Code)) on herdr 0.7.4 submits a U+2063 away-supervisor payload whose read-back drops the mark
+ok - live Herdr submit confirm: Claude Code (2.1.303 (Claude Code)) on herdr 0.7.4 acts on and acknowledges a 457-character fm-send doorbell scrolled past its composer view
+ok - live Herdr submit confirm: Claude Code (2.1.303 (Claude Code)) on herdr 0.7.4 proves and submits a typed /exit behind its command popup
 ```
 
 ### Prune and respawn

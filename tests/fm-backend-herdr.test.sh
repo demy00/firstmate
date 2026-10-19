@@ -79,15 +79,17 @@ SH
   printf '%s\n' "$fb"
 }
 
-# herdr_submit_shift: move every canned response <by> slots later, so a
-# fixture numbered from the literal send can take new calls in front of it.
-herdr_submit_shift() {  # <resp-dir> <by>
-  local resp=$1 by=$2 n ext f sorted
+# herdr_submit_shift: move every canned response numbered <from> (default 1)
+# or later <by> slots later, so a fixture numbered for an older call sequence
+# can take new calls in front of those responses.
+herdr_submit_shift() {  # <resp-dir> <by> [from]
+  local resp=$1 by=$2 from=${3:-1} n ext f sorted
   local -a found=()
   shopt -s nullglob
   for f in "$resp"/*.out "$resp"/*.exit; do
     n=$(basename "$f")
     n=${n%%.*}
+    [ "$n" -ge "$from" ] || continue
     found+=("$n")
   done
   shopt -u nullglob
@@ -124,6 +126,18 @@ herdr_submit_claude_prefix() {  # <resp-dir> <typed-text>
   printf '{"result":{"agent":{"agent":"claude","agent_status":"idle"}}}\n' > "$resp/1.out"
   printf '  \xe2\x9d\xaf\n' > "$resp/2.out"
   printf '  \xe2\x9d\xaf %s\n' "$text" > "$resp/4.out"
+}
+
+# herdr_submit_head_reveal: a refused-suffix fixture numbered for the sequence
+# without the scrolled-composer check gains its round trip after the call-4
+# read: call 5 Ctrl+A, call 6 the view it reveals, call 7 Ctrl+E, and call 8
+# the view after it. A composer that lost its head and fits its view shows the
+# same suffix in both, which is what a genuine truncation looks like live.
+# Call it after every other canned response is in place.
+herdr_submit_head_reveal() {  # <resp-dir>
+  herdr_submit_shift "$1" 4 5
+  cp "$1/4.out" "$1/6.out"
+  cp "$1/4.out" "$1/8.out"
 }
 
 # make_herdr_server_env_fakebin: a stateful server stub that records only the
@@ -4830,6 +4844,164 @@ test_send_text_submit_long_literal_submits_when_composer_holds_every_byte() {
   pass "fm_backend_herdr_send_text_submit: a 1500-character payload a Claude composer still holds is submitted whole"
 }
 
+# herdr_claude_window_screen: a Claude 2.1.303 viewport whose composer, between
+# its two rules, shows only rows [<first-row>, <first-row> + <rows>) of <text>
+# wrapped at <width> columns, with the prompt glyph on the first visible row
+# whatever logical row that is (verified live). A default-size Herdr pane
+# (54x23, no client attached) shows six composer rows, so a longer draft scrolls
+# with the cursor: the read after typing shows only its last rows, Ctrl+A shows
+# its first rows, and Ctrl+E scrolls back to the last ones.
+herdr_claude_window_screen() {  # <text> <width> <first-row> <rows>
+  local text=$1 width=$2 first=$3 rows=$4 rule i=0 shown=0 prefix
+  rule=$(printf '%0.s\xe2\x94\x80' $(seq 1 $((width + 2))))
+  printf '\xe2\x8f\xba ready\n\n%s\n' "$rule"
+  prefix=$'\xe2\x9d\xaf '
+  while [ -n "$text" ]; do
+    if [ "$i" -ge "$first" ] && [ "$shown" -lt "$rows" ]; then
+      printf '%s%s\n' "$prefix" "${text:0:$width}"
+      prefix='  '
+      shown=$((shown + 1))
+    fi
+    text=${text:$width}
+    i=$((i + 1))
+  done
+  printf '%s\n' "$rule"
+  printf '  \xe2\x9e\x9c  work \xc2\xb7 Haiku 5.5 \xc2\xb7 5%%\n'
+  printf '  \xe2\x8f\xb5\xe2\x8f\xb5 bypass permissions on (shift+tab to cycle)\n'
+}
+
+# herdr_doorbell_payload: the real steering-inbox doorbell for an inbox path
+# long enough (a secondmate home) to wrap past six 52-column composer rows.
+herdr_doorbell_payload() {
+  bash -c '. "$0/bin/fm-task-inbox-lib.sh"
+    fm_task_inbox_doorbell_line /home/operator/agentic-dev/firstmate-homes/release-train-secondmate/state/dotfiles-settings-doc-c3.inbox/001.msg' "$ROOT"
+}
+
+herdr_rows_of() {  # <text> <width>
+  printf '%s' $(( (${#1} + $2 - 1) / $2 ))
+}
+
+# herdr_sent_keys: every `pane send-keys` key in call order, space-terminated.
+herdr_sent_keys() {  # <log>
+  awk -F $'\x1f' '{ for (i = 1; i < NF - 1; i++) if ($i == "send-keys") { printf "%s ", $(i + 2); break } }' "$1"
+}
+
+# The 2026-10-19 doorbell miss: every steer to an idle Claude worker in a
+# default-size Herdr pane printed "doorbell did not reach" because the read
+# after typing showed only the doorbell's last six rows and the proof refused
+# that tail as a lost head. A tail that Ctrl+A turns into the payload's head,
+# with the two windows covering every byte, is a scrolled composer holding the
+# whole payload, so it is submitted once, after Ctrl+E restores the cursor.
+test_send_text_submit_scrolled_claude_composer_is_proven_by_its_head() {
+  local dir log resp fb out enter_count text rows key_order
+  dir="$TMP_ROOT/submit-scrolled-doorbell"; mkdir -p "$dir/responses"; log="$dir/log"; resp="$dir/responses"; : > "$log"
+  text=$(herdr_doorbell_payload)
+  rows=$(herdr_rows_of "$text" 52)
+  [ "$rows" -gt 6 ] && [ "$rows" -le 12 ] || fail "the doorbell fixture must wrap past six rows and fit two windows, got $rows rows"
+  printf '{"result":{"agent":{"agent":"claude","agent_status":"done"}}}\n' > "$resp/1.out"
+  printf '\xe2\x94\x80\xe2\x94\x80\n\xe2\x9d\xaf\n\xe2\x94\x80\xe2\x94\x80\n' > "$resp/2.out"
+  herdr_claude_window_screen "$text" 52 $((rows - 6)) 6 > "$resp/4.out"
+  herdr_claude_window_screen "$text" 52 0 6 > "$resp/6.out"
+  cp "$resp/4.out" "$resp/8.out"
+  printf '{"result":{"agent":{"agent_status":"done"}}}\n' > "$resp/9.out"
+  printf '{"result":{"agent":{"agent_status":"working"}}}\n' > "$resp/11.out"
+  fb=$(make_herdr_fakebin "$dir")
+  out=$( PATH="$fb:$PATH" FM_HERDR_LOG="$log" FM_HERDR_RESPONSES="$resp" FM_BACKEND_HERDR_SUBMIT_POLLS=1 \
+    bash -c '. "$0/bin/backends/herdr.sh"; fm_backend_herdr_send_text_submit default:w1:p2 "$1" 2 0.01 0.01' "$ROOT" "$text" )
+  [ "$out" = empty ] || fail "a scrolled Claude composer whose head and tail windows cover the doorbell should be submitted, got '$out'"
+  enter_count=$(grep -c $'\x1f''pane'$'\x1f''send-keys'$'\x1f''w1:p2'$'\x1f''enter' "$log")
+  [ "$enter_count" -eq 1 ] || fail "the proven doorbell should be submitted once, sent $enter_count Enter(s)"
+  [ "$(herdr_ctrl_u_count "$log")" -eq 0 ] || fail "a proven doorbell must not be cleared"
+  key_order=$(herdr_sent_keys "$log")
+  [ "$key_order" = "ctrl+a ctrl+e enter " ] || fail "the head must be revealed and the cursor restored before Enter, keys were '$key_order'"
+  pass "fm_backend_herdr_send_text_submit: a doorbell scrolled past a six-row Claude composer is proven by its head window and submitted once"
+}
+
+# The head window proves a scrolled composer only when it is the payload's real
+# head and the two windows leave no byte unseen. Each case below is refused,
+# never sent Enter, cleared, and reported send-failed:
+#   lost-head   Claude 2.1.303 still drops the head of a long burst (issue
+#               #3473, re-verified live); in a wide pane the kept suffix
+#               overflows the view while two views could cover the payload, so
+#               only the head window - that suffix's own head - refuses it.
+#   gap         a payload taller than both windows: the head is real, but the
+#               middle rows were never seen.
+#   unrestored  Ctrl+E did not bring the tail window back.
+#   unscrolled  a repetitive payload truncated to a composer that fits its view:
+#               Ctrl+A changes nothing, and the kept text is both a prefix and a
+#               suffix whose two (identical) reads add up to the whole length.
+#   unreadable  the head read fails; Ctrl+E still restores the cursor before
+#               the Ctrl+U clear, which deletes backwards from it.
+#   multiline   Ctrl+A reaches only the cursor's logical line, so a multi-line
+#               payload is refused without trying the head at all.
+test_send_text_submit_scrolled_claude_proof_refuses_what_it_cannot_see() {
+  local case dir log resp fb out text kept rows keys want
+  for case in lost-head gap unrestored unscrolled unreadable multiline; do
+    dir="$TMP_ROOT/submit-scrolled-refused-$case"; mkdir -p "$dir/responses"; log="$dir/log"; resp="$dir/responses"; : > "$log"
+    text=$(herdr_doorbell_payload)
+    printf '{"result":{"agent":{"agent":"claude","agent_status":"done"}}}\n' > "$resp/1.out"
+    printf '\xe2\x94\x80\xe2\x94\x80\n\xe2\x9d\xaf\n\xe2\x94\x80\xe2\x94\x80\n' > "$resp/2.out"
+    want="ctrl+a ctrl+e ctrl+u "
+    case "$case" in
+      lost-head)
+        text=$(herdr_long_payload 1292)
+        kept=${text: -800}
+        rows=$(herdr_rows_of "$kept" 118)
+        [ "$rows" -gt 6 ] && [ "$(herdr_rows_of "$text" 118)" -le 12 ] \
+          || fail "the lost-head fixture must overflow one view while two views could cover the whole payload"
+        herdr_claude_window_screen "$kept" 118 $((rows - 6)) 6 > "$resp/4.out"
+        herdr_claude_window_screen "$kept" 118 0 6 > "$resp/6.out"
+        ;;
+      gap)
+        text="$text $text"
+        rows=$(herdr_rows_of "$text" 52)
+        [ "$rows" -gt 12 ] || fail "the gap fixture must be taller than two six-row windows, got $rows rows"
+        herdr_claude_window_screen "$text" 52 $((rows - 6)) 6 > "$resp/4.out"
+        herdr_claude_window_screen "$text" 52 0 6 > "$resp/6.out"
+        ;;
+      unrestored)
+        rows=$(herdr_rows_of "$text" 52)
+        herdr_claude_window_screen "$text" 52 $((rows - 6)) 6 > "$resp/4.out"
+        herdr_claude_window_screen "$text" 52 0 6 > "$resp/6.out"
+        cp "$resp/6.out" "$resp/8.out"
+        ;;
+      unscrolled)
+        text=$(awk 'BEGIN { for (i = 0; i < 100; i++) printf "steer " }')
+        kept=${text: -300}
+        [ "$(herdr_rows_of "$kept" 52)" -le 6 ] || fail "the unscrolled fixture must fit one six-row view"
+        herdr_claude_window_screen "$kept" 52 0 6 > "$resp/4.out"
+        cp "$resp/4.out" "$resp/6.out"
+        ;;
+      unreadable)
+        rows=$(herdr_rows_of "$text" 52)
+        herdr_claude_window_screen "$text" 52 $((rows - 6)) 6 > "$resp/4.out"
+        printf '1\n' > "$resp/6.exit"
+        printf '1\n' > "$resp/7.exit"
+        cp "$resp/4.out" "$resp/9.out"
+        printf '\xe2\x94\x80\xe2\x94\x80\n\xe2\x9d\xaf\n\xe2\x94\x80\xe2\x94\x80\n' > "$resp/11.out"
+        ;;
+      multiline)
+        text=$(printf '%s\n%s' "$text" "$text")
+        herdr_claude_window_screen "${text//$'\n'/ }" 52 $(( $(herdr_rows_of "${text//$'\n'/ }" 52) - 6 )) 6 > "$resp/4.out"
+        want="ctrl+u "
+        ;;
+    esac
+    if [ "$case" = multiline ]; then
+      printf '\xe2\x94\x80\xe2\x94\x80\n\xe2\x9d\xaf\n\xe2\x94\x80\xe2\x94\x80\n' > "$resp/6.out"
+    elif [ "$case" != unreadable ]; then
+      [ -f "$resp/8.out" ] || cp "$resp/4.out" "$resp/8.out"
+      printf '\xe2\x94\x80\xe2\x94\x80\n\xe2\x9d\xaf\n\xe2\x94\x80\xe2\x94\x80\n' > "$resp/10.out"
+    fi
+    fb=$(make_herdr_fakebin "$dir")
+    out=$( PATH="$fb:$PATH" FM_HERDR_LOG="$log" FM_HERDR_RESPONSES="$resp" FM_BACKEND_HERDR_SUBMIT_POLLS=1 \
+      bash -c '. "$0/bin/backends/herdr.sh"; fm_backend_herdr_send_text_submit default:w1:p2 "$1" 2 0.01 0.01' "$ROOT" "$text" )
+    [ "$out" = send-failed ] || fail "$case: an unproven scrolled composer should be cleared and report send-failed, got '$out'"
+    keys=$(herdr_sent_keys "$log")
+    [ "$keys" = "$want" ] || fail "$case: expected keys '$want' (never Enter), sent '$keys'"
+  done
+  pass "fm_backend_herdr_send_text_submit: a lost head, an unseen middle, an unrestored cursor, an unscrolled view, an unreadable head, and a multi-line payload are never proven by the scrolled-composer check"
+}
+
 test_send_text_submit_refuses_enter_when_composer_holds_only_the_suffix() {
   local dir log resp fb out enter_count text suffix
   dir="$TMP_ROOT/submit-long-suffix"; mkdir -p "$dir/responses"; log="$dir/log"; resp="$dir/responses"; : > "$log"
@@ -4839,6 +5011,7 @@ test_send_text_submit_refuses_enter_when_composer_holds_only_the_suffix() {
   printf '  \xe2\x9d\xaf %s\n' "$suffix" > "$resp/4.out"
   printf '  \xe2\x9d\xaf\n' > "$resp/6.out"
   printf '{"result":{"agent":{"agent_status":"working"}}}\n' > "$resp/7.out"
+  herdr_submit_head_reveal "$resp"
   fb=$(make_herdr_fakebin "$dir")
   out=$( PATH="$fb:$PATH" FM_HERDR_LOG="$log" FM_HERDR_RESPONSES="$resp" FM_BACKEND_HERDR_SUBMIT_POLLS=1 \
     bash -c '. "$0/bin/backends/herdr.sh"; fm_backend_herdr_send_text_submit default:w1:p2 "$1" 3 0.01 0.01' "$ROOT" "$text" )
@@ -4847,6 +5020,8 @@ test_send_text_submit_refuses_enter_when_composer_holds_only_the_suffix() {
   [ "$enter_count" -eq 0 ] || fail "a suffix must not be submitted, sent $enter_count Enter(s)"
   [ "$(herdr_ctrl_u_count "$log")" -eq 1 ] || fail "the refused suffix should be cleared with one Ctrl+U, sent $(herdr_ctrl_u_count "$log")"
   [ "$(grep -c $'\x1f''agent'$'\x1f''get' "$log")" -eq 1 ] || fail "a refused suffix must not be confirmed by a later working status"
+  [ "$(herdr_sent_keys "$log")" = "ctrl+a ctrl+e ctrl+u " ] \
+    || fail "the suffix should be refused only after Ctrl+A shows no payload head and Ctrl+E restores the cursor, keys were '$(herdr_sent_keys "$log")'"
   pass "fm_backend_herdr_send_text_submit: a long payload whose Claude composer kept only the tail is not submitted, is cleared, and reports send-failed"
 }
 
@@ -4861,6 +5036,7 @@ test_send_text_submit_refused_suffix_that_will_not_clear_is_unknown() {
   for ((n = 6; n <= 4 + 2 * cap; n += 2)); do
     printf '  \xe2\x9d\xaf %s\n' "$suffix" > "$resp/$n.out"
   done
+  herdr_submit_head_reveal "$resp"
   fb=$(make_herdr_fakebin "$dir")
   out=$( PATH="$fb:$PATH" FM_HERDR_LOG="$log" FM_HERDR_RESPONSES="$resp" FM_BACKEND_HERDR_SUBMIT_POLLS=1 \
     bash -c '. "$0/bin/backends/herdr.sh"; fm_backend_herdr_send_text_submit default:w1:p2 "$1" 3 0.01 0.01' "$ROOT" "$text" )
@@ -4880,6 +5056,7 @@ test_send_text_submit_clears_a_wrapped_suffix_one_row_per_press() {
   for drop in 0 1 2 3 4 5; do
     herdr_wrapped_composer "$suffix" 96 "$drop" > "$resp/$((4 + 2 * drop)).out"
   done
+  herdr_submit_head_reveal "$resp"
   fb=$(make_herdr_fakebin "$dir")
   out=$( PATH="$fb:$PATH" FM_HERDR_LOG="$log" FM_HERDR_RESPONSES="$resp" FM_BACKEND_HERDR_SUBMIT_POLLS=1 \
     bash -c '. "$0/bin/backends/herdr.sh"; fm_backend_herdr_send_text_submit default:w1:p2 "$1" 3 0.01 0.01' "$ROOT" "$text" )
@@ -4903,6 +5080,7 @@ test_send_text_submit_refused_suffix_then_clean_retry_submits_only_the_message()
   printf '  \xe2\x9d\xaf %s\n' "$text" > "$resp/10.out"
   printf '{"result":{"agent":{"agent_status":"idle"}}}\n' > "$resp/11.out"
   printf '{"result":{"agent":{"agent_status":"working"}}}\n' > "$resp/13.out"
+  herdr_submit_head_reveal "$resp"
   fb=$(make_herdr_fakebin "$dir")
   out=$( PATH="$fb:$PATH" FM_HERDR_LOG="$log" FM_HERDR_RESPONSES="$resp" FM_BACKEND_HERDR_SUBMIT_POLLS=1 \
     bash -c '. "$0/bin/backends/herdr.sh"
@@ -4942,6 +5120,7 @@ test_send_text_submit_refuses_suffix_when_transcript_still_shows_the_head() {
     printf '  \xe2\x9d\xaf %s\n' "$suffix"
   } > "$resp/4.out"
   printf '  \xe2\x9d\xaf\n' > "$resp/6.out"
+  herdr_submit_head_reveal "$resp"
   fb=$(make_herdr_fakebin "$dir")
   out=$( PATH="$fb:$PATH" FM_HERDR_LOG="$log" FM_HERDR_RESPONSES="$resp" FM_BACKEND_HERDR_SUBMIT_POLLS=1 \
     bash -c '. "$0/bin/backends/herdr.sh"; fm_backend_herdr_send_text_submit default:w1:p2 "$1" 3 0.01 0.01' "$ROOT" "$text" )
@@ -4991,6 +5170,7 @@ test_send_text_submit_refuses_marked_digest_missing_its_head() {
   herdr_submit_claude_prefix "$resp" "$text"
   printf '  \xe2\x9d\xaf\xc2\xa0%s\n' "${shown: -480}" > "$resp/4.out"
   printf '  \xe2\x9d\xaf\n' > "$resp/6.out"
+  herdr_submit_head_reveal "$resp"
   fb=$(make_herdr_fakebin "$dir")
   out=$( PATH="$fb:$PATH" FM_HERDR_LOG="$log" FM_HERDR_RESPONSES="$resp" FM_BACKEND_HERDR_SUBMIT_POLLS=1 \
     bash -c '. "$0/bin/backends/herdr.sh"; fm_backend_herdr_send_text_submit default:w1:p2 "$1" 3 0.01 0.01' "$ROOT" "$text" )
@@ -5935,6 +6115,8 @@ test_send_text_submit_send_failed
 test_send_text_submit_unknown_on_capture_failure
 test_send_text_submit_unknown_on_composer_capture_failure
 test_send_text_submit_long_literal_submits_when_composer_holds_every_byte
+test_send_text_submit_scrolled_claude_composer_is_proven_by_its_head
+test_send_text_submit_scrolled_claude_proof_refuses_what_it_cannot_see
 test_send_text_submit_refuses_enter_when_composer_holds_only_the_suffix
 test_send_text_submit_refused_suffix_that_will_not_clear_is_unknown
 test_send_text_submit_clears_a_wrapped_suffix_one_row_per_press
