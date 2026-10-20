@@ -1,0 +1,44 @@
+=== before: recorded yolo of live ship tasks ===
+ada-1.meta:yolo=off
+ada-2.meta:yolo=off
+ada-3.meta:yolo=off
+other-1.meta:yolo=off
+=== before: data/backlog.md ===
+## In flight
+
+## Queued
+- [ ] ada-4 - Ada step 4 (repo: ada) (kind: ship) (since 2026-10-20)
+  mode no-mistakes, yolo off; runs after ada-3.
+
+- [ ] ada-5 - Ada step 5 (repo: ada) (kind: ship) (since 2026-10-20)
+  Runs after ada-4.
+- [ ] other-q - Other step (repo: other) (kind: ship) (since 2026-10-20)
+  mode no-mistakes, yolo off
+## Done
+
+$ fm-project-yolo-apply.sh ada
+ada-1: yolo off -> on
+ada-2: yolo off -> on
+ada-3: yolo off -> on
+ada-4: queued note yolo off -> on
+ada-5: queued note yolo unrecorded -> on
+applied: ada yolo=on to 3 live ship task(s) and 2 queued ship item(s) in this home
+(exit 0)
+
+=== after: recorded yolo of live ship tasks ===
+ada-1.meta:yolo=on
+ada-2.meta:yolo=on
+ada-3.meta:yolo=on
+other-1.meta:yolo=off
+=== after: data/backlog.md ===
+## In flight
+
+## Queued
+- [ ] ada-4 - Ada step 4 (repo: ada) (kind: ship) (since 2026-10-20)
+  mode no-mistakes, yolo on; runs after ada-3.
+- [ ] ada-5 - Ada step 5 (repo: ada) (kind: ship) (since 2026-10-20)
+  Runs after ada-4.
+  Delivery posture: yolo on (project registry).
+- [ ] other-q - Other step (repo: other) (kind: ship) (since 2026-10-20)
+  mode no-mistakes, yolo off
+## Done

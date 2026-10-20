@@ -1,0 +1,12 @@
+ok - a project switched to +yolo hands its live ship tasks the new merge authority, and nothing else
+ok - a project switched off +yolo takes merge authority back from its live ship tasks
+ok - a Gerrit project's live tasks never gain merge authority
+ok - a registry posture that does not resolve changes no task
+ok - named task ids limit the apply to those live ship tasks of the project
+ok - a task under a lifecycle action is left untouched and named for a rerun
+ok - a project's queued ship items carry its registered posture, and no other item changes
+ok - a project switched off +yolo withdraws the posture from its queued ship notes
+ok - named task ids limit the apply to those queued items
+ok - a backlog that cannot be read leaves the apply incomplete, after the live tasks
+ok - usage errors exit 2 and --help prints the usage
+exit 0

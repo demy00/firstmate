@@ -1,0 +1,20 @@
+# Note: ADMITTED spawns exit 1 later (line ~1939, no repo positional in this fixture), after passing the away spend cap check (line 1642).
+=== [BASE 5d67f6e] away entered with --spend 4; records: 4 finished scouts + 1 working ===
+$ fm-spawn.sh queued-1 --mode no-mistakes --yolo off
+  REFUSED (exit 1): error: spawn refused - the away-posture record caps concurrent workers at 4 and 5 ordinary task(s) are live in this home; task queued-1 stays queued for the captain's return or for a worker to finish (spend cap: bin/fm-afk-contract.sh)
+$ fm-spawn.sh queued-2 --mode no-mistakes --yolo off
+  REFUSED (exit 1): error: spawn refused - the away-posture record caps concurrent workers at 4 and 5 ordinary task(s) are live in this home; task queued-2 stays queued for the captain's return or for a worker to finish (spend cap: bin/fm-afk-contract.sh)
+$ fm-spawn.sh queued-3 --mode no-mistakes --yolo off
+  REFUSED (exit 1): error: spawn refused - the away-posture record caps concurrent workers at 4 and 5 ordinary task(s) are live in this home; task queued-3 stays queued for the captain's return or for a worker to finish (spend cap: bin/fm-afk-contract.sh)
+$ fm-spawn.sh queued-4 --mode no-mistakes --yolo off
+  REFUSED (exit 1): error: spawn refused - the away-posture record caps concurrent workers at 4 and 5 ordinary task(s) are live in this home; task queued-4 stays queued for the captain's return or for a worker to finish (spend cap: bin/fm-afk-contract.sh)
+
+=== [FIX 374d83d] away entered with --spend 4; records: 4 finished scouts + 1 working ===
+$ fm-spawn.sh queued-1 --mode no-mistakes --yolo off
+  ADMITTED past the away spend cap (exit 1)
+$ fm-spawn.sh queued-2 --mode no-mistakes --yolo off
+  ADMITTED past the away spend cap (exit 1)
+$ fm-spawn.sh queued-3 --mode no-mistakes --yolo off
+  ADMITTED past the away spend cap (exit 1)
+$ fm-spawn.sh queued-4 --mode no-mistakes --yolo off
+  REFUSED (exit 1): error: spawn refused - the away-posture record caps concurrent workers at 4 and 4 ordinary worker(s) are still working in this home (4 task(s) that finished, wait on a human decision, or lost their endpoint are not counted; a task whose state cannot be read counts); task queued-4 stays queued for the captain's return or for a worker to finish (spend cap: bin/fm-afk-contract.sh)
