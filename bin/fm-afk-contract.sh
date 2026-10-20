@@ -90,8 +90,8 @@
 #     record. A replacement is staged before the prior record is archived and
 #     replaced. `propose` and `confirm` were retired with the wait-for-go gate.
 #     --spend <n> (default 4) is the most ordinary workers that may be working
-#     at once while away: bin/fm-spawn.sh refuses a fresh ordinary spawn once
-#     that many are still working. A task that finished, waits on a decision
+#     at once while away: bin/fm-spawn.sh refuses a fresh ordinary spawn, or
+#     a relaunch of a stopped one, once that many are still working. A task that finished, waits on a decision
 #     a human owes, or whose endpoint is proven gone holds no slot; a task
 #     whose state cannot be read still counts (fm-spawn.sh owns the count).
 #   fm-afk-contract.sh readback

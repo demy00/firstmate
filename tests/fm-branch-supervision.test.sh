@@ -1601,17 +1601,14 @@ SH
   pass "the away spend cap counts only workers still spending, never finished or decision-parked ones"
 }
 
-# The other side of that fix: a worker that still owes work holds its slot.
-# A no-mistakes gate the worker answers itself (auto-fix findings) and a
-# failed run the worker is busy fixing are still spending; only a gate a human
-# owes (an ask-user finding), a failed run on an idle pane, and an endpoint
-# the backend proves gone free a slot. A backend probe that merely failed to
-# answer proves nothing and still counts.
-test_away_spend_cap_holds_slots_for_workers_still_owing_work() {
-  local home root fakebin out status id gen
+# Six worker records, one per current-state reading the away cap must tell
+# apart, built once per suite run in away-cap-owing-home.
+make_away_cap_owing_fixtures() {
+  local home root fakebin id gen
   home="$TMP_ROOT/away-cap-owing-home"
   root="$TMP_ROOT/away-cap-owing-root"
   fakebin="$TMP_ROOT/away-cap-owing-fakebin"
+  [ ! -d "$home" ] || return 0
   mkdir -p "$home/state" "$home/data" "$home/config" "$home/runs" "$root" "$fakebin"
   git init -q -b main "$root"
   git -C "$root" commit -q --allow-empty -m init
@@ -1683,17 +1680,84 @@ SH
     printf 'run:\n  id: "01%s"\n  branch: fm/%s\n  status: completed\n  head: "%s"\n  pr: ""\n  findings: none\noutcome: failed\n' \
       "$id" "$id" "$(git -C "$home/wt/$id" rev-parse HEAD)" > "$home/runs/$id.axi"
   done
-  FM_HOME="$home" "$ROOT/bin/fm-afk-contract.sh" enter --spend 3 >/dev/null || fail "away entry failed"
+}
 
-  out=$(PATH="$fakebin:$PATH" FM_FAKE_RUNS="$home/runs" FM_HOME="$home" FM_ROOT_OVERRIDE="$root" \
-    "$ROOT/bin/fm-spawn.sh" task-new --mode no-mistakes --yolo off 2>&1)
-  status=$?
-  [ "$status" -eq 1 ] || fail "spend-cap refusal exited $status, not 1: $out"
-  assert_contains "$out" "caps concurrent workers at 3 and 3 ordinary worker(s) are still working" \
-    "a worker owing its own gate, fixing a failed run, or behind an unanswered probe lost its slot: $out"
-  assert_contains "$out" "(3 task(s) that finished, wait on a human decision, or lost their endpoint" \
-    "a human-owed gate, an idle failed run, or a gone endpoint still held a slot: $out"
+# The other side of that fix: a worker that still owes work holds its slot.
+# A no-mistakes gate the worker answers itself (auto-fix findings) and a
+# failed run the worker is busy fixing are still spending; only a gate a human
+# owes (an ask-user finding), a failed run on an idle pane, and an endpoint
+# the backend proves gone free a slot. A backend probe that merely failed to
+# answer proves nothing and still counts.
+test_away_spend_cap_holds_slots_for_workers_still_owing_work() {
+  local home root fakebin out status id case
+  make_away_cap_owing_fixtures
+  home="$TMP_ROOT/away-cap-owing-home"
+  root="$TMP_ROOT/away-cap-owing-root"
+  fakebin="$TMP_ROOT/away-cap-owing-fakebin"
+  FM_HOME="$home" "$ROOT/bin/fm-afk-contract.sh" enter --spend 1 >/dev/null || fail "away entry failed"
+
+  # One record at a time under a cap of one, so each reading is proven alone:
+  # a record that holds its slot refuses the spawn, one that frees it does not.
+  mkdir -p "$home/stash"
+  mv "$home/state/"*.meta "$home/stash/"
+  for case in ship-gate:held ship-asked:free ship-fixing:held ship-failed:free scout-gone:free scout-flaky:held; do
+    id=${case%%:*}
+    mv "$home/stash/$id.meta" "$home/state/"
+    out=$(PATH="$fakebin:$PATH" FM_FAKE_RUNS="$home/runs" FM_HOME="$home" FM_ROOT_OVERRIDE="$root" \
+      "$ROOT/bin/fm-spawn.sh" task-new --mode no-mistakes --yolo off 2>&1)
+    status=$?
+    rm -f "$home/state/task-new.meta"
+    mv "$home/state/$id.meta" "$home/stash/"
+    if [ "${case#*:}" = held ]; then
+      [ "$status" -eq 1 ] || fail "$id: spend-cap refusal exited $status, not 1: $out"
+      assert_contains "$out" "caps concurrent workers at 1 and 1 ordinary worker(s) are still working" \
+        "$id still owes work but lost its slot: $out"
+    else
+      assert_not_contains "$out" "caps concurrent workers" "$id has stopped spending but still held a slot: $out"
+    fi
+  done
+  mv "$home/stash/"*.meta "$home/state/"
   pass "the away spend cap keeps slots for workers still owing work and frees only stopped ones"
+}
+
+# A relaunch revives a worker. Relaunching one that still counts replaces a
+# worker already in the count, so it is exempt; relaunching one the cap reads
+# as stopped (here a proven-gone endpoint) adds spend, so it meets the cap like
+# a fresh spawn without its own stopped record counting twice.
+test_away_spend_cap_counts_a_relaunch_of_a_stopped_worker() {
+  local home root fakebin out status
+  make_away_cap_owing_fixtures
+  home="$TMP_ROOT/away-cap-owing-home"
+  root="$TMP_ROOT/away-cap-owing-root"
+  fakebin="$TMP_ROOT/away-cap-owing-fakebin"
+  mkdir -p "$home/stash"
+  mv "$home/state/"*.meta "$home/stash/"
+  mv "$home/stash/ship-gate.meta" "$home/stash/scout-gone.meta" "$home/state/"
+  FM_HOME="$home" "$ROOT/bin/fm-afk-contract.sh" enter --words "one worker at a time" --spend 1 >/dev/null 2>&1 ||
+    fail "away entry failed"
+
+  # Cap 1, held by ship-gate: the dead scout's relaunch is refused.
+  out=$(PATH="$fakebin:$PATH" FM_FAKE_RUNS="$home/runs" FM_HOME="$home" FM_ROOT_OVERRIDE="$root" \
+    "$ROOT/bin/fm-spawn.sh" scout-gone --relaunch 2>&1)
+  status=$?
+  [ "$status" -eq 1 ] || fail "a relaunch over a full cap exited $status, not 1: $out"
+  assert_contains "$out" "relaunch of stopped task scout-gone refused" "the refusal did not name the relaunch: $out"
+  assert_contains "$out" "caps concurrent workers at 1 and 1 ordinary worker(s) are still working" \
+    "the relaunched stopped record was counted as working: $out"
+
+  # A relaunch of the worker that holds the slot replaces it and is exempt.
+  out=$(PATH="$fakebin:$PATH" FM_FAKE_RUNS="$home/runs" FM_HOME="$home" FM_ROOT_OVERRIDE="$root" \
+    "$ROOT/bin/fm-spawn.sh" ship-gate --relaunch 2>&1)
+  assert_not_contains "$out" "caps concurrent workers" "a relaunch of a counted worker met the cap: $out"
+
+  # With a free slot the dead scout's relaunch is admitted.
+  FM_HOME="$home" "$ROOT/bin/fm-afk-contract.sh" enter --words "two workers at a time" --spend 2 >/dev/null 2>&1 ||
+    fail "away re-entry failed"
+  out=$(PATH="$fakebin:$PATH" FM_FAKE_RUNS="$home/runs" FM_HOME="$home" FM_ROOT_OVERRIDE="$root" \
+    "$ROOT/bin/fm-spawn.sh" scout-gone --relaunch 2>&1)
+  assert_not_contains "$out" "caps concurrent workers" "a relaunch with a free slot was refused: $out"
+  mv "$home/stash/"*.meta "$home/state/"
+  pass "a relaunch of a stopped worker meets the away spend cap, while a counted worker's relaunch is exempt"
 }
 
 test_branch_prompt_is_byte_stable_and_above_cache_floor
@@ -1731,4 +1795,5 @@ test_away_branch_spawn_requires_queued_dispatchable_work
 test_away_spend_cap_is_rechecked_under_the_task_set_lock
 test_away_spend_cap_counts_only_working_workers
 test_away_spend_cap_holds_slots_for_workers_still_owing_work
+test_away_spend_cap_counts_a_relaunch_of_a_stopped_worker
 test_quiet_record_never_caps_a_present_captains_spawn
