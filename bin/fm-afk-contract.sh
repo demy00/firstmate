@@ -89,6 +89,10 @@
 #     carry the original session entry forward, and archive the superseded
 #     record. A replacement is staged before the prior record is archived and
 #     replaced. `propose` and `confirm` were retired with the wait-for-go gate.
+#     --spend <n> (default 4) is the most ordinary workers that may be working
+#     at once while away: bin/fm-spawn.sh refuses a fresh ordinary spawn once
+#     that many are still working, and a finished task waiting only on a merge,
+#     cleanup, or decision holds no slot (fm-spawn.sh owns the count).
 #   fm-afk-contract.sh readback
 #     The record's content for the captain and for the away session: the words
 #     verbatim plus the entry time, expected return, spend cap, and reach line

@@ -1319,7 +1319,7 @@ test_away_record_relocates_main_owned_actions_to_the_branch() {
     "$ROOT/bin/fm-spawn.sh" task-new --mode no-mistakes --yolo off 2>&1)
   status=$?
   [ "$status" -eq 1 ] || fail "spend-cap refusal exited $status, not 1: $out"
-  assert_contains "$out" "caps concurrent workers at 2 and 2 ordinary task(s) are live" "spend-cap refusal lost its count"
+  assert_contains "$out" "caps concurrent workers at 2 and 2 ordinary worker(s) are still working" "spend-cap refusal lost its count"
   # The cap binds main too: the posture, not the actor, is what caps spend.
   out=$(FM_HOME="$home" FM_ROOT_OVERRIDE="$root" "$ROOT/bin/fm-spawn.sh" task-new --mode no-mistakes --yolo off 2>&1)
   status=$?
@@ -1481,7 +1481,7 @@ test_quiet_record_never_caps_a_present_captains_spawn() {
   assert_not_contains "$out" "caps concurrent workers" "a quiet record capped a present captain's spawn"
   FM_HOME="$home" "$ROOT/bin/fm-afk-contract.sh" enter --spend 1 >/dev/null 2>&1 || fail "away entry over quiet failed"
   out=$(FM_HOME="$home" FM_ROOT_OVERRIDE="$root" "$ROOT/bin/fm-spawn.sh" task-new --mode no-mistakes --yolo off 2>&1)
-  assert_contains "$out" "caps concurrent workers at 1 and 2 ordinary task(s) are live" "the away record's cap no longer binds"
+  assert_contains "$out" "caps concurrent workers at 1 and 2 ordinary worker(s) are still working" "the away record's cap no longer binds"
   pass "a quiet-mode record never caps a present captain's spawn, while the away record's cap still binds"
 }
 
@@ -1534,10 +1534,70 @@ WRAPPER
   : > "$home/competitor-published"
   wait || true
   out=$(cat "$home/q1.out" 2>/dev/null || true)
-  assert_contains "$out" "caps concurrent workers at 1 and 1 ordinary task(s) are live" \
+  assert_contains "$out" "caps concurrent workers at 1 and 1 ordinary worker(s) are still working" \
     "the paused spawn did not recheck the cap after the competitor published: $out"
   [ ! -f "$home/state/task-q1.meta" ] || fail "the stale-count spawn published after a competitor landed"
   pass "the away spend cap is rechecked under the task-set lock so concurrent spawns cannot both publish"
+}
+
+# The 2026-10-19 overnight stall: a worker that finished (a delivered report, a
+# ready PR) keeps its task record until cleanup, and a ship's cleanup waits on
+# its merge, so counting every record let finished work fill the away cap and
+# refuse every queued spawn all night. The cap counts only workers whose
+# current state (bin/fm-crew-state.sh) is still spending: done, failed, and a
+# worker parked on a decision free their slot, while a busy worker and an
+# unreadable one still count.
+test_away_spend_cap_counts_only_working_workers() {
+  local home root fakebin out status id gen
+  home="$TMP_ROOT/away-cap-working-home"
+  root="$TMP_ROOT/away-cap-working-root"
+  fakebin="$TMP_ROOT/away-cap-working-fakebin"
+  mkdir -p "$home/state" "$home/data" "$home/config" "$root" "$fakebin"
+  git init -q -b main "$root"
+  git -C "$root" commit -q --allow-empty -m init
+  ln -s "$ROOT/bin" "$root/bin"
+  # Every task pane answers as a live, quiet pane; the busy-state record
+  # armed per task below decides whether that worker is still spending.
+  cat > "$fakebin/tmux" <<'SH'
+#!/usr/bin/env bash
+case "${1:-}" in
+  display-message) printf '%%1\n' ;;
+  capture-pane) printf 'all quiet\n> \n' ;;
+esac
+exit 0
+SH
+  chmod +x "$fakebin/tmux"
+  for id in scout-done scout-asked scout-failed scout-busy; do
+    mkdir -p "$home/wt/$id"
+    fm_write_meta "$home/state/$id.meta" "window=fm:fm-$id" "worktree=$home/wt/$id" "kind=scout" "harness=claude"
+    gen=$("$ROOT/bin/fm-busy-event.sh" arm "$home/state" "$id")
+    if [ "$id" = scout-busy ]; then
+      "$ROOT/bin/fm-busy-event.sh" apply "$home/state" "$id" busy --gen "$gen" --source claude-hook --event user-prompt-submit
+    else
+      "$ROOT/bin/fm-busy-event.sh" apply "$home/state" "$id" idle --gen "$gen" --source claude-hook --event stop
+    fi
+  done
+  printf 'done [at=1]: report written to data/scout-done/report.md\n' > "$home/state/scout-done.status"
+  printf 'needs-decision [at=1]: which layout should ship\n' > "$home/state/scout-asked.status"
+  printf 'failed [at=1]: reproduction impossible\n' > "$home/state/scout-failed.status"
+  printf 'working [at=1]: reading the code\n' > "$home/state/scout-busy.status"
+  FM_HOME="$home" "$ROOT/bin/fm-afk-contract.sh" enter --spend 2 >/dev/null || fail "away entry failed"
+
+  # Four records, one still working: the three finished ones hold no slot.
+  out=$(PATH="$fakebin:$PATH" FM_HOME="$home" FM_ROOT_OVERRIDE="$root" \
+    "$ROOT/bin/fm-spawn.sh" task-new --mode no-mistakes --yolo off 2>&1)
+  assert_not_contains "$out" "caps concurrent workers" "finished workers still consumed away slots"
+
+  # A record whose current state cannot be read still counts as spending.
+  fm_write_meta "$home/state/task-unread.meta" "window=fm-task-unread" "kind=ship"
+  out=$(PATH="$fakebin:$PATH" FM_HOME="$home" FM_ROOT_OVERRIDE="$root" \
+    "$ROOT/bin/fm-spawn.sh" task-new --mode no-mistakes --yolo off 2>&1)
+  status=$?
+  [ "$status" -eq 1 ] || fail "spend-cap refusal exited $status, not 1: $out"
+  assert_contains "$out" "caps concurrent workers at 2 and 2 ordinary worker(s) are still working" \
+    "the refusal miscounted the working workers"
+  assert_contains "$out" "3 finished task(s)" "the refusal did not name the finished tasks it left out"
+  pass "the away spend cap counts only workers still spending, never finished or decision-parked ones"
 }
 
 test_branch_prompt_is_byte_stable_and_above_cache_floor
@@ -1573,4 +1633,5 @@ test_branch_cannot_force_teardown_or_directly_relaunch
 test_away_record_relocates_main_owned_actions_to_the_branch
 test_away_branch_spawn_requires_queued_dispatchable_work
 test_away_spend_cap_is_rechecked_under_the_task_set_lock
+test_away_spend_cap_counts_only_working_workers
 test_quiet_record_never_caps_a_present_captains_spawn

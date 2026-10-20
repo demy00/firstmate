@@ -1528,8 +1528,28 @@ fi
 if [ "$RELAUNCH" -ne 1 ]; then
   fm_lease_forbid_branch "new-task spawn (fm-spawn)" --away-relocated
 fi
+# 0 when <task>'s current state shows a worker that has stopped spending: its
+# work is done or failed and only a merge or cleanup remains, or it is parked
+# on a decision. bin/fm-crew-state.sh owns that reading; its forge fallback
+# is skipped because it only refines the detail of a terminal reading. Every
+# other state - working, a declared wait on its own validation, a blocker
+# firstmate still has to clear, unknown, or a read that hit its bound - keeps
+# the task counted.
+spawn_task_stopped_spending() {  # <task-id>
+  local line
+  line=$(fm_run_timed "${FM_SPAWN_CREW_STATE_TIMEOUT:-15}" \
+    env FM_HOME="$FM_HOME" FM_STATE_OVERRIDE="$STATE" FM_DATA_OVERRIDE="$DATA" \
+    FM_PROJECTS_OVERRIDE="$PROJECTS" FM_CONFIG_OVERRIDE="$CONFIG" FM_CREW_STATE_NO_FORGE=1 \
+    "$SCRIPT_DIR/fm-crew-state.sh" "$1" </dev/null 2>/dev/null | head -1) || true
+  case "$line" in
+  "state: done "* | "state: failed "* | "state: parked "*) return 0 ;;
+  esac
+  return 1
+}
+SPAWN_AWAY_STOPPED_IDS=
+SPAWN_AWAY_STOPPED_READ=0
 spawn_refuse_if_away_spend_cap() {
-  local cap live meta
+  local cap live stopped meta task
   [ "$RELAUNCH" -ne 1 ] || return 0
   [ "$KIND" != secondmate ] || return 0
   [ -f "$STATE/.afk-contract" ] || return 0
@@ -1540,26 +1560,44 @@ spawn_refuse_if_away_spend_cap() {
   '' | *[!0-9]* | 0) return 0 ;;
   esac
   live=0
+  stopped=0
   for meta in "$STATE"/*.meta; do
     [ -f "$meta" ] || continue
     [ "$(grep '^kind=' "$meta" 2>/dev/null | tail -1 | cut -d= -f2-)" != secondmate ] || continue
+    task=${meta##*/}
+    task=${task%.meta}
+    if [ "$SPAWN_AWAY_STOPPED_READ" -eq 0 ] && spawn_task_stopped_spending "$task"; then
+      SPAWN_AWAY_STOPPED_IDS="$SPAWN_AWAY_STOPPED_IDS $task "
+    fi
+    case "$SPAWN_AWAY_STOPPED_IDS" in
+    *" $task "*)
+      stopped=$((stopped + 1))
+      continue
+      ;;
+    esac
     live=$((live + 1))
   done
+  SPAWN_AWAY_STOPPED_READ=1
   if [ "$live" -ge "$cap" ]; then
-    echo "error: spawn refused - the away-posture record caps concurrent workers at $cap and $live ordinary task(s) are live in this home; task $ID stays queued for the captain's return or for a worker to finish (spend cap: bin/fm-afk-contract.sh)" >&2
+    echo "error: spawn refused - the away-posture record caps concurrent workers at $cap and $live ordinary worker(s) are still working in this home ($stopped finished task(s) waiting only on a merge, cleanup, or decision are not counted); task $ID stays queued for the captain's return or for a worker to finish (spend cap: bin/fm-afk-contract.sh)" >&2
     exit 1
   fi
 }
 # Spend cap (bin/fm-afk-contract.sh's spend_max_concurrent_workers): while an
 # away record exists (never a quiet-mode one, whose captain is present and
 # spends as attended: bin/fm-afk-contract.sh mode), a fresh ordinary spawn
-# refuses for BOTH actors once this home already holds that many ordinary task
-# records, counted the same way the return brief counts tasks live at return
-# (every state/*.meta whose kind is not secondmate). A relaunch replaces a
-# worker that already counts, and a secondmate is a persistent home rather than
-# spend, so both are exempt. Checked before any endpoint, worktree, or record
-# exists, so a refusal costs nothing to unwind; rechecked after the task-set
-# lock so two fresh spawns cannot both publish from a stale count.
+# refuses for BOTH actors once this home already holds that many ordinary
+# workers still spending - every state/*.meta whose kind is not secondmate,
+# minus the tasks spawn_task_stopped_spending reads as finished. A finished
+# worker keeps its record until cleanup, and a ship's cleanup waits on its
+# merge, so counting records instead let finished work hold every slot and
+# refuse independent queued work. A relaunch replaces a worker that already
+# counts, and a secondmate is a persistent home rather than spend, so both are
+# exempt. Checked before any endpoint, worktree, or record exists, so a refusal
+# costs nothing to unwind; rechecked after the task-set lock so two fresh
+# spawns cannot both publish from a stale count. The recheck reuses the first
+# check's current-state reads and recounts the records, so a record published
+# in between counts as working and the lock is not held across those reads.
 spawn_refuse_if_away_spend_cap
 # Shared-resource preflight: a fresh ship or scout whose brief declares a
 # `# Needs` section refuses here, with the preflight's one blocker line, when
