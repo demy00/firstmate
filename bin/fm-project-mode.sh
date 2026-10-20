@@ -19,7 +19,9 @@
 # run no-mistakes init), bin/fm-spawn.sh's advisory registry-deviation notice,
 # and --forge for bin/fm-spawn.sh's forge agreement and yolo refusal and for
 # bin/fm-promote.sh, which takes the forge binding from here because it is a
-# project fact rather than a task choice.
+# project fact rather than a task choice. bin/fm-project-yolo-apply.sh reads
+# the yolo word to carry a captain's posture change onto live ship tasks
+# and queued ship notes.
 #
 # Registry line format (data/projects.md):
 #   - <name> - <desc> (added <date>)                                 -> no-mistakes off <default-prefix>

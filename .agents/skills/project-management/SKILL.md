@@ -2,7 +2,7 @@
 name: project-management
 description: >-
   Agent-only procedure for Firstmate project management.
-  Use before adding, creating, removing, or initializing a project.
+  Use before adding, creating, removing, or initializing a project, or changing a registered project's posture.
   Cloning or registering a project is add intake and uses the same trigger.
   Owns project add, create, clone, remove, initialization, registry, delivery-mode, autonomy, and outward-consent decisions.
 user-invocable: false
@@ -51,6 +51,7 @@ Registering a conditional policy is a one-time choice and never requires classif
 
 The optional `+yolo` posture changes merge authority only and does not change the delivery mode.
 Default it off for every project and every posture, and enable it only on the captain's explicit instruction.
+A task records its own `yolo` at spawn or promotion, so right after changing a project's `+yolo` in either direction run `bin/fm-project-yolo-apply.sh <name>` to give that project's live ship tasks in this home, and the recorded `yolo` in its queued ship backlog items, the new posture, naming task ids only when the captain kept specific tasks on their own posture.
 `AGENTS.md` section 7 owns the merge-authority contract.
 
 The optional `forge=` token records which forge the project's remote actually is; its one value is `forge=gerrit`.
