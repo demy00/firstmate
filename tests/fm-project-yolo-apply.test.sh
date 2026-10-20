@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # Behavior tests for bin/fm-project-yolo-apply.sh: after the captain changes a
 # project's registered +yolo posture in data/projects.md, one command makes
-# that project's live ship tasks in this home carry the new merge authority.
+# that project's live ship tasks and queued ship backlog items in this home
+# carry the new merge authority.
 #
 # The 2026-10-19 overnight stall motivates it: a project switched to +yolo in
 # the evening still had three running tasks recorded yolo=off at spawn, so
-# their green PRs waited all night for the captain.
+# their green PRs waited all night for the captain, and the dependent queued
+# steps still carried yolo off in their notes for their later spawns.
 set -u
 
 # shellcheck source=tests/lib.sh
@@ -22,6 +24,7 @@ new_home() {  # <name> <ada-registry-annotation> -> echoes home
     printf -- '- ada %s - Ada library (added 2026-10-01)\n' "$2"
     printf -- '- other [no-mistakes] - another library (added 2026-10-01)\n'
   } > "$home/data/projects.md"
+  printf '## In flight\n\n## Queued\n\n## Done\n' > "$home/data/backlog.md"
   fm_write_meta "$home/state/ada-1.meta" "window=fm-ada-1" "worktree=$home/wt/ada-1" \
     "project=$home/projects/ada" "harness=claude" "kind=ship" "mode=no-mistakes" "yolo=off" \
     "branch=feature/ada-1" "pr=https://github.com/o/ada/pull/7"
@@ -37,6 +40,22 @@ apply() {  # <home> <args...>
   local home=$1
   shift
   FM_HOME="$home" "$APPLY" "$@" 2>&1
+}
+
+backlog() {  # <home> <tasks-axi args...>
+  local home=$1
+  shift
+  FM_HOME="$home" "$ROOT/bin/fm-tasks-axi.sh" "$@" >/dev/null 2>&1 || fail "backlog setup failed: $*"
+}
+
+# The note of backlog item <id> as the markdown backend persists it in
+# data/backlog.md: the item's indented lines, with the indent removed.
+item_note() {  # <home> <id>
+  awk -v id="$2" '
+    /^- \[/ { inside = (index($0, "- [ ] " id " - ") == 1 || index($0, "- [x] " id " - ") == 1); next }
+    /^## / { inside = 0; next }
+    inside && /^  / { print substr($0, 3) }
+  ' "$1/data/backlog.md"
 }
 
 meta_yolo() {  # <home> <id>
@@ -113,7 +132,7 @@ test_named_tasks_limit_the_apply() {
   rc=$?
   [ "$rc" -ne 0 ] || fail "a task of another project was accepted: $out"
   assert_equals off "$(meta_yolo "$home" other-1)" "another project's named task was changed"
-  assert_contains "$out" "other-1 is not a live ship task of ada" "the refusal did not name the task"
+  assert_contains "$out" "other-1 is not a live ship task or a queued ship item of ada" "the refusal did not name the task"
   out=$(apply "$home" ada ada-scout)
   rc=$?
   [ "$rc" -ne 0 ] || fail "a scout was accepted as a ship task: $out"
@@ -148,6 +167,82 @@ test_task_under_a_lifecycle_action_is_left_for_a_rerun() {
   pass "a task under a lifecycle action is left untouched and named for a rerun"
 }
 
+test_queued_ship_items_follow_the_project_posture() {
+  local home out rc
+  home=$(new_home queued-on '[no-mistakes +yolo]')
+  backlog "$home" add ada-3 "Ada step 3" --repo ada --kind ship \
+    --body "mode no-mistakes, yolo off; runs after ada-2 (blocked)."
+  backlog "$home" add ada-4 "Ada step 4" --repo ada --kind ship --body "Runs after ada-3."
+  backlog "$home" add ada-live "Ada live step" --repo ada --kind ship --body "mode no-mistakes, yolo off"
+  backlog "$home" start ada-live
+  backlog "$home" add other-q "Other step" --repo other --kind ship --body "mode no-mistakes, yolo off"
+  out=$(apply "$home" ada)
+  rc=$?
+  expect_code 0 "$rc" "applying the registered posture to queued items"
+  assert_equals "mode no-mistakes, yolo on; runs after ada-2 (blocked)." "$(item_note "$home" ada-3)" \
+    "a queued ada ship did not carry the project's +yolo into its later spawn"
+  assert_equals "Runs after ada-3.
+Delivery posture: yolo on (project registry)." "$(item_note "$home" ada-4)" \
+    "a queued note with no posture did not gain the registry posture"
+  assert_equals "mode no-mistakes, yolo off" "$(item_note "$home" ada-live)" "an in-flight item's note changed"
+  assert_equals "mode no-mistakes, yolo off" "$(item_note "$home" other-q)" "another project's queued item changed"
+  assert_contains "$out" "ada-3: queued note yolo off -> on" "the queued change was not reported"
+  assert_contains "$out" "ada-4: queued note yolo unrecorded -> on" "the added posture was not reported"
+  assert_contains "$out" "and 2 queued ship item(s)" "the summary miscounted the queued items"
+  assert_not_contains "$out" "ada-live" "an in-flight item was reported"
+  assert_not_contains "$out" "other-q" "another project's item was reported"
+
+  out=$(apply "$home" ada)
+  rc=$?
+  expect_code 0 "$rc" "a repeat apply to queued items"
+  assert_contains "$out" "ada-3: queued note yolo on (unchanged)" "a repeat apply rewrote a queued note"
+  assert_contains "$out" "ada-4: queued note yolo on (unchanged)" "a repeat apply grew the added posture"
+  pass "a project's queued ship items carry its registered posture, and no other item changes"
+}
+
+test_queued_plus_yolo_is_withdrawn() {
+  local home out rc
+  home=$(new_home queued-off '[no-mistakes]')
+  backlog "$home" add ada-3 "Ada step 3" --repo ada --kind ship --body "+yolo; yolo=on for the merge"
+  out=$(apply "$home" ada)
+  rc=$?
+  expect_code 0 "$rc" "withdrawing the posture from a queued item"
+  assert_equals "yolo off; yolo=off for the merge" "$(item_note "$home" ada-3)" \
+    "a queued note kept merge authority the captain withdrew"
+  assert_contains "$out" "ada-3: queued note yolo on -> off" "the withdrawal was not reported"
+  pass "a project switched off +yolo withdraws the posture from its queued ship notes"
+}
+
+test_named_ids_reach_only_those_queued_items() {
+  local home out rc
+  home=$(new_home queued-named '[no-mistakes +yolo]')
+  backlog "$home" add ada-3 "Ada step 3" --repo ada --kind ship --body "yolo off"
+  backlog "$home" add ada-4 "Ada step 4" --repo ada --kind ship --body "yolo off"
+  out=$(apply "$home" ada ada-3)
+  rc=$?
+  expect_code 0 "$rc" "applying to one named queued item"
+  assert_equals "yolo on" "$(item_note "$home" ada-3)" "the named queued item did not follow the posture"
+  assert_equals "yolo off" "$(item_note "$home" ada-4)" "a queued item left out of the list was changed"
+  assert_equals off "$(meta_yolo "$home" ada-1)" "a live task left out of the list was changed"
+  pass "named task ids limit the apply to those queued items"
+}
+
+test_unreadable_backlog_leaves_the_apply_incomplete() {
+  local home fakebin out rc
+  home=$(new_home backlog-unread '[no-mistakes +yolo]')
+  fakebin="$TMP_ROOT/backlog-unread-bin"
+  mkdir -p "$fakebin"
+  printf '#!/usr/bin/env bash\necho "backlog unavailable" >&2\nexit 1\n' > "$fakebin/tasks-axi"
+  chmod +x "$fakebin/tasks-axi"
+  out=$(PATH="$fakebin:$PATH" apply "$home" ada)
+  rc=$?
+  expect_code 1 "$rc" "an apply whose backlog could not be read"
+  assert_equals on "$(meta_yolo "$home" ada-1)" "the live tasks were not applied"
+  assert_contains "$out" "queued ship items of ada could not be read" "the unread backlog was not named"
+  assert_contains "$out" "incomplete:" "the run did not report itself incomplete"
+  pass "a backlog that cannot be read leaves the apply incomplete, after the live tasks"
+}
+
 test_usage() {
   local out rc
   out=$("$APPLY" 2>&1)
@@ -167,4 +262,8 @@ test_gerrit_project_never_gains_yolo
 test_unreadable_posture_changes_nothing
 test_named_tasks_limit_the_apply
 test_task_under_a_lifecycle_action_is_left_for_a_rerun
+test_queued_ship_items_follow_the_project_posture
+test_queued_plus_yolo_is_withdrawn
+test_named_ids_reach_only_those_queued_items
+test_unreadable_backlog_leaves_the_apply_incomplete
 test_usage

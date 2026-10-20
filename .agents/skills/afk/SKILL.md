@@ -98,7 +98,7 @@ Away authority never releases a captain hold, and it expires when the away recor
 `--allow-red` and `--allow-missing` remain attended-only and are refused while the away record exists.
 A merge under away authority must be synchronous; `fm-pr-merge.sh` refuses auto-merge and any GitHub queue state that cannot prove an immediate merge while the away record exists.
 The same gates bind whichever actor performs the action: on Pi the parked main's standing authority relocates to the supervision branch, which meets exactly these rules, and the spend cap recorded at entry is enforced by `fm-spawn.sh` for both actors while the away record exists.
-The cap counts only workers still working, so finished work waiting on a merge, cleanup, or decision never holds a slot; give `--spend` as the number of workers that may run at once, not as a count of task records.
+The cap counts only workers still working, so a task that finished, waits on a decision a human owes, or whose endpoint is proven gone never holds a slot, while a task whose state cannot be read still counts; give `--spend` as the number of workers that may run at once, not as a count of task records.
 The captain's away words are their explicit instruction given before leaving, recorded verbatim and acted on by the away session's judgment at the moment an event makes them relevant; the words cover nothing they do not say, are never applied by analogy, and die at archive.
 Destructive, irreversible, and security-sensitive actions are never pre-authorizable whatever the words say.
 
