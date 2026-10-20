@@ -1720,45 +1720,6 @@ test_away_spend_cap_holds_slots_for_workers_still_owing_work() {
   pass "the away spend cap keeps slots for workers still owing work and frees only stopped ones"
 }
 
-# A relaunch revives a worker. Relaunching one that still counts replaces a
-# worker already in the count, so it is exempt; relaunching one the cap reads
-# as stopped (here a proven-gone endpoint) adds spend, so it meets the cap like
-# a fresh spawn without its own stopped record counting twice.
-test_away_spend_cap_counts_a_relaunch_of_a_stopped_worker() {
-  local home root fakebin out status
-  make_away_cap_owing_fixtures
-  home="$TMP_ROOT/away-cap-owing-home"
-  root="$TMP_ROOT/away-cap-owing-root"
-  fakebin="$TMP_ROOT/away-cap-owing-fakebin"
-  mkdir -p "$home/stash"
-  mv "$home/state/"*.meta "$home/stash/"
-  mv "$home/stash/ship-gate.meta" "$home/stash/scout-gone.meta" "$home/state/"
-  FM_HOME="$home" "$ROOT/bin/fm-afk-contract.sh" enter --words "one worker at a time" --spend 1 >/dev/null 2>&1 ||
-    fail "away entry failed"
-
-  # Cap 1, held by ship-gate: the dead scout's relaunch is refused.
-  out=$(PATH="$fakebin:$PATH" FM_FAKE_RUNS="$home/runs" FM_HOME="$home" FM_ROOT_OVERRIDE="$root" \
-    "$ROOT/bin/fm-spawn.sh" scout-gone --relaunch 2>&1)
-  status=$?
-  [ "$status" -eq 1 ] || fail "a relaunch over a full cap exited $status, not 1: $out"
-  assert_contains "$out" "relaunch of stopped task scout-gone refused" "the refusal did not name the relaunch: $out"
-  assert_contains "$out" "caps concurrent workers at 1 and 1 ordinary worker(s) are still working" \
-    "the relaunched stopped record was counted as working: $out"
-
-  # A relaunch of the worker that holds the slot replaces it and is exempt.
-  out=$(PATH="$fakebin:$PATH" FM_FAKE_RUNS="$home/runs" FM_HOME="$home" FM_ROOT_OVERRIDE="$root" \
-    "$ROOT/bin/fm-spawn.sh" ship-gate --relaunch 2>&1)
-  assert_not_contains "$out" "caps concurrent workers" "a relaunch of a counted worker met the cap: $out"
-
-  # With a free slot the dead scout's relaunch is admitted.
-  FM_HOME="$home" "$ROOT/bin/fm-afk-contract.sh" enter --words "two workers at a time" --spend 2 >/dev/null 2>&1 ||
-    fail "away re-entry failed"
-  out=$(PATH="$fakebin:$PATH" FM_FAKE_RUNS="$home/runs" FM_HOME="$home" FM_ROOT_OVERRIDE="$root" \
-    "$ROOT/bin/fm-spawn.sh" scout-gone --relaunch 2>&1)
-  assert_not_contains "$out" "caps concurrent workers" "a relaunch with a free slot was refused: $out"
-  mv "$home/stash/"*.meta "$home/state/"
-  pass "a relaunch of a stopped worker meets the away spend cap, while a counted worker's relaunch is exempt"
-}
 
 test_branch_prompt_is_byte_stable_and_above_cache_floor
 test_outcome_store_is_append_only_with_cursor_reads
@@ -1795,5 +1756,4 @@ test_away_branch_spawn_requires_queued_dispatchable_work
 test_away_spend_cap_is_rechecked_under_the_task_set_lock
 test_away_spend_cap_counts_only_working_workers
 test_away_spend_cap_holds_slots_for_workers_still_owing_work
-test_away_spend_cap_counts_a_relaunch_of_a_stopped_worker
 test_quiet_record_never_caps_a_present_captains_spawn

@@ -1587,7 +1587,8 @@ spawn_task_stopped_spending() {  # <task-id>
 SPAWN_AWAY_STOPPED_IDS=
 SPAWN_AWAY_STOPPED_READ=0
 spawn_refuse_if_away_spend_cap() {
-  local cap live stopped meta task what stays=queued
+  local cap live stopped meta task
+  [ "$RELAUNCH" -ne 1 ] || return 0
   [ "$KIND" != secondmate ] || return 0
   [ -f "$STATE/.afk-contract" ] || return 0
   FM_STATE_OVERRIDE="$STATE" "$SCRIPT_DIR/fm-afk-contract.sh" validate >/dev/null 2>&1 || return 0
@@ -1615,18 +1616,8 @@ spawn_refuse_if_away_spend_cap() {
     live=$((live + 1))
   done
   SPAWN_AWAY_STOPPED_READ=1
-  what="spawn refused"
-  if [ "$RELAUNCH" -eq 1 ]; then
-    case "$SPAWN_AWAY_STOPPED_IDS" in
-    *" $ID "*)
-      what="relaunch of stopped task $ID refused"
-      stays=stopped
-      ;;
-    *) return 0 ;;
-    esac
-  fi
   if [ "$live" -ge "$cap" ]; then
-    echo "error: $what - the away-posture record caps concurrent workers at $cap and $live ordinary worker(s) are still working in this home ($stopped task(s) that finished, wait on a human decision, or lost their endpoint are not counted; a task whose state cannot be read counts); task $ID stays $stays for the captain's return or for a worker to finish (spend cap: bin/fm-afk-contract.sh)" >&2
+    echo "error: spawn refused - the away-posture record caps concurrent workers at $cap and $live ordinary worker(s) are still working in this home ($stopped task(s) that finished, wait on a human decision, or lost their endpoint are not counted; a task whose state cannot be read counts); task $ID stays queued for the captain's return or for a worker to finish (spend cap: bin/fm-afk-contract.sh)" >&2
     exit 1
   fi
 }
@@ -1638,12 +1629,13 @@ spawn_refuse_if_away_spend_cap() {
 # minus the tasks spawn_task_stopped_spending reads as stopped. A finished
 # worker keeps its record until cleanup, and a ship's cleanup waits on its
 # merge, so counting records instead let finished work hold every slot and
-# refuse independent queued work. A relaunch of a task that still counts
-# replaces a worker already counted and is exempt; a relaunch of a task read
-# as stopped revives spend that holds no slot, so it meets the cap like a
-# fresh spawn, its own stopped record not counted. A secondmate is a
-# persistent home rather than spend and is exempt. Checked before any endpoint, worktree, or record exists, so a refusal
-# costs nothing to unwind; rechecked after the task-set lock so two fresh
+# refuse independent queued work. A relaunch replaces a worker that already
+# counts, and a secondmate is a persistent home rather than spend, so both are
+# exempt. Known edge: a dead or missing endpoint frees its slot while every
+# relaunch stays exempt, so a dead backend can let fresh spawns plus later
+# relaunches of the original workers exceed the cap. Checked before any
+# endpoint, worktree, or record exists, so a refusal costs nothing to unwind;
+# rechecked after the task-set lock so two fresh
 # spawns cannot both publish from a stale count. The recheck reuses the first
 # check's current-state reads and recounts the records, so a record published
 # in between counts as working and the lock is not held across those reads.
