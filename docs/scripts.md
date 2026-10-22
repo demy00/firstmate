@@ -153,6 +153,7 @@ The shared no-mistakes gate lifecycle boundary is summarized in [architecture.md
 | `fm-project-yolo-apply.sh` | Carry a captain's change to a project's registered `+yolo` onto that project's live ship tasks and queued ship backlog notes in this home |
 | `fm-promote.sh`          | Promote a scout task in place to a protected ship task with an explicit delivery mode, write the ship instructions carrying that mode's definition of done, and supersede the task's brief so a later relaunch cannot revive stale scout delivery text |
 | `fm-teardown.sh`         | Fail-closed teardown: return landed ship worktrees, require completed scout deliverables, retire secondmate homes |
+| `fm-task-containers.sh`  | List or stop the Docker containers Docker records as started from a task's worktree, temp root, or no-mistakes run worktrees, never any other container |
 | `fm-harness.sh`          | Detect the running harness, resolve crew or secondmate harness, model, and effort, and validate the native-only `ultra` effort |
 | `fm-lock.sh`             | Per-home firstmate session lock                                                      |
 | `fm-x-lib.sh`            | Shared Relay config, relay, and reply-threading helpers                              |

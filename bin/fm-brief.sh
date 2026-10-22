@@ -538,6 +538,17 @@ IFS= read -r -d '' SHARED_INFRA_RULE <<'EOF' || true
    `blocked [at=<epoch>]: {what you need}` and stop; firstmate arranges it.
 EOF
 SHARED_INFRA_RULE=${SHARED_INFRA_RULE%$'\n'}
+# Docker keeps a stack running after the worker that started it exits, and
+# bin/fm-teardown.sh stops only the containers bin/fm-task-containers.sh can
+# prove are the task's, so the worker owns stopping its own stacks.
+IFS= read -r -d '' SHARED_DOCKER_RULE <<'EOF' || true
+8. Docker containers you start are yours to stop. Start them from compose files and bind mounts
+   inside this worktree, so cleanup can tell they are this task's, and stop every container you
+   started (`docker compose stop`, or `docker stop` for a lone container) before you report done.
+   Cleanup stops only containers it can prove came from this task; one started from anywhere else
+   keeps running and loading the machine after you finish.
+EOF
+SHARED_DOCKER_RULE=${SHARED_DOCKER_RULE%$'\n'}
 
 if [ "$KIND" = scout ]; then
 if "$SCRIPT_DIR/fm-bootstrap.sh" lavish-compatible >/dev/null 2>&1; then
@@ -579,6 +590,7 @@ $CREWMATE_PAUSE_INSTRUCTIONS
    A decision or blocker you opened stays open until a \`resolved\` line carrying its exact key lands; a later \`done:\` or \`working:\` line never closes it, even when the answer is what started that work.
    Firstmate's reply normally writes that closing line at answer time; when a blocker or wait clears WITHOUT a firstmate reply, append \`resolved [at=<epoch>]: {how it cleared}\` yourself (same \`[key=<slug>]\` if you opened it with one) as you resume.
 $SHARED_INFRA_RULE
+$SHARED_DOCKER_RULE
 
 $INBOX_SECTION
 
@@ -657,6 +669,7 @@ $ASK_USER_BLOCK
    A decision or blocker you opened stays open until a \`resolved\` line carrying its exact key lands; a later \`done:\` or \`working:\` line never closes it, even when the answer is what started that work.
    Firstmate's reply normally writes that closing line at answer time; when a blocker or wait clears WITHOUT a firstmate reply, append \`resolved [at=<epoch>]: {how it cleared}\` yourself (same \`[key=<slug>]\` if you opened it with one) as you resume.
 $SHARED_INFRA_RULE
+$SHARED_DOCKER_RULE
 
 $INBOX_SECTION
 

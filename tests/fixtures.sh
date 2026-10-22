@@ -7,8 +7,8 @@
 #
 # Generic reporters, temp roots, git fixtures, and fail/pass/fm_test_cleanup
 # come from tests/lib.sh, pulled in below. This file owns the shared fake
-# no-mistakes, gh, gh-axi, tmux, ssh, and spawn-world helpers. Wake-queue mocks
-# stay in wake-helpers.sh; secondmate-lifecycle mocks stay in
+# no-mistakes, gh, gh-axi, docker, tmux, ssh, and spawn-world helpers.
+# Wake-queue mocks stay in wake-helpers.sh; secondmate-lifecycle mocks stay in
 # secondmate-helpers.sh.
 #
 # FM_TEST_NO_MISTAKES_VERSION is the single default version for the shared fake
@@ -87,6 +87,68 @@ SH
 fm_test_fake_gh_axi() {
   local fakebin=$1
   fm_fake_version_tool "$fakebin" gh-axi FM_FAKE_GH_AXI_VERSION "$FM_TEST_GH_AXI_VERSION"
+}
+
+# --- fake docker ------------------------------------------------------------
+
+# fm_test_fake_docker <fakebin>
+# A docker engine backed by the directory FAKE_DOCKER_DIR. `ps -q --no-trunc`
+# lists the ids in $FAKE_DOCKER_DIR/running, `inspect` prints each id's stored
+# inspect line (written by fm_test_fake_docker_container) and, like Docker,
+# fails after printing the rest when an id has no stored line, and `stop` records
+# each id in $FAKE_DOCKER_DIR/stopped and echoes it back, failing for ids named
+# in FAKE_DOCKER_STOP_FAIL. FAKE_DOCKER_UP=0 refuses every call the way a
+# stopped daemon does. Point FM_TEST_DOCKER at "$fakebin/docker" to use it.
+fm_test_fake_docker() {
+  local fakebin=$1
+  cat > "$fakebin/docker" <<'SH'
+#!/usr/bin/env bash
+dir=$FAKE_DOCKER_DIR
+[ "${FAKE_DOCKER_UP:-1}" = 1 ] || { echo "Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?" >&2; exit 1; }
+case "$1" in
+ps) cat "$dir/running" 2>/dev/null ;;
+inspect)
+  shift
+  rc=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+    --format) shift 2 ;;
+    *)
+      if [ -f "$dir/$1" ]; then cat "$dir/$1"; else echo "Error: No such object: $1" >&2; rc=1; fi
+      shift
+      ;;
+    esac
+  done
+  exit "$rc"
+  ;;
+stop)
+  shift
+  rc=0
+  for id; do
+    case " ${FAKE_DOCKER_STOP_FAIL:-} " in
+    *" $id "*) echo "Error response from daemon: cannot stop container: $id" >&2; rc=1 ;;
+    *) printf '%s\n' "$id" >> "$dir/stopped"; printf '%s\n' "$id" ;;
+    esac
+  done
+  exit "$rc"
+  ;;
+esac
+SH
+  chmod +x "$fakebin/docker"
+}
+
+# fm_test_fake_docker_container <docker-dir> <id> <name> <started-at> <working-dir> <config-files> [bind-source...]
+# Adds a running container to a fm_test_fake_docker engine, stored as the line
+# bin/fm-task-containers.sh asks docker inspect for: unit-separator (\x1f)
+# separated id, name, start time, compose working dir, compose config files,
+# then one field per bind-mount source.
+fm_test_fake_docker_container() {
+  local dir=$1 id=$2 name=$3 started=$4 workdir=$5 configs=$6 line
+  shift 6
+  line="$id"$'\x1f'"/$name"$'\x1f'"$started"$'\x1f'"$workdir"$'\x1f'"$configs"
+  for src; do line+=$'\x1f'"$src"; done
+  printf '%s\n' "$line" > "$dir/$id"
+  printf '%s\n' "$id" >> "$dir/running"
 }
 
 # --- fake tmux / ssh / sleep ------------------------------------------------
