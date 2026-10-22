@@ -94,7 +94,8 @@ fm_test_fake_gh_axi() {
 # fm_test_fake_docker <fakebin>
 # A docker engine backed by the directory FAKE_DOCKER_DIR. `ps -q --no-trunc`
 # lists the ids in $FAKE_DOCKER_DIR/running, `inspect` prints each id's stored
-# inspect line (written by fm_test_fake_docker_container), and `stop` records
+# inspect line (written by fm_test_fake_docker_container) and, like Docker,
+# fails after printing the rest when an id has no stored line, and `stop` records
 # each id in $FAKE_DOCKER_DIR/stopped and echoes it back, failing for ids named
 # in FAKE_DOCKER_STOP_FAIL. FAKE_DOCKER_UP=0 refuses every call the way a
 # stopped daemon does. Point FM_TEST_DOCKER at "$fakebin/docker" to use it.
@@ -108,9 +109,17 @@ case "$1" in
 ps) cat "$dir/running" 2>/dev/null ;;
 inspect)
   shift
+  rc=0
   while [ $# -gt 0 ]; do
-    case "$1" in --format) shift 2 ;; *) cat "$dir/$1"; shift ;; esac
+    case "$1" in
+    --format) shift 2 ;;
+    *)
+      if [ -f "$dir/$1" ]; then cat "$dir/$1"; else echo "Error: No such object: $1" >&2; rc=1; fi
+      shift
+      ;;
+    esac
   done
+  exit "$rc"
   ;;
 stop)
   shift

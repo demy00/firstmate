@@ -161,14 +161,15 @@ IDS=$(fm_run_timed "$DOCKER_QUERY_TIMEOUT" "$DOCKER" ps -q --no-trunc 2>"$ERR") 
 FORMAT='{{.Id}}{{"\x1f"}}{{.Name}}{{"\x1f"}}{{.State.StartedAt}}{{"\x1f"}}{{with index .Config.Labels "com.docker.compose.project.working_dir"}}{{.}}{{end}}{{"\x1f"}}{{with index .Config.Labels "com.docker.compose.project.config_files"}}{{.}}{{end}}{{range .Mounts}}{{if eq .Type "bind"}}{{"\x1f"}}{{.Source}}{{end}}{{end}}'
 # shellcheck disable=SC2086 # Container ids are hex words, one per line.
 INSPECT=$(fm_run_timed "$DOCKER_QUERY_TIMEOUT" "$DOCKER" inspect --format "$FORMAT" $IDS 2>"$ERR") \
-  || docker_unreachable "$(cat "$ERR")"
+  || [ -n "$INSPECT" ] || docker_unreachable "$(cat "$ERR")"
 
-# Branch of a no-mistakes run, cached per run id; empty when it cannot be read.
-NM_RUN_IDS=() NM_RUN_BRANCHES=()
+# Sets NM_BRANCH to the branch of a no-mistakes run, cached per run id; empty
+# when it cannot be read.
+NM_RUN_IDS=() NM_RUN_BRANCHES=() NM_BRANCH=
 nm_run_branch() {  # <run-id>
   local run=$1 i out branch=
   for i in "${!NM_RUN_IDS[@]}"; do
-    [ "${NM_RUN_IDS[$i]}" = "$run" ] && { printf '%s' "${NM_RUN_BRANCHES[$i]}"; return 0; }
+    [ "${NM_RUN_IDS[$i]}" = "$run" ] && { NM_BRANCH=${NM_RUN_BRANCHES[$i]}; return 0; }
   done
   if command -v no-mistakes >/dev/null 2>&1 \
      && out=$(cd "$WT" && fm_run_timed "$NM_LOOKUP_TIMEOUT" no-mistakes axi status --run "$run" 2>/dev/null) \
@@ -176,13 +177,16 @@ nm_run_branch() {  # <run-id>
     branch=$(fm_nm_strip_quotes "$(fm_nm_field "$out" branch)")
   fi
   NM_RUN_IDS+=("$run"); NM_RUN_BRANCHES+=("$branch")
-  printf '%s' "$branch"
+  NM_BRANCH=$branch
 }
 
-# Why <path> proves ownership, for a container started at <started>; empty
-# output and a non-zero status when it proves nothing.
+# Sets REASON to why <path> proves ownership, for a container started at
+# <started>; a non-zero status when it proves nothing. Never call it in a
+# subshell, or the run branch cache is lost.
+REASON=
 path_reason() {  # <path> <started>
   local path=$1 started=$2 i root rest run
+  REASON=
   [ -n "$path" ] || return 1
   for i in "${!ROOT_PATHS[@]}"; do
     root=${ROOT_PATHS[$i]}
@@ -190,7 +194,7 @@ path_reason() {  # <path> <started>
     if [ "${ROOT_BOUNDED[$i]}" = 1 ] && [ -n "$SINCE" ] && [[ "${started:0:19}" < "$SINCE" ]]; then
       continue
     fi
-    printf 'is in %s' "${ROOT_DESCS[$i]}"
+    REASON="is in ${ROOT_DESCS[$i]}"
     return 0
   done
   [ -n "$NM_WORKTREES" ] || return 1
@@ -198,8 +202,9 @@ path_reason() {  # <path> <started>
   rest=${path#"$NM_WORKTREES"/}
   run=${rest%%/*}
   case "$run" in *[!0-9A-Za-z]*) return 1 ;; esac
-  [ "$(nm_run_branch "$run")" = "$BRANCH" ] || return 1
-  printf "is in no-mistakes run %s's worktree for %s" "$run" "$BRANCH"
+  nm_run_branch "$run"
+  [ "$NM_BRANCH" = "$BRANCH" ] || return 1
+  REASON="is in no-mistakes run $run's worktree for $BRANCH"
 }
 
 # Each proved container as "<id>\t<name>\t<evidence>".
@@ -208,22 +213,22 @@ while IFS=$'\x1f' read -r -a fields; do
   [ "${#fields[@]}" -ge 3 ] || continue
   id=${fields[0]} name=${fields[1]#/} started=${fields[2]}
   evidence=
-  if [ -n "${fields[3]:-}" ] && reason=$(path_reason "${fields[3]}" "$started"); then
-    evidence="compose working dir ${fields[3]} $reason"
+  if [ -n "${fields[3]:-}" ] && path_reason "${fields[3]}" "$started"; then
+    evidence="compose working dir ${fields[3]} $REASON"
   fi
   if [ -z "$evidence" ] && [ -n "${fields[4]:-}" ]; then
     IFS=, read -r -a configs <<< "${fields[4]}"
     for config in "${configs[@]}"; do
-      if reason=$(path_reason "$config" "$started"); then
-        evidence="compose config file $config $reason"
+      if path_reason "$config" "$started"; then
+        evidence="compose config file $config $REASON"
         break
       fi
     done
   fi
   if [ -z "$evidence" ]; then
     for src in "${fields[@]:5}"; do
-      if reason=$(path_reason "$src" "$started"); then
-        evidence="bind mount $src $reason"
+      if path_reason "$src" "$started"; then
+        evidence="bind mount $src $REASON"
         break
       fi
     done
