@@ -58,6 +58,12 @@ export FM_TEST_SEAM=1
 # under the marker. A case that verifies the refusal sets FM_TASK_ID itself.
 unset FM_TASK_ID
 
+# Keep every suite off the real Docker engine. Every teardown runs
+# bin/fm-task-containers.sh, which reads containers through this seam, and an
+# absent command reads as Docker not installed. A Docker case points it at
+# tests/fixtures.sh's fm_test_fake_docker.
+export FM_TEST_DOCKER=fm-test-docker-absent
+
 # Clear the tasks-axi env overrides. An operator shell exports TASKS_AXI_FILE
 # (and may export TASKS_AXI_BACKEND) at its real home's backlog, and tasks-axi
 # resolves that env AHEAD of the .tasks.toml a fixture copies, so a suite that

@@ -1326,6 +1326,43 @@ test_crewmate_scaffolds_forbid_pool_administration() {
   pass "fm-brief.sh: every crewmate scaffold forbids administering the shared worktree pool"
 }
 
+# Docker keeps a worker's stack running after the worker exits, and cleanup
+# can stop only the containers Docker records as started from the task's own
+# paths. Every crewmate scaffold tells the worker both halves, from one shared
+# string; a secondmate starts no stacks and its charter does not carry it.
+test_crewmate_scaffolds_tell_workers_to_stop_their_docker_stacks() {
+  local home brief mode ship_rule scout_rule
+  home="$TMP_ROOT/docker-rule-home"
+  mkdir -p "$home/data"
+
+  for mode in no-mistakes direct-PR local-only; do
+    FM_HOME="$home" "$ROOT/bin/fm-brief.sh" "brief-docker-$mode" alpha --mode "$mode" >/dev/null 2>&1 \
+      || fail "fm-brief.sh --mode $mode exited non-zero"
+    brief="$home/data/brief-docker-$mode/brief.md"
+    assert_grep "Docker containers you start are yours to stop" "$brief" \
+      "$mode ship brief did not make the worker own its Docker stacks"
+    assert_grep "inside this worktree, so cleanup can tell" "$brief" \
+      "$mode ship brief did not tell the worker where to start stacks from"
+    assert_grep "before you report done" "$brief" \
+      "$mode ship brief did not tell the worker to stop its stacks before done"
+  done
+  FM_HOME="$home" "$ROOT/bin/fm-brief.sh" brief-docker-scout alpha --scout >/dev/null 2>&1 \
+    || fail "fm-brief.sh --scout exited non-zero"
+  brief="$home/data/brief-docker-scout/brief.md"
+  ship_rule=$(awk '/^8\. Docker containers/,/^$/' "$home/data/brief-docker-no-mistakes/brief.md")
+  scout_rule=$(awk '/^8\. Docker containers/,/^$/' "$brief")
+  [ -n "$scout_rule" ] || fail "scout brief emitted no Docker rule"
+  [ "$ship_rule" = "$scout_rule" ] || fail "ship and scout Docker rules have drifted apart"
+
+  FM_SECONDMATE_CHARTER='Supervise the alpha domain.' \
+    FM_HOME="$home" "$ROOT/bin/fm-brief.sh" brief-docker-mate --secondmate alpha >/dev/null 2>&1 \
+    || fail "fm-brief.sh --secondmate exited non-zero"
+  assert_no_grep "Docker containers you start" "$home/data/brief-docker-mate/brief.md" \
+    "secondmate charter must not carry the crewmate Docker rule"
+
+  pass "fm-brief.sh: every crewmate scaffold tells the worker to start stacks from its worktree and stop them before done"
+}
+
 test_script_parses
 test_no_heredoc_in_command_substitution
 test_help_includes_entire_header
@@ -1360,3 +1397,4 @@ test_branch_prefix_is_refused_where_it_does_not_apply
 test_branch_prefix_value_is_validated
 test_branch_prefix_command_is_shell_safe
 test_crewmate_scaffolds_forbid_pool_administration
+test_crewmate_scaffolds_tell_workers_to_stop_their_docker_stacks

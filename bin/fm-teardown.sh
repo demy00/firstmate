@@ -291,6 +291,17 @@
 #     root still exists, so the account's healthy LaunchAgent worker and every
 #     live remote secondmate worker are out of scope. Best effort: a sweep
 #     failure never blocks this teardown.
+#   Fix 4 - stop the task's Docker containers. Docker keeps a stack a worker
+#     started running after the worker exits and its worktree is returned, so
+#     finished tasks' demo, end-to-end, and identity-provider stacks would keep
+#     loading the machine for days.
+#     bin/fm-task-containers.sh owns which containers count as this task's
+#     and stops only those (never rm, never volume removal). Teardown passes
+#     the worktree only while this task owns its slot, bounded by the slot
+#     claim's time for a pool slot so an earlier holder's leftover is not
+#     counted, and always the task temp root. Best effort: Docker that is
+#     missing or down, or a container that will not stop, is reported and
+#     never blocks this teardown.
 set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -3568,6 +3579,29 @@ fi
 # Fix 3 (see script header): sweep remote job workers abandoned by an already
 # pruned code root. Best effort - a sweep failure never blocks this teardown.
 "$SCRIPT_DIR/fm-remote-job-reap-orphans.sh" >&2 || true
+
+# Fix 4 (see script header): stop the Docker containers this task can be proved
+# to own, before the worktree that proves it is returned. Best effort.
+stop_task_containers() {
+  local args=(--task "$ID") marker since
+  if teardown_owns_worktree && [ -d "$WT" ]; then
+    if ! fm_treehouse_pool_slot "$PROJ" "$WT"; then
+      args+=(--worktree "$WT")
+    else
+      fm_treehouse_slot_owner_state "$WT" "$ID"
+      if [ "$FM_TREEHOUSE_SLOT_OWNER" = mine ] \
+         && marker=$(fm_treehouse_slot_owner_marker "$WT") \
+         && since=$(date -u -r "$marker" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null); then
+        args+=(--worktree "$WT" --worktree-since "$since")
+      else
+        echo "teardown: $ID's pool slot has no readable owner claim, so Docker containers started from its worktree cannot be proved to be $ID's and are left running" >&2
+      fi
+    fi
+  fi
+  [ -z "$TASK_TMP" ] || args+=(--tasktmp "$TASK_TMP")
+  "$SCRIPT_DIR/fm-task-containers.sh" stop "${args[@]}" 2>&1 | sed 's/^/teardown: /' >&2 || true
+}
+[ "$KIND" = secondmate ] || stop_task_containers
 
 # Best-effort: drop the local task branch so the shared repo does not accumulate refs.
 if [ "$BACKEND" = orca ] && [ "$KIND" != secondmate ]; then

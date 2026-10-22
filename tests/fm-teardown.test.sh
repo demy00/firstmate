@@ -55,8 +55,8 @@
 #   (y) persistent lock (never clears, not provably stale)    -> REFUSE loudly
 set -u
 
-# shellcheck source=tests/lib.sh disable=SC1091
-. "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+# shellcheck source=tests/fixtures.sh disable=SC1091
+. "$(dirname "${BASH_SOURCE[0]}")/fixtures.sh"
 fm_git_identity fmtest fmtest@example.invalid
 
 TEARDOWN="$ROOT/bin/fm-teardown.sh"
@@ -3738,6 +3738,63 @@ test_leaked_tasktmp_process_is_reaped() {
   pass "a leaked descendant process rooted under the task's per-task tasktmp is reaped by teardown too"
 }
 
+# A Docker stack the task started from its own worktree or temp root stops with
+# the task, before the worktree goes back to the pool, while a container the
+# task cannot be proved to own keeps running.
+test_task_docker_containers_are_stopped_by_teardown() {
+  local case_dir rc
+  case_dir=$(make_case docker-stop)
+  write_meta "$case_dir" no-mistakes ship
+  printf '%s\n' "tasktmp=$case_dir/tasktmp" >> "$case_dir/state/task-x1.meta"
+  mkdir -p "$case_dir/tasktmp" "$case_dir/docker"
+  land_shippable_commit "$case_dir"
+  fm_test_fake_docker "$case_dir/fakebin"
+  : > "$case_dir/docker/running"
+  fm_test_fake_docker_container "$case_dir/docker" c0ffee01 task_web 2026-10-15T10:00:00.1Z \
+    "$case_dir/wt" "$case_dir/wt/docker-compose.yml"
+  fm_test_fake_docker_container "$case_dir/docker" c0ffee02 task_pg 2026-10-15T10:00:00.1Z '' '' \
+    "$case_dir/tasktmp/pgdata"
+  fm_test_fake_docker_container "$case_dir/docker" c0ffee03 captain_db 2026-10-15T10:00:00.1Z \
+    /Users/captain/stack /Users/captain/stack/compose.yml
+
+  rc=0
+  FM_TEST_DOCKER="$case_dir/fakebin/docker" FAKE_DOCKER_DIR="$case_dir/docker" \
+    run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+
+  expect_code 0 "$rc" "docker-stop: teardown should succeed"
+  [ "$(sort "$case_dir/docker/stopped" 2>/dev/null | tr '\n' ' ')" = "c0ffee01 c0ffee02 " ] \
+    || fail "docker-stop: expected only the task's two containers stopped, got: $(tr '\n' ' ' < "$case_dir/docker/stopped" 2>/dev/null)"
+  assert_grep "teardown: stopped Docker container task_web (c0ffee01) for task-x1: compose working dir $case_dir/wt is in the task worktree" \
+    "$case_dir/stderr" "docker-stop: teardown did not report the worktree stack it stopped"
+  assert_grep "teardown: stopped Docker container task_pg (c0ffee02) for task-x1: bind mount $case_dir/tasktmp/pgdata is in the task temp dir" \
+    "$case_dir/stderr" "docker-stop: teardown did not report the temp-root container it stopped"
+  ! grep -q captain_db "$case_dir/stderr" || fail "docker-stop: teardown named a container it does not own"
+  [ ! -e "$case_dir/state/task-x1.meta" ] || fail "docker-stop: teardown left the task record behind"
+  pass "teardown stops the Docker containers started from the task's worktree and temp root, and only those"
+}
+
+# Docker being down never blocks cleanup: teardown says so and finishes.
+test_teardown_proceeds_when_docker_is_unreachable() {
+  local case_dir rc
+  case_dir=$(make_case docker-down)
+  write_meta "$case_dir" no-mistakes ship
+  mkdir -p "$case_dir/docker"
+  land_shippable_commit "$case_dir"
+  fm_test_fake_docker "$case_dir/fakebin"
+
+  rc=0
+  FM_TEST_DOCKER="$case_dir/fakebin/docker" FAKE_DOCKER_DIR="$case_dir/docker" FAKE_DOCKER_UP=0 \
+    run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+
+  expect_code 0 "$rc" "docker-down: teardown should succeed with Docker unreachable"
+  assert_grep "teardown: Docker is not reachable" "$case_dir/stderr" \
+    "docker-down: teardown did not say Docker was unreachable"
+  assert_grep "task-x1's containers were not checked" "$case_dir/stderr" \
+    "docker-down: teardown did not say the task's containers went unchecked"
+  [ ! -e "$case_dir/state/task-x1.meta" ] || fail "docker-down: teardown left the task record behind"
+  pass "teardown finishes and reports it when Docker is unreachable"
+}
+
 test_lsof_absent_reaps_tmux_process_group() {
   local case_dir rc pid path_without_lsof
   case_dir=$(make_case lsof-absent-process-group-reap)
@@ -4338,6 +4395,8 @@ test_another_branchs_parked_run_is_never_touched
 test_own_autonomous_run_is_left_alone
 test_leaked_worktree_process_is_reaped
 test_leaked_tasktmp_process_is_reaped
+test_task_docker_containers_are_stopped_by_teardown
+test_teardown_proceeds_when_docker_is_unreachable
 test_lsof_absent_reaps_tmux_process_group
 test_lsof_error_refuses_before_removal
 test_reused_pid_identity_is_not_force_killed

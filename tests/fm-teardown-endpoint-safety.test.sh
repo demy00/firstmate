@@ -2,11 +2,13 @@
 # Regression tests for cleanup endpoint and worktree-slot identity validation.
 set -u
 
-# shellcheck source=tests/lib.sh
-. "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+# shellcheck source=tests/fixtures.sh
+. "$(dirname "${BASH_SOURCE[0]}")/fixtures.sh"
 
 TEARDOWN="$ROOT/bin/fm-teardown.sh"
 TMP_ROOT=$(fm_test_tmproot fm-teardown-endpoint-safety)
+# Every isolated server starts with -f /dev/null: an operator's tmux.conf with
+# automatic-rename would rename the windows these cases look up by name.
 REAL_TMUX=$(command -v tmux || true)
 
 make_case() {  # <name>
@@ -376,7 +378,7 @@ test_isolated_tmux_invalid_and_valid_cleanup() {
   dir=$(make_case isolated-real)
   socket=dedicated.sock
   socket_id="$dir/$socket"
-  ( cd "$dir" && env -u TMUX -u TMUX_PANE "$REAL_TMUX" -S "$socket" new-session -d -s "$session" -n "$control" )
+  ( cd "$dir" && env -u TMUX -u TMUX_PANE "$REAL_TMUX" -S "$socket" -f /dev/null new-session -d -s "$session" -n "$control" )
   ( cd "$dir" && env -u TMUX -u TMUX_PANE "$REAL_TMUX" -S "$socket" new-window -d -t "$session:" -n "$target" )
   printf '%s\n' "$socket_id" > "$dir/socket.identity"
   cat > "$dir/fakebin/tmux" <<SH
@@ -1054,6 +1056,59 @@ test_own_and_absent_slot_claims_still_tear_down() {
   pass "fm-teardown: a task's own slot claim, and an unclaimed slot, both still tear down"
 }
 
+# A pool slot is reused, so a stack an earlier holder left running from the
+# slot's checkout is not this task's: teardown counts a worktree container only
+# when it started at or after the task's own slot claim, and counts none at all
+# from a slot another task has since claimed.
+test_pool_slot_containers_are_bounded_by_the_slot_claim() {
+  local dir id=docker-task claim_epoch=1792058400 before after slot
+  dir=$(make_case slot-docker-own)
+  mark_case_as_treehouse_pool "$dir"
+  slot="$dir/pool/1/project"
+  fm_write_meta "$dir/home/state/$id.meta" \
+    "window=firstmate:fm-$id" "endpoint_task_id=$id" \
+    "worktree=$dir/worktree" "project=$dir/project" "kind=scout"
+  claim_pool_slot "$dir" "$id"
+  fm_touch_epoch "$claim_epoch" "$dir/pool/1/.fm-slot-owner"
+  fm_touch_epoch $((claim_epoch - 60)) "$dir/before"
+  fm_touch_epoch $((claim_epoch + 60)) "$dir/after"
+  before=$(date -u -r "$dir/before" +%Y-%m-%dT%H:%M:%S.5Z)
+  after=$(date -u -r "$dir/after" +%Y-%m-%dT%H:%M:%S.5Z)
+  mkdir -p "$dir/docker"
+  : > "$dir/docker/running"
+  fm_test_fake_docker "$dir/fakebin"
+  fm_test_fake_docker_container "$dir/docker" e1 earlier_stack "$before" "$slot" "$slot/compose.yml"
+  fm_test_fake_docker_container "$dir/docker" e2 own_stack "$after" "$slot" "$slot/compose.yml"
+
+  FM_TEST_DOCKER="$dir/fakebin/docker" FAKE_DOCKER_DIR="$dir/docker" \
+    run_case "$dir" "$id" > "$dir/stdout" 2> "$dir/stderr" \
+    || fail "teardown of a task with its own slot stack failed: $(cat "$dir/stderr")"
+  [ "$(cat "$dir/docker/stopped" 2>/dev/null)" = e2 ] \
+    || fail "expected only the stack started after the slot claim stopped, got: $(tr '\n' ' ' < "$dir/docker/stopped" 2>/dev/null)"
+  assert_contains "$(cat "$dir/stderr")" "teardown: stopped Docker container own_stack (e2) for $id" \
+    "teardown should report the stack it stopped"
+
+  dir=$(make_case slot-docker-reassigned)
+  mark_case_as_treehouse_pool "$dir"
+  slot="$dir/pool/1/project"
+  fm_write_meta "$dir/home/state/$id.meta" \
+    "window=firstmate:fm-$id" "endpoint_task_id=$id" \
+    "worktree=$dir/worktree" "project=$dir/project" "kind=scout"
+  claim_pool_slot "$dir" other-task "$dir/other-home"
+  mkdir -p "$dir/docker"
+  : > "$dir/docker/running"
+  fm_test_fake_docker "$dir/fakebin"
+  fm_test_fake_docker_container "$dir/docker" r1 claimant_stack 2099-01-01T00:00:00.0Z "$slot" "$slot/compose.yml"
+
+  FM_TEST_DOCKER="$dir/fakebin/docker" FAKE_DOCKER_DIR="$dir/docker" \
+    run_case "$dir" "$id" > "$dir/stdout" 2> "$dir/stderr" \
+    || fail "teardown of a task whose slot was reassigned failed: $(cat "$dir/stderr")"
+  [ ! -s "$dir/docker/stopped" ] \
+    || fail "teardown stopped a stack in a slot another task claimed: $(cat "$dir/docker/stopped")"
+
+  pass "fm-teardown: worktree containers count only from the task's own slot claim onward"
+}
+
 # The tmux shim used by the endpoint-close tests below: every subcommand
 # reaches the real isolated server, so presence is always read from real tmux.
 # When FM_TEST_BLOCK_KILL is set, `kill-window` alone fails without forwarding,
@@ -1105,7 +1160,7 @@ test_failed_endpoint_close_refuses_before_removing_the_record() {
   [ -n "$REAL_TMUX" ] || { echo "skip - tmux not installed"; return 0; }
   dir=$(make_case close-failure)
   socket=dedicated.sock
-  ( cd "$dir" && env -u TMUX -u TMUX_PANE "$REAL_TMUX" -S "$socket" new-session -d -s "$session" -n control )
+  ( cd "$dir" && env -u TMUX -u TMUX_PANE "$REAL_TMUX" -S "$socket" -f /dev/null new-session -d -s "$session" -n control )
   ( cd "$dir" && env -u TMUX -u TMUX_PANE "$REAL_TMUX" -S "$socket" new-window -d -t "=$session:" -n "fm-$id" )
   write_close_failing_tmux_shim "$dir" "$socket" "$REAL_TMUX"
   isolated_tmux_window_exists "$dir" "$socket" "$session" "fm-$id" \
@@ -1165,7 +1220,7 @@ test_forced_teardown_continues_past_a_close_it_could_not_make() {
   [ -n "$REAL_TMUX" ] || { echo "skip - tmux not installed"; return 0; }
   dir=$(make_case forced-close-failure)
   socket=dedicated.sock
-  ( cd "$dir" && env -u TMUX -u TMUX_PANE "$REAL_TMUX" -S "$socket" new-session -d -s "$session" -n control )
+  ( cd "$dir" && env -u TMUX -u TMUX_PANE "$REAL_TMUX" -S "$socket" -f /dev/null new-session -d -s "$session" -n control )
   ( cd "$dir" && env -u TMUX -u TMUX_PANE "$REAL_TMUX" -S "$socket" new-window -d -t "=$session:" -n "fm-$id" )
   write_close_failing_tmux_shim "$dir" "$socket" "$REAL_TMUX"
   write_endpoint_close_meta "$dir" "$id" "$session:fm-$id"
@@ -1216,7 +1271,7 @@ test_unreadable_close_read_refuses_while_a_definitive_absence_completes() {
   # all. Nothing here shows the window absent, so treating it as closed would
   # strand exactly the endpoint the refusal exists to keep named.
   dir=$(make_case unreadable-close-read)
-  ( cd "$dir" && env -u TMUX -u TMUX_PANE "$REAL_TMUX" -S "$socket" new-session -d -s "$session" -n control )
+  ( cd "$dir" && env -u TMUX -u TMUX_PANE "$REAL_TMUX" -S "$socket" -f /dev/null new-session -d -s "$session" -n control )
   ( cd "$dir" && env -u TMUX -u TMUX_PANE "$REAL_TMUX" -S "$socket" new-window -d -t "=$session:" -n "fm-$id" )
   write_close_failing_tmux_shim "$dir" "$socket" "$REAL_TMUX"
   write_endpoint_close_meta "$dir" "$id" "$session:fm-$id"
@@ -1243,7 +1298,7 @@ test_unreadable_close_read_refuses_while_a_definitive_absence_completes() {
   # or its whole server, is absent is proof the window is gone, so an endpoint
   # that outlived its session is still ordinary silent cleanup.
   dir=$(make_case missing-session-close-read)
-  ( cd "$dir" && env -u TMUX -u TMUX_PANE "$REAL_TMUX" -S "$socket" new-session -d -s survivor -n control )
+  ( cd "$dir" && env -u TMUX -u TMUX_PANE "$REAL_TMUX" -S "$socket" -f /dev/null new-session -d -s survivor -n control )
   write_close_failing_tmux_shim "$dir" "$socket" "$REAL_TMUX"
   write_endpoint_close_meta "$dir" "$id" "gone session:fm-$id"
   env -u TMUX -u TMUX_PANE FM_TEST_BLOCK_KILL=1 \
@@ -1286,7 +1341,7 @@ test_forced_secondmate_child_close_failure_still_refuses() {
   mate="$dir/mate"
   mkdir -p "$mate/state" "$mate/data" "$mate/config"
   printf '%s' "$parent" > "$mate/.fm-secondmate-home"
-  ( cd "$dir" && env -u TMUX -u TMUX_PANE "$REAL_TMUX" -S "$socket" new-session -d -s "$session" -n control )
+  ( cd "$dir" && env -u TMUX -u TMUX_PANE "$REAL_TMUX" -S "$socket" -f /dev/null new-session -d -s "$session" -n control )
   ( cd "$dir" && env -u TMUX -u TMUX_PANE "$REAL_TMUX" -S "$socket" new-window -d -t "=$session:" -n "fm-$child" )
   write_close_failing_tmux_shim "$dir" "$socket" "$REAL_TMUX"
   fm_write_meta "$dir/home/state/$parent.meta" \
@@ -1383,7 +1438,7 @@ test_already_gone_endpoint_still_completes_without_a_refusal() {
   [ -n "$REAL_TMUX" ] || { echo "skip - tmux not installed"; return 0; }
   dir=$(make_case already-gone)
   socket=dedicated.sock
-  ( cd "$dir" && env -u TMUX -u TMUX_PANE "$REAL_TMUX" -S "$socket" new-session -d -s "$session" -n control )
+  ( cd "$dir" && env -u TMUX -u TMUX_PANE "$REAL_TMUX" -S "$socket" -f /dev/null new-session -d -s "$session" -n control )
   write_close_failing_tmux_shim "$dir" "$socket" "$REAL_TMUX"
   # The whole point of this case: the recorded window has already exited, so
   # its close cannot succeed and must still be the ordinary silent cleanup.
@@ -1442,6 +1497,7 @@ test_sole_slot_record_still_tears_down
 test_reassigned_pool_slot_finishes_own_cleanup_without_touching_the_slot
 test_stale_record_on_claimed_slot_retires_then_claimant_tears_down
 test_own_and_absent_slot_claims_still_tear_down
+test_pool_slot_containers_are_bounded_by_the_slot_claim
 test_recorded_endpoint_that_changed_directory_still_tears_down
 test_project_lock_anchors_at_the_local_root_across_home_layouts
 test_remote_seeded_home_returns_its_uncontested_slot
