@@ -1,0 +1,43 @@
+$ # Simulated worker stack: compose project 'fmtce2e-task' in the task worktree
+$ docker compose -p fmtce2e-task -f $WT/compose.yaml up -d
+ Container fmtce2e-task-db-1 Starting 
+ Container fmtce2e-task-db-1 Started 
+ Container fmtce2e-task-web-1 Started 
+$ # Plain docker run with a bind mount from the task temp root
+$ docker run -d --name fmtce2e-tmpbind -v $TT:/data busybox:1.36 sleep 3600
+started
+$ # Unrelated stacks that must NOT be touched: compose outside the task, named-volume-only run
+ Container fmtce2e-other-other-1 Started 
+started fmtce2e-namedvol
+
+$ docker ps --filter name=fmtce2e --format '{{.Names}} {{.Status}}'
+fmtce2e-namedvol Up Less than a second
+fmtce2e-other-other-1 Up Less than a second
+fmtce2e-task-db-1 Up Less than a second
+fmtce2e-task-web-1 Up Less than a second
+fmtce2e-tmpbind Up Less than a second
+
+$ bin/fm-task-containers.sh list --task e2e1 --worktree $WT --tasktmp $TT
+would stop Docker container fmtce2e-tmpbind (877611fd9ba9) for e2e1: bind mount $R/tasktmp is in the task temp dir
+would stop Docker container fmtce2e-task-web-1 (ae05107e1584) for e2e1: compose working dir $R/worktree is in the task worktree
+would stop Docker container fmtce2e-task-db-1 (1ec1065b02c5) for e2e1: compose working dir $R/worktree is in the task worktree
+exit=0
+
+$ bin/fm-task-containers.sh stop --task e2e1 --worktree $WT --tasktmp $TT
+stopped Docker container fmtce2e-tmpbind (877611fd9ba9) for e2e1: bind mount $R/tasktmp is in the task temp dir
+stopped Docker container fmtce2e-task-web-1 (ae05107e1584) for e2e1: compose working dir $R/worktree is in the task worktree
+stopped Docker container fmtce2e-task-db-1 (1ec1065b02c5) for e2e1: compose working dir $R/worktree is in the task worktree
+exit=0
+
+$ docker ps -a --filter name=fmtce2e --format '{{.Names}} {{.State}}'
+fmtce2e-db-1 exited
+fmtce2e-namedvol running
+fmtce2e-other-other-1 running
+fmtce2e-task-db-1 exited
+fmtce2e-task-web-1 exited
+fmtce2e-tmpbind exited
+fmtce2e-tmpmount exited
+fmtce2e-unrelated exited
+
+$ # second stop is a no-op
+exit=0
