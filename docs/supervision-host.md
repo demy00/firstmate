@@ -179,7 +179,7 @@ The host counts the wake handled only when all three hold:
 
 ### Where a handled wake's outcome goes
 
-Away, a handled wake reaches main only when its turn reported news with `--tell-now true` (see [Away](#away)); a failed away turn's handback carries the same lines.
+Away, a handled wake reaches main only when its turn reported news with `--tell-now true` (see [Away](#away)); a failed away turn's handback carries the same lines, or names those store rows and the `bin/fm-branch-outcome.sh lookup` command when they cannot be read back.
 Every captain outcome, told or not, waits in the outcome store, and after the return the drain's `BRANCH OUTCOMES` section presents them; the return brief (`bin/fm-afk-return.sh`) counts them and points there.
 Attended, see [Captain outcomes](#captain-outcomes).
 

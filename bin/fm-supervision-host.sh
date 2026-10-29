@@ -81,7 +81,8 @@
 # happens; bin/fm-branch-report.sh) exits with one "supervision-host: tell:"
 # line naming those store rows plus one "supervision-host: outcome" line each,
 # without the close it handled, so main posts them while the captain stays
-# away; a failed away turn's handback carries the same lines. A handled
+# away; a failed away turn's handback carries the same lines, or names those
+# rows and the lookup command when they cannot be read back. A handled
 # attended wake that recorded a captain outcome exits with one "supervision-host: branch-outcome:"
 # line naming its store rows, without the close it handled; main drains, where
 # the BRANCH OUTCOMES section (bin/fm-wake-drain.sh) presents every
@@ -1122,9 +1123,14 @@ while :; do
         "$(turn_outcome_lookup_warning)${HEALTH_NOTE:+$'\n'$HEALTH_NOTE}"
     fi
     if [ "$TURN_POSTURE" = away ]; then
-      if fm_afk_contract_away_present "$STATE" && turn_tell_outcomes "$LAST_TURN" && [ -n "$TELL_SEQS" ]; then
-        exit_to_main "the away session could not take this wake: $HANDLE_WHY; this wake is yours, and the turn recorded outcomes the captain's away words ask to hear as they happen (store rows ${TELL_SEQS//,/, }): post each following outcome to the captain now as a short message" \
-          "$TELL_LINES${HEALTH_NOTE:+$'\n'$HEALTH_NOTE}"
+      if fm_afk_contract_away_present "$STATE"; then
+        if ! turn_tell_outcomes "$LAST_TURN"; then
+          [ -z "$TELL_SEQS" ] || exit_to_main "the away session could not take this wake: $HANDLE_WHY; this wake is yours, and the turn recorded outcomes the captain's away words ask to hear as they happen (store rows ${TELL_SEQS//,/, }) that could not be read back: read them with bin/fm-branch-outcome.sh lookup --seqs $TELL_SEQS and post each to the captain now as a short message" \
+            "$HEALTH_NOTE"
+        elif [ -n "$TELL_SEQS" ]; then
+          exit_to_main "the away session could not take this wake: $HANDLE_WHY; this wake is yours, and the turn recorded outcomes the captain's away words ask to hear as they happen (store rows ${TELL_SEQS//,/, }): post each following outcome to the captain now as a short message" \
+            "$TELL_LINES${HEALTH_NOTE:+$'\n'$HEALTH_NOTE}"
+        fi
       fi
       exit_to_main "the away session could not take this wake: $HANDLE_WHY; this wake is yours" "$HEALTH_NOTE"
     fi

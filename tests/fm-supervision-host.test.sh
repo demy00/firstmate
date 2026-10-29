@@ -37,6 +37,9 @@ FAKE_CLAUDE="$FAKEBIN/claude"
 #               the drain presented
 #   tell        the same as handle, but report verdict captain with --tell-now
 #               true, as for an outcome the away words ask to hear as it happens
+#   tell-fail   the same as tell, then exit nonzero without a result
+#   tell-fail-lookup the same as tell-fail, but corrupt the store first, so
+#               the marked rows cannot be read back
 #   hold-lease  the same, but leave the lease held (the host must release it)
 #   return      handle, but the captain returns (the record is archived) before
 #               the turn ends
@@ -92,7 +95,7 @@ verdict=routine
 [ "$mode" != go-away ] || verdict=captain
 case "$mode" in
   fail) exit 3 ;;
-  handle|captain|tell|held|hold-lease|return|return-silent|return-fail|return-fail-silent|return-many|return-lookup-fail|return-first|noack|emptyresult|go-away)
+  handle|captain|tell|tell-fail|tell-fail-lookup|held|hold-lease|return|return-silent|return-fail|return-fail-silent|return-many|return-lookup-fail|return-first|noack|emptyresult|go-away)
     [ "$mode" != held ] || read -r _ < "$FM_HOME/stub-release"
     [ "$mode" != return-first ] || "$FM_REPO/bin/fm-afk-contract.sh" archive >> "$FM_HOME/engine-return.log" 2>&1
     [ "$mode" != go-away ] || "$FM_REPO/bin/fm-afk-contract.sh" enter --words 'gone mid-turn' >> "$FM_HOME/engine-return.log" 2>&1
@@ -101,7 +104,7 @@ case "$mode" in
       "$FM_REPO/bin/fm-branch-report.sh" --task "$task" --verdict captain \
         --summary "stub escalated: $(printf '%s\n' "$drain" | grep -v '^WAKE_' | tr '\n' ' ' | cut -c1-400)" \
         >> "$FM_HOME/engine-report.log" 2>&1
-    elif [ "$mode" = tell ]; then
+    elif [ "$mode" = tell ] || [ "$mode" = tell-fail ] || [ "$mode" = tell-fail-lookup ]; then
       "$FM_REPO/bin/fm-branch-report.sh" --task "$task" --verdict captain --tell-now true \
         --summary "fyi: PR https://example.invalid/demo/pull/7 is ready for your review" \
         >> "$FM_HOME/engine-report.log" 2>&1
@@ -122,7 +125,7 @@ case "$mode" in
         printf "%s\t%d\troutine\t%s\n", turn, seq, task
       }' >> "$STATE/.supervision-host-receipts"
     fi
-    if [ "$mode" = return-lookup-fail ]; then
+    if [ "$mode" = return-lookup-fail ] || [ "$mode" = tell-fail-lookup ]; then
       printf 'not-json\n' >> "$STATE/branch-outcomes.jsonl"
     fi
     # shellcheck disable=SC2086 # the printed acknowledgement arguments
@@ -131,7 +134,7 @@ case "$mode" in
     case "$mode" in
       return|return-silent|return-fail|return-fail-silent|return-many|return-lookup-fail) "$FM_REPO/bin/fm-afk-contract.sh" archive >> "$FM_HOME/engine-return.log" 2>&1 ;;
     esac
-    case "$mode" in return-fail|return-fail-silent) exit 3 ;; esac
+    case "$mode" in return-fail|return-fail-silent|tell-fail|tell-fail-lookup) exit 3 ;; esac
     [ "$mode" != return-first ] || sleep "$FM_TEST_STUB_MAX_BLOCK_SECONDS"
     [ "$mode" != emptyresult ] || { printf '{}\n'; exit 0; }
     result
@@ -2034,6 +2037,34 @@ test_return_during_a_failed_turn_still_hands_its_outcomes_to_main() {
   pass "host: a captain return during a failed engine turn still hands that turn's outcomes to main"
 }
 
+# A failed away turn hands its wake to main; outcomes the turn marked as news
+# the away words ask to hear now ride along, and when they cannot be read back
+# the handback still names their store rows and how to read them.
+test_failed_away_turn_still_names_its_told_outcomes() {
+  local home mode
+  for mode in tell-fail tell-fail-lookup; do
+    home=$(make_home "away-$mode" away)
+    echo "$mode" > "$home/stub-mode"
+    start_host "$home"
+    wait_until 150 watcher_live "$home" || fail "$mode: the host never started a watcher cycle"
+    append_status "$home" 'PR https://example.invalid/demo/pull/7 checks green' 'done'
+    wait_until 250 host_exited "$home" || fail "$mode: the failed turn was not handed to main: $(cat "$home/state/.supervision-host.log")"
+    expect_code 0 "$(cat "$home/host.rc")" "a failed turn's handback must exit 0 for the owner to deliver"
+    assert_re '	failed	turn=' "$home/state/.supervision-host.log" "fixture: the $mode turn did not fail"
+    if [ "$mode" = tell-fail ]; then
+      assert_re '^supervision-host: the away session could not take this wake: the engine turn failed \(exit 3\); this wake is yours, and the turn recorded outcomes .* \(store rows 1\): post each following outcome' \
+        "$home/host.out" "the failed turn's handback must name its told outcomes"
+      assert_re '^supervision-host: outcome 1 for demo \[captain\]: fyi: PR https://example.invalid/demo/pull/7' \
+        "$home/host.out" "the failed turn's handback must carry its told outcome"
+    else
+      assert_re '^supervision-host: the away session could not take this wake: the engine turn failed \(exit 3\); this wake is yours, and the turn recorded outcomes .* \(store rows 1\) that could not be read back: read them with bin/fm-branch-outcome.sh lookup --seqs 1 and post each' \
+        "$home/host.out" "the failed turn's handback must name told rows it could not read back"
+    fi
+    assert_no_re '^supervision-host: tell: ' "$home/host.out" "a failed turn's handback is not a handled tell"
+  done
+  pass "host: a failed away turn's handback names its told outcomes, even when they cannot be read back"
+}
+
 test_incomplete_engine_result_hands_the_wake_to_main() {
   local home
   home=$(make_home away-emptyresult away)
@@ -2694,6 +2725,7 @@ test_outcome_after_the_return_survives_a_host_killed_at_the_turn_end
 test_next_host_clears_a_turn_its_killed_predecessor_left
 test_report_without_acknowledgement_hands_the_wake_to_main
 test_return_during_a_failed_turn_still_hands_its_outcomes_to_main
+test_failed_away_turn_still_names_its_told_outcomes
 test_incomplete_engine_result_hands_the_wake_to_main
 test_latch_trips_after_two_engine_errors_then_probes_and_recovers
 test_latch_keeps_attended_closes_on_main_and_skips_unopted_homes
