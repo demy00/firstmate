@@ -6296,6 +6296,21 @@ test_away_heartbeat_backoff_holds_while_work_waits() {
   pass "while away, a worker paused for a usage-limit reset or a ready queued item holds the heartbeat backoff at the base cadence, and another external wait does not"
 }
 
+# A usage-reset wait names a limit that resets: a bare "quota" in some other
+# external wait (a vendor raising an approval) must keep the ordinary backoff.
+test_usage_reset_wait_needs_a_limit_not_a_bare_quota() {
+  local line
+  for line in 'paused: usage limit until 2026-10-30T06:00Z' 'paused: rate-limit reset at 06:00Z' \
+    'paused: quota limit reached; resumes at the reset' 'paused: waiting for the quota reset'; do
+    status_is_usage_reset_wait "$line" || fail "a usage-reset wait was not recognized: $line"
+  done
+  for line in 'paused: waiting on vendor to raise our API quota approval' 'paused: quota request pending with the vendor' \
+    'working: usage limit handling' 'blocked: quota limit reached'; do
+    status_is_usage_reset_wait "$line" && fail "an unrelated line counted as a usage-reset wait: $line"
+  done
+  pass "a usage-reset wait needs a paused line naming a usage, rate, or quota limit or reset, never a bare quota"
+}
+
 test_heartbeat_backstop_surfaces_a_masked_status() {
   local dir state fakebin out sig pid
   dir=$(make_case heartbeat-masked); state="$dir/state"; fakebin="$dir/fakebin"
@@ -6874,6 +6889,7 @@ test_heartbeat_backstop_surfaces_unsurfaced_status
 test_heartbeat_backstop_surfaces_a_masked_status
 test_heartbeat_reaches_the_away_session_without_a_daemon
 test_away_heartbeat_backoff_holds_while_work_waits
+test_usage_reset_wait_needs_a_limit_not_a_bare_quota
 test_beacon_stays_fresh_while_absorbing
 test_afk_signal_records_heartbeat_endpoint
 test_afk_present_reverts_watcher_to_one_shot
