@@ -6272,6 +6272,11 @@ away_backoff_setup_paused() {
   printf 'paused: usage limit until %s\n' "$(iso_utc_at "$(( $(date +%s) + 7200 ))")" > "$2/parked.status"
   printf '%s' "$(seen_sig "$2/parked.status")" > "$2/.seen-parked_status"
 }
+away_backoff_setup_external_wait() {
+  printf 'window=%s\nkind=ship\nharness=grok\nbackend=tmux\n' "$3" > "$2/parked.meta"
+  printf 'paused: waiting on the vendor reply until %s\n' "$(iso_utc_at "$(( $(date +%s) + 7200 ))")" > "$2/parked.status"
+  printf '%s' "$(seen_sig "$2/parked.status")" > "$2/.seen-parked_status"
+}
 away_backoff_setup_working() {
   printf 'window=%s\nkind=ship\nharness=grok\nbackend=tmux\n' "$3" > "$2/parked.meta"
   printf 'working: on it\n' > "$2/parked.status"
@@ -6281,13 +6286,14 @@ away_backoff_setup_working() {
 test_away_heartbeat_backoff_holds_while_work_waits() {
   away_backoff_round away-backoff-paused away_backoff_setup_paused exit
   away_backoff_round away-backoff-working away_backoff_setup_working absorb
+  away_backoff_round away-backoff-external-wait away_backoff_setup_external_wait absorb
   if command -v tasks-axi >/dev/null 2>&1; then
     away_backoff_round away-backoff-ready away_backoff_setup_ready exit
     away_backoff_round away-backoff-unready away_backoff_setup_unready absorb
   else
     printf 'skip: tasks-axi not installed; the queued-item rounds did not run\n'
   fi
-  pass "while away, a paused worker or a ready queued item holds the heartbeat backoff at the base cadence"
+  pass "while away, a worker paused for a usage-limit reset or a ready queued item holds the heartbeat backoff at the base cadence, and another external wait does not"
 }
 
 test_heartbeat_backstop_surfaces_a_masked_status() {

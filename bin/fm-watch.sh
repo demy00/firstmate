@@ -419,8 +419,9 @@ afk_present() { [ -e "$STATE/.afk" ]; }
 away_record_present() { fm_afk_contract_away_present "$STATE"; }
 
 # away_work_waiting: 0 while the away session has work its next heartbeat review
-# would act on - a live worker paused on a declared external wait (a usage reset
-# among them), or a queued backlog item that is ready to dispatch (its brief
+# would act on - a live worker paused for a usage-limit reset
+# (status_is_usage_reset_wait; any other declared external wait keeps the
+# ordinary backoff), or a queued backlog item that is ready to dispatch (its brief
 # written, not blocked, not held). The heartbeat backoff stops at the base
 # cadence while this holds, so a fleet idled by the away words ("stop at 95% and
 # wait for the reset") is reviewed again soon after the wait clears instead of
@@ -431,7 +432,7 @@ away_work_waiting() {
     [ -e "$meta" ] || continue
     statusf="${meta%.meta}.status"
     [ -f "$statusf" ] || continue
-    status_is_paused "$(status_declared_wait_line "$statusf")" && return 0
+    status_is_usage_reset_wait "$(status_declared_wait_line "$statusf")" && return 0
   done
   data=${FM_DATA_OVERRIDE:-$FM_HOME/data}
   out=$(FM_HOME="$FM_HOME" "$SCRIPT_DIR/fm-tasks-axi.sh" list --state queued --fields blocked,held </dev/null 2>/dev/null) || return 1
