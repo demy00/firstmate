@@ -69,6 +69,33 @@ test_branch_prompt_is_byte_stable_and_above_cache_floor() {
     *"A second mate's status log is a relay channel for its child work"*"retiring a second mate is MAIN's alone"*"Report a second mate's signal wake from the status lines that wake newly presents"*"A second mate's stale wake is a liveness event: report it even when it presents no new status lines."*) ;;
     *) fail "branch prompt lost the second-mate relay, signal-span, or stale-liveness rule" ;;
   esac
+  # A finished no-mistakes fix sits idle unless the prompt names starting its
+  # validation as the branch's step, and queued work the away words call for is
+  # never dispatched unless the prompt names the moment and the queue listing.
+  case "$out_a" in
+    *"A no-mistakes ship whose worker reports its pre-validation \`done:\` is waiting for you to start its validation, in both postures"*"\`kind=ship\` and \`mode=no-mistakes\`, the \`done:\` line names no PR URL"*"\`bin/fm-send.sh <task> '<invocation>'\`"*"\`harnesses\` map in \`.agents/skills/harness-adapters/SKILL.md\`"*"Report that start as a rendered routine outcome"*) ;;
+    *) fail "branch prompt lost the no-mistakes validation handoff rule" ;;
+  esac
+  case "$out_a" in
+    *"While away, every heartbeat review also lists the queue and dispatches the ready work the away words call for"*"Look for it on every heartbeat and whenever a worker finishes or is cleaned up, with \`bin/fm-tasks-axi.sh list --state queued"*"\`bin/fm-dispatch-resolve.sh data/<id>/brief.md\`, then \`bin/fm-skill-select.sh data/<id>/brief.md --project <repo> --harness <harness> --apply\`, then \`bin/fm-spawn.sh <id> projects/<repo> --mode <mode> --yolo <on|off>\`"*"leave that item queued and report it with verdict captain for the return"*) ;;
+    *) fail "branch prompt lost the away queue-dispatch moment or MAIN's guarded spawn path" ;;
+  esac
+  case "$out_a" in
+    *"When the words plainly ask to hear about an event as it happens"*"add \`--tell-now true\` so MAIN posts it to the captain at once"*"every outcome the words do not ask to hear now only waits for it"*) ;;
+    *) fail "branch prompt lost the away tell-now rule" ;;
+  esac
+  # The validation handoff names this reference map as the invocation owner, so
+  # every harness it routes must still resolve to a reference with a Skill row.
+  local adapters harness ref routed=0
+  adapters="$ROOT/.agents/skills/harness-adapters"
+  while IFS=$'\t' read -r harness ref; do
+    [ -n "$harness" ] || continue
+    routed=$((routed + 1))
+    grep -Eq '^\| Skill( invocation)? \|' "$adapters/$ref" 2>/dev/null \
+      || fail "harness-adapters routes $harness to $ref, which has no Skill row for the validation handoff"
+  done < <(awk '/^```json harness-adapter-routing-v1$/ { on = 1; next } on && /^```$/ { exit } on { print }' "$adapters/SKILL.md" \
+    | jq -r '.harnesses | to_entries[] | "\(.key)\t\(.value)"')
+  [ "$routed" -ge 10 ] || fail "the harness-adapters harnesses map yielded only $routed entries"
   pass "branch prompt is byte-stable across homes, cwd, timezone, and time, above the cache floor"
 }
 

@@ -17,7 +17,9 @@
 # while an away record (state/.afk-contract, never quiet mode's) exists an
 # item held for the captain is never rechecked at all, in either posture.
 # While state/.afk exists, the daemon owns triage and this watcher queues and exits
-# on every wake. Printed reason lines:
+# on every wake. While an away record exists without that flag, every heartbeat
+# is still delivered, because it is the away session's periodic fleet review.
+# Printed reason lines:
 #   signal: <file>...      status/turn-end signals, surfaced when a listed status
 #                          span has a captain-relevant event OR a no-verb signal lacks
 #                          positive execution evidence, unless afk is active
@@ -111,7 +113,8 @@
 #                          invalid pending retirements were preserved without
 #                          running a check or removing poll artifacts
 #   heartbeat              fleet-scan backstop found an unsurfaced captain-relevant
-#                          status, unless afk is active
+#                          status, unless afk is active or an away record
+#                          exists, when every heartbeat surfaces
 #   check: inactive-outcome bounded poll-loop reconciliation found a suspicious
 #                          inactive terminal outcome that still lacks its durable
 #                          upstream receipt
@@ -3198,8 +3201,12 @@ EOF
     # turns up a captain-relevant status the per-wake path missed. Absorb the
     # no-change case (advance the schedule and back off exactly as wake() would,
     # without exiting); the away-mode daemon, when present, owns triage and wants
-    # every heartbeat.
-    if afk_present; then
+    # every heartbeat. While the captain is away with no daemon, the away session
+    # (the supervision host's engine or the Pi branch) wants every heartbeat too:
+    # it is that session's only periodic fleet review, where queued work the
+    # away words call for gets dispatched, so absorbing it left a finished fleet
+    # idle until some worker happened to append a status line.
+    if afk_present || away_record_present; then
       fm_wake_append heartbeat heartbeat heartbeat || exit 1
       touch "$STATE/.last-heartbeat"
       wake "heartbeat"

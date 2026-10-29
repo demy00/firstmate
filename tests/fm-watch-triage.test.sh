@@ -6163,6 +6163,49 @@ test_heartbeat_no_change_absorbed() {
   pass "a heartbeat with no captain-relevant change is absorbed and backs off the cadence"
 }
 
+# While the captain is away and no daemon wraps this watcher (the supervision
+# host or the Pi branch is the away session), a no-change heartbeat is that
+# session's only periodic fleet review, so it is delivered rather than absorbed.
+# Quiet mode's record is a present captain and keeps the ordinary absorb.
+test_heartbeat_reaches_the_away_session_without_a_daemon() {
+  local dir state fakebin out pid sig i
+  dir=$(make_case heartbeat-away-record); state="$dir/state"; fakebin="$dir/fakebin"; out="$dir/watch.out"
+  printf 'working: routine heartbeat history\n' > "$state/routine.status"
+  sig=$(seen_sig "$state/routine.status"); printf '%s' "$sig" > "$state/.seen-routine_status"
+  write_away_record "$state"
+  [ ! -e "$state/.afk" ] || fail "fixture: the away daemon's flag must be absent"
+  PATH="$fakebin:$PATH" FM_STATE_OVERRIDE="$state" FM_POLL=1 FM_SIGNAL_GRACE=1 \
+    FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=1 "$WATCH" > "$out" &
+  pid=$!
+  wait_for_exit "$pid" 100 || { reap "$pid"; fail "a no-change heartbeat was absorbed while the captain is away with no daemon"; }
+  grep -Fx "heartbeat" "$out" >/dev/null || fail "the away heartbeat did not exit with a heartbeat wake: $(cat "$out")"
+  grep "$(printf '\theartbeat\t')" "$state/.wake-queue" >/dev/null || fail "the away heartbeat was not queued durably"
+  ack_stopped_cycle "$state" || fail "could not acknowledge the away heartbeat"
+
+  dir=$(make_case heartbeat-quiet-record); state="$dir/state"; fakebin="$dir/fakebin"; out="$dir/watch.out"
+  printf 'working: routine heartbeat history\n' > "$state/routine.status"
+  sig=$(seen_sig "$state/routine.status"); printf '%s' "$sig" > "$state/.seen-routine_status"
+  write_quiet_record "$state"
+  PATH="$fakebin:$PATH" FM_STATE_OVERRIDE="$state" FM_POLL=1 FM_SIGNAL_GRACE=1 \
+    FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=1 "$WATCH" > "$out" &
+  pid=$!
+  if ! wait_poll_cycle "$state" "$pid"; then
+    reap "$pid"; fail "a quiet record's no-change heartbeat woke the watcher: $(cat "$out")"
+  fi
+  i=0
+  while [ "$i" -lt 200 ]; do
+    [ "$(cat "$state/.heartbeat-streak" 2>/dev/null || echo 0)" -ge 1 ] && break
+    kill -0 "$pid" 2>/dev/null || break
+    sleep 0.1
+    i=$((i + 1))
+  done
+  [ "$(cat "$state/.heartbeat-streak" 2>/dev/null || echo 0)" -ge 1 ] || fail "no heartbeat ran beside the quiet record"
+  [ ! -s "$out" ] || fail "a quiet record's no-change heartbeat printed a wake: $(cat "$out")"
+  [ ! -s "$state/.wake-queue" ] || fail "a quiet record's no-change heartbeat was queued"
+  reap "$pid"
+  pass "a no-change heartbeat reaches the away session when no daemon runs, and a quiet record still absorbs it"
+}
+
 test_heartbeat_backstop_surfaces_a_masked_status() {
   local dir state fakebin out sig pid
   dir=$(make_case heartbeat-masked); state="$dir/state"; fakebin="$dir/fakebin"
@@ -6739,6 +6782,7 @@ test_procevent_marker_failure_exits_and_replays
 test_heartbeat_no_change_absorbed
 test_heartbeat_backstop_surfaces_unsurfaced_status
 test_heartbeat_backstop_surfaces_a_masked_status
+test_heartbeat_reaches_the_away_session_without_a_daemon
 test_beacon_stays_fresh_while_absorbing
 test_afk_signal_records_heartbeat_endpoint
 test_afk_present_reverts_watcher_to_one_shot

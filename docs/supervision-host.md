@@ -30,7 +30,7 @@ Today it runs beside a Claude, Cursor, OpenCode, omp, Grok, or Codex primary: aw
   Every other close reaches main exactly as the plain watcher arm delivers it.
 - Attended on OpenCode, omp, Grok, and Codex, the host is a pass-through: every close reaches main as without the host.
 - Away (an away record exists), the host hands each close to the engine.
-  Main stays parked unless the host hands the wake back.
+  Main stays parked unless the host hands the wake back or the engine records news the captain's away words ask to hear as it happens.
 - `/afk` launches no away daemon on a home of those harnesses that runs the host, because the host is the away session there.
 - `/quiet` enters nothing where the attended host runs, and elsewhere launches the daemon; see [Quiet mode](#quiet-mode).
   While the daemon's flag `state/.afk` exists, the host stands aside exactly as the plain arm does.
@@ -84,6 +84,7 @@ The other owners read the file at every arm.
 ### The report surface
 
 `bin/fm-branch-report.sh` appends to the outcome store (`bin/fm-branch-outcome.sh`) plus a per-turn receipt the host requires.
+A captain outcome reported with `--tell-now true` marks its receipt, so the host wakes main to post it while the captain is away; see [Away](#away).
 A non-silent row an away turn records after the captain returned is also queued for main as a durable check wake.
 Silent outcomes remain in the store but are not queued or relayed as notes.
 An attended turn queues nothing: its captain rows reach main through the host's `branch-outcome` exit and the drain, and its routine rows stay in the store.
@@ -127,7 +128,11 @@ The engine turn runs beside a captain who is present, so its guarded actions tak
 
 ### Away
 
-Every close goes to the engine; captain outcomes remain in the store until the return drain presents them (see [Captain outcomes](#captain-outcomes)).
+Every close goes to the engine; captain outcomes remain in the store until the return drain presents them (see [Captain outcomes](#captain-outcomes)), except news the captain's away words ask to hear as it happens.
+The engine reports that news with `--tell-now true`, and the host then exits with one `supervision-host: tell:` line plus one `supervision-host: outcome` line per row, so main posts it at once while the captain stays away; the row still waits for the return brief too.
+So words like "send me a short message with the PR link when a PR is ready for review" produce a message in the captain's conversation when it happens, not one more line in the return brief.
+While away the watcher also delivers every heartbeat instead of absorbing a quiet one (`bin/fm-watch.sh`), because the heartbeat is the away session's periodic fleet review, where it dispatches the queued work the words call for.
+The branch prompt's "Postures" section owns those execution rules, and its validation-handoff rule makes the engine start a no-mistakes ship's validation once its worker reports the pre-validation `done:`, in both postures.
 Every turn that starts attended meets the attended rule again at its start, and the offer's scan is the scope the turn claims: a close accepted away whose turn starts attended, because the captain returned in between, or an attended close whose task turned main-only (a decision appeared) while the successor started, reaches main unchanged and leaves that successor cycle running, with the handoff that turn had confirmed handed back to downtime.
 A captain who leaves while an attended turn runs turns its captain outcomes into away outcomes: they wait for the return too.
 
@@ -174,8 +179,8 @@ The host counts the wake handled only when all three hold:
 
 ### Where a handled wake's outcome goes
 
-Away, a handled wake never reaches main, whether its outcome was routine or captain.
-Captain outcomes wait in the outcome store, and after the return the drain's `BRANCH OUTCOMES` section presents them; the return brief (`bin/fm-afk-return.sh`) counts them and points there.
+Away, a handled wake reaches main only when its turn reported news with `--tell-now true` (see [Away](#away)); a failed away turn's handback carries the same lines.
+Every captain outcome, told or not, waits in the outcome store, and after the return the drain's `BRANCH OUTCOMES` section presents them; the return brief (`bin/fm-afk-return.sh`) counts them and points there.
 Attended, see [Captain outcomes](#captain-outcomes).
 
 ### A captain who returns during a turn
@@ -413,6 +418,7 @@ Each arm owner's own suite covers its host mode against a stub host.
 | `tests/fm-afk-launch.test.sh` | The home gate on each primary, the `/afk` daemon refusal, and `/quiet` on a home that runs the host: the statement, the paused statement, each named missing part, the quiet daemon fallback that carries its recorded mode, a failed quiet start that archives its quiet record, and the refusal under a live away record until the return. |
 | `tests/fm-afk-return.test.sh` | The return's drain-owned read-cursor advance through the away window on a host home, and none on Pi. |
 | `tests/fm-supervision-host-live-e2e.test.sh` | Runs a real engine turn; opt-in because it spends tokens. |
+| `tests/fm-supervision-host-away-live-e2e.test.sh` | Opt-in credentialed guard that a real engine, under away words asking to continue the queue and to hear about each pull request ready for review, starts a finished fix's validation, dispatches queued work on a heartbeat, and wakes main to post the ready pull request; accepts a pre-fix ref for a negative control. |
 | `tests/fm-supervision-host-attended-live-e2e.test.sh` | Opt-in credentialed guard for repeated attended main-only hand-backs to an idle Claude primary, the successor's own close, a close that turns main-only at its turn, and a stand-in remote listener; accepts a pre-fix ref for a negative control. |
 | `tests/fm-host-mirror-live-e2e.test.sh` | Proves the Claude and Cursor mirror writers against the real harnesses; opt-in because it spends tokens. |
 

@@ -35,6 +35,8 @@ FAKE_CLAUDE="$FAKEBIN/claude"
 #   handle      drain, claim the task's lease, report, acknowledge, release
 #   captain     the same as handle, but report verdict captain naming the rows
 #               the drain presented
+#   tell        the same as handle, but report verdict captain with --tell-now
+#               true, as for an outcome the away words ask to hear as it happens
 #   hold-lease  the same, but leave the lease held (the host must release it)
 #   return      handle, but the captain returns (the record is archived) before
 #               the turn ends
@@ -90,7 +92,7 @@ verdict=routine
 [ "$mode" != go-away ] || verdict=captain
 case "$mode" in
   fail) exit 3 ;;
-  handle|captain|held|hold-lease|return|return-silent|return-fail|return-fail-silent|return-many|return-lookup-fail|return-first|noack|emptyresult|go-away)
+  handle|captain|tell|held|hold-lease|return|return-silent|return-fail|return-fail-silent|return-many|return-lookup-fail|return-first|noack|emptyresult|go-away)
     [ "$mode" != held ] || read -r _ < "$FM_HOME/stub-release"
     [ "$mode" != return-first ] || "$FM_REPO/bin/fm-afk-contract.sh" archive >> "$FM_HOME/engine-return.log" 2>&1
     [ "$mode" != go-away ] || "$FM_REPO/bin/fm-afk-contract.sh" enter --words 'gone mid-turn' >> "$FM_HOME/engine-return.log" 2>&1
@@ -98,6 +100,10 @@ case "$mode" in
     if [ "$mode" = captain ]; then
       "$FM_REPO/bin/fm-branch-report.sh" --task "$task" --verdict captain \
         --summary "stub escalated: $(printf '%s\n' "$drain" | grep -v '^WAKE_' | tr '\n' ' ' | cut -c1-400)" \
+        >> "$FM_HOME/engine-report.log" 2>&1
+    elif [ "$mode" = tell ]; then
+      "$FM_REPO/bin/fm-branch-report.sh" --task "$task" --verdict captain --tell-now true \
+        --summary "fyi: PR https://example.invalid/demo/pull/7 is ready for your review" \
         >> "$FM_HOME/engine-report.log" 2>&1
     else
       report_args=(--task "$task" --verdict "$verdict" --summary "stub handled $task")
@@ -280,7 +286,7 @@ marker_kind() {  # <home>
 engine_calls() { find "$1" -maxdepth 1 -name 'engine-call.*' 2>/dev/null | wc -l | tr -d ' '; }
 handled_count() { local n; n=$(grep -c '	handled	' "$1/state/.supervision-host.log" 2>/dev/null); printf '%s\n' "${n:-0}"; }
 handled_at_least() { [ "$(handled_count "$1")" -ge "$2" ]; }
-append_status() {  # <home> <text>
+append_status() {  # <home> <text> [state]
   printf '%s [at=%s]: %s\n' "${3:-working}" "$(date +%s)" "$2" >> "$1/state/demo.status"
 }
 
@@ -328,6 +334,20 @@ test_report_surface_enforces_actor_turn_and_scope() {
     "$state/branch-outcomes.jsonl" "the silent task outcome was not stored"
   [ "$(cat "$state/.wake-queue" 2>/dev/null || true)" = "$wake_queue_before" ] \
     || fail "a silent task outcome queued a captain notification"
+
+  out=$(FM_HOME="$home" FM_SUPERVISION_ACTOR=branch FM_BRANCH_REPORT_TURN=t1 "$REPORT" \
+    --task alpha --verdict routine --summary 'worker busy' --tell-now true 2>&1); rc=$?
+  expect_code 2 "$rc" "a routine outcome marked to tell the captain now must be refused"
+  assert_contains "$out" "--tell-now true requires the captain verdict" "the tell-now refusal must say why"
+  out=$(FM_HOME="$home" FM_SUPERVISION_ACTOR=branch FM_BRANCH_REPORT_TURN=t1 "$REPORT" \
+    --task alpha --verdict captain --summary 'PR ready' --tell-now soon 2>&1); rc=$?
+  expect_code 2 "$rc" "a tell-now value other than true or false must be refused"
+  out=$(FM_HOME="$home" FM_SUPERVISION_ACTOR=branch FM_BRANCH_REPORT_TURN=t1 "$REPORT" \
+    --task alpha --verdict captain --summary 'fyi: PR ready for review' --tell-now true 2>&1); rc=$?
+  expect_code 0 "$rc" "a captain outcome marked to tell the captain now must be recorded"
+  assert_contains "$out" "recorded seq 3 [captain]" "the tell-now report must name its store sequence"
+  [ "$(tail -n 1 "$state/.supervision-host-receipts")" = "$(printf 't1\t3\tcaptain\talpha\ttell-now')" ] \
+    || fail "the tell-now receipt did not carry its marker: $(cat "$state/.supervision-host-receipts")"
 
   printf 'turn=t2\nrows=5\ntasks=\nunscoped=1\nwake=heartbeat\n' > "$state/.supervision-host-turn"
   out=$(FM_HOME="$home" FM_SUPERVISION_ACTOR=branch FM_BRANCH_REPORT_TURN=t2 "$REPORT" --task fleet --verdict routine --summary quiet --silent true 2>&1); rc=$?
@@ -1775,6 +1795,36 @@ test_away_wake_is_handled_on_the_engine_and_never_reaches_main() {
   pass "host: an away wake is handled on the engine through the branch contract and never reaches main"
 }
 
+# Away, captain outcomes wait for the return brief, except one the engine marks
+# as something the captain's away words ask to hear as it happens: that one
+# wakes main at once to post it, while the captain stays away.
+test_away_outcome_the_words_ask_to_hear_now_reaches_main() {
+  local home seq
+  home=$(make_home away-tell away)
+  echo captain > "$home/stub-mode"
+  start_host "$home"
+  wait_until 150 watcher_live "$home" || fail "tell: the host never started a watcher cycle: $(cat "$home/host.out")"
+  append_status "$home" 'fix committed; it still needs validation'
+  wait_until 250 handled_at_least "$home" 1 || fail "tell: the first wake was not handled: $(cat "$home/state/.supervision-host.log")"
+  [ ! -s "$home/host.rc" ] || fail "an away captain outcome the words did not ask to hear now reached main: $(cat "$home/host.out")"
+
+  echo tell > "$home/stub-mode"
+  append_status "$home" 'PR https://example.invalid/demo/pull/7 checks green' 'done'
+  wait_until 250 host_exited "$home" || fail "tell: an outcome the away words ask to hear now never reached main: $(cat "$home/state/.supervision-host.log")"
+  expect_code 0 "$(cat "$home/host.rc")" "a tell handoff must exit 0 for the owner to deliver"
+  assert_re '^supervision-host: tell: ' "$home/host.out" "the handoff must say main has an outcome to post now"
+  seq=$(sed -n 's/^recorded seq \([0-9][0-9]*\) \[captain\].*/\1/p' "$home/engine-report.log" | tail -n 1)
+  [ -n "$seq" ] || fail "tell: the engine's report was not recorded: $(cat "$home/engine-report.log")"
+  assert_re "^supervision-host: outcome $seq for demo \\[captain\\]: fyi: PR https://example.invalid/demo/pull/7 is ready for your review\$" \
+    "$home/host.out" "the handoff must carry the outcome to post"
+  assert_no_re 'stub escalated' "$home/host.out" "an outcome the words did not ask to hear now must stay held for the return"
+  assert_no_re '^signal: ' "$home/host.out" "the close the engine handled must not reach main"
+  assert_no_grep 'demo.status' "$home/state/.wake-queue" "the engine's acknowledgement did not consume the wake"
+  [ "$(FM_HOME="$home" "$CONTRACT" mode 2>/dev/null)" = away ] || fail "posting an outcome must leave the captain away"
+  watcher_live "$home" && fail "the host left its successor cycle running when it woke main"
+  pass "host: an away outcome the words ask to hear now wakes main to post it, and every other captain outcome waits for the return"
+}
+
 test_away_turn_without_a_report_hands_the_wake_to_main() {
   local home token
   home=$(make_home away-noreport away)
@@ -2634,6 +2684,7 @@ test_dialog_bearing_files_are_owner_only
 test_undelivered_dialog_is_fed_again_on_the_next_turn
 test_attended_wake_with_an_unreadable_mirror_reaches_main
 test_away_wake_is_handled_on_the_engine_and_never_reaches_main
+test_away_outcome_the_words_ask_to_hear_now_reaches_main
 test_away_turn_without_a_report_hands_the_wake_to_main
 test_return_during_an_engine_turn_hands_its_outcomes_to_main
 test_silent_outcomes_are_not_relayed_when_the_captain_returns
