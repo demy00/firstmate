@@ -6163,6 +6163,154 @@ test_heartbeat_no_change_absorbed() {
   pass "a heartbeat with no captain-relevant change is absorbed and backs off the cadence"
 }
 
+# While the captain is away and no daemon wraps this watcher (the supervision
+# host or the Pi branch is the away session), a no-change heartbeat is that
+# session's only periodic fleet review, so it is delivered rather than absorbed.
+# Quiet mode's record is a present captain and keeps the ordinary absorb.
+test_heartbeat_reaches_the_away_session_without_a_daemon() {
+  local dir state fakebin out pid sig i
+  dir=$(make_case heartbeat-away-record); state="$dir/state"; fakebin="$dir/fakebin"; out="$dir/watch.out"
+  printf 'working: routine heartbeat history\n' > "$state/routine.status"
+  sig=$(seen_sig "$state/routine.status"); printf '%s' "$sig" > "$state/.seen-routine_status"
+  write_away_record "$state"
+  [ ! -e "$state/.afk" ] || fail "fixture: the away daemon's flag must be absent"
+  PATH="$fakebin:$PATH" FM_STATE_OVERRIDE="$state" FM_POLL=1 FM_SIGNAL_GRACE=1 \
+    FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=1 "$WATCH" > "$out" &
+  pid=$!
+  wait_for_exit "$pid" 100 || { reap "$pid"; fail "a no-change heartbeat was absorbed while the captain is away with no daemon"; }
+  grep -Fx "heartbeat" "$out" >/dev/null || fail "the away heartbeat did not exit with a heartbeat wake: $(cat "$out")"
+  grep "$(printf '\theartbeat\t')" "$state/.wake-queue" >/dev/null || fail "the away heartbeat was not queued durably"
+  ack_stopped_cycle "$state" || fail "could not acknowledge the away heartbeat"
+
+  dir=$(make_case heartbeat-quiet-record); state="$dir/state"; fakebin="$dir/fakebin"; out="$dir/watch.out"
+  printf 'working: routine heartbeat history\n' > "$state/routine.status"
+  sig=$(seen_sig "$state/routine.status"); printf '%s' "$sig" > "$state/.seen-routine_status"
+  write_quiet_record "$state"
+  PATH="$fakebin:$PATH" FM_STATE_OVERRIDE="$state" FM_POLL=1 FM_SIGNAL_GRACE=1 \
+    FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=1 "$WATCH" > "$out" &
+  pid=$!
+  if ! wait_poll_cycle "$state" "$pid"; then
+    reap "$pid"; fail "a quiet record's no-change heartbeat woke the watcher: $(cat "$out")"
+  fi
+  i=0
+  while [ "$i" -lt 200 ]; do
+    [ "$(cat "$state/.heartbeat-streak" 2>/dev/null || echo 0)" -ge 1 ] && break
+    kill -0 "$pid" 2>/dev/null || break
+    sleep 0.1
+    i=$((i + 1))
+  done
+  [ "$(cat "$state/.heartbeat-streak" 2>/dev/null || echo 0)" -ge 1 ] || fail "no heartbeat ran beside the quiet record"
+  [ ! -s "$out" ] || fail "a quiet record's no-change heartbeat printed a wake: $(cat "$out")"
+  [ ! -s "$state/.wake-queue" ] || fail "a quiet record's no-change heartbeat was queued"
+  reap "$pid"
+  pass "a no-change heartbeat reaches the away session when no daemon runs, and a quiet record still absorbs it"
+}
+
+# The away session's queue dispatch rides on heartbeats, so an idle away fleet
+# backing off toward HEARTBEAT_MAX left dispatchable work untouched for up to two
+# hours (a fleet the away words idled until a usage reset, then queued work nobody
+# reviewed). While work waits, the backoff stops at the base cadence; otherwise
+# the backed-off interval stands. Each round starts deep in the backoff
+# (4096 base intervals) with a fresh last heartbeat.
+away_backoff_round() {  # <case> <setup-fn> <exit|absorb>
+  local name=$1 setup=$2 mode=$3 dir state fakebin out pid cycles=0 window=test:fm-parked key sig
+  dir=$(make_case "$name"); state="$dir/state"; fakebin="$dir/fakebin"; out="$dir/watch.out"
+  mkdir -p "$dir/data"
+  printf '## In flight\n\n## Queued\n\n## Done\n' > "$dir/data/backlog.md"
+  printf 'working: routine heartbeat history\n' > "$state/routine.status"
+  sig=$(seen_sig "$state/routine.status"); printf '%s' "$sig" > "$state/.seen-routine_status"
+  write_away_record "$state"
+  "$setup" "$dir" "$state" "$window"
+  printf '12\n' > "$state/.heartbeat-streak"
+  touch "$state/.last-heartbeat"
+  printf 'parked, elapsed 1s' > "$dir/pane.txt"
+  key=$(printf '%s' "$window" | tr ':/.' '___')
+  printf '%s' "$(hash_text 'parked, elapsed 1s')" > "$state/.hash-$key"
+  printf '1\n' > "$state/.count-$key"
+  PATH="$fakebin:$PATH" FM_HOME="$dir" FM_FAKE_TMUX_WINDOW="$window" FM_FAKE_TMUX_CAPTURE="$dir/pane.txt" \
+    FM_FAKE_TMUX_CURRENT_COMMAND=grok \
+    FM_FAKE_CREW_STATE='state: paused · source: status-log · parked' \
+    FM_STATE_OVERRIDE="$state" FM_CREW_STATE_BIN="$fakebin/fm-crew-state.sh" \
+    FM_PAUSE_RESURFACE_SECS=999 FM_POLL=1 FM_SIGNAL_GRACE=1 \
+    FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=1 "$WATCH" > "$out" &
+  pid=$!
+  if [ "$mode" = exit ]; then
+    wait_for_exit "$pid" 100 || { reap "$pid"; fail "[$name] waiting away work did not hold the heartbeat backoff at the base cadence"; }
+    [ "$(cat "$out")" = heartbeat ] || fail "[$name] the watcher exited for something other than the heartbeat: $(cat "$out")"
+    ack_stopped_cycle "$state" || fail "[$name] could not acknowledge the heartbeat"
+    return 0
+  fi
+  while [ "$cycles" -lt 4 ]; do
+    wait_poll_cycle "$state" "$pid" 300 || { reap "$pid"; fail "[$name] a backed-off heartbeat fired with no away work waiting: $(cat "$out")"; }
+    cycles=$((cycles + 1))
+  done
+  reap "$pid"
+  [ ! -s "$state/.wake-queue" ] || fail "[$name] a backed-off heartbeat was queued with no away work waiting"
+}
+
+away_backoff_queue_item() {  # <dir> <id> <brief:yes|no> [tasks-axi add flags...]
+  local dir=$1 id=$2 brief=$3
+  shift 3
+  FM_HOME="$dir" "$ROOT/bin/fm-tasks-axi.sh" add "$id" "queued $id" "$@" >/dev/null \
+    || fail "fixture: could not queue $id"
+  if [ "$brief" = yes ]; then
+    mkdir -p "$dir/data/$id"; printf '# Intent\nwork\n' > "$dir/data/$id/brief.md"
+  fi
+}
+
+away_backoff_setup_ready() { away_backoff_queue_item "$1" ready-1 yes; }
+away_backoff_setup_unready() {
+  away_backoff_queue_item "$1" dep-1 no
+  away_backoff_queue_item "$1" nobrief-1 no
+  away_backoff_queue_item "$1" blocked-1 yes --blocked-by dep-1
+  away_backoff_queue_item "$1" held-1 yes
+  FM_HOME="$1" "$ROOT/bin/fm-tasks-axi.sh" hold held-1 --reason "for the captain" >/dev/null \
+    || fail "fixture: could not hold held-1"
+}
+away_backoff_setup_paused() {
+  printf 'window=%s\nkind=ship\nharness=grok\nbackend=tmux\n' "$3" > "$2/parked.meta"
+  printf 'paused: usage limit until %s\n' "$(iso_utc_at "$(( $(date +%s) + 7200 ))")" > "$2/parked.status"
+  printf '%s' "$(seen_sig "$2/parked.status")" > "$2/.seen-parked_status"
+}
+away_backoff_setup_external_wait() {
+  printf 'window=%s\nkind=ship\nharness=grok\nbackend=tmux\n' "$3" > "$2/parked.meta"
+  printf 'paused: waiting on the vendor reply until %s\n' "$(iso_utc_at "$(( $(date +%s) + 7200 ))")" > "$2/parked.status"
+  printf '%s' "$(seen_sig "$2/parked.status")" > "$2/.seen-parked_status"
+}
+away_backoff_setup_working() {
+  printf 'window=%s\nkind=ship\nharness=grok\nbackend=tmux\n' "$3" > "$2/parked.meta"
+  printf 'working: on it\n' > "$2/parked.status"
+  printf '%s' "$(seen_sig "$2/parked.status")" > "$2/.seen-parked_status"
+}
+
+test_away_heartbeat_backoff_holds_while_work_waits() {
+  away_backoff_round away-backoff-paused away_backoff_setup_paused exit
+  away_backoff_round away-backoff-working away_backoff_setup_working absorb
+  away_backoff_round away-backoff-external-wait away_backoff_setup_external_wait absorb
+  if command -v tasks-axi >/dev/null 2>&1; then
+    away_backoff_round away-backoff-ready away_backoff_setup_ready exit
+    away_backoff_round away-backoff-unready away_backoff_setup_unready absorb
+  else
+    printf 'skip: tasks-axi not installed; the queued-item rounds did not run\n'
+  fi
+  pass "while away, a worker paused for a usage-limit reset or a ready queued item holds the heartbeat backoff at the base cadence, and another external wait does not"
+}
+
+# A usage-reset wait names a limit that resets: a bare "quota" in some other
+# external wait (a vendor raising an approval) must keep the ordinary backoff.
+test_usage_reset_wait_needs_a_limit_not_a_bare_quota() {
+  local line
+  for line in 'paused: usage limit until 2026-10-30T06:00Z' 'paused: rate-limit reset at 06:00Z' \
+    'paused: quota limit reached; resumes at the reset' 'paused: waiting for the quota reset'; do
+    status_is_usage_reset_wait "$line" || fail "a usage-reset wait was not recognized: $line"
+  done
+  for line in 'paused: waiting on vendor to raise our API quota approval' 'paused: quota request pending with the vendor' \
+    'working: usage limit handling' 'blocked: quota limit reached'; do
+    status_is_usage_reset_wait "$line" && fail "an unrelated line counted as a usage-reset wait: $line"
+  done
+  pass "a usage-reset wait needs a paused line naming a usage, rate, or quota limit or reset, never a bare quota"
+}
+
 test_heartbeat_backstop_surfaces_a_masked_status() {
   local dir state fakebin out sig pid
   dir=$(make_case heartbeat-masked); state="$dir/state"; fakebin="$dir/fakebin"
@@ -6739,6 +6887,9 @@ test_procevent_marker_failure_exits_and_replays
 test_heartbeat_no_change_absorbed
 test_heartbeat_backstop_surfaces_unsurfaced_status
 test_heartbeat_backstop_surfaces_a_masked_status
+test_heartbeat_reaches_the_away_session_without_a_daemon
+test_away_heartbeat_backoff_holds_while_work_waits
+test_usage_reset_wait_needs_a_limit_not_a_bare_quota
 test_beacon_stays_fresh_while_absorbing
 test_afk_signal_records_heartbeat_endpoint
 test_afk_present_reverts_watcher_to_one_shot

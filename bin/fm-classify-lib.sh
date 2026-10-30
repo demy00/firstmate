@@ -432,6 +432,18 @@ status_paused_until() {  # <status-line> -> epoch on stdout
   fm_utc_iso_to_epoch "$token"
 }
 
+# A usage-limit reset wait: a `paused:` line whose reason names a usage, rate,
+# or quota limit. Workers (and the away session pausing them) name the limit in
+# the reason, as bin/fm-brief.sh instructs, so a supervisor can tell a wait that
+# clears on a provider's reset from any other external wait.
+# FM_CLASSIFY_USAGE_RESET_RE overrides the vocabulary.
+FM_CLASSIFY_USAGE_RESET_RE_DEFAULT='usage[ -]?limit|rate[ -]?limit|quota[ -]?(limit|reset)|usage reset|limit reset'
+status_is_usage_reset_wait() {  # <status-line>
+  local line=$1
+  status_is_paused "$line" || return 1
+  _fm_classify_matches "${line#*:}" "${FM_CLASSIFY_USAGE_RESET_RE:-$FM_CLASSIFY_USAGE_RESET_RE_DEFAULT}"
+}
+
 # --- optional event emission time -------------------------------------------
 # New writers may append "[at=<epoch>]" before the first colon, alongside key
 # and corr tags in any order. Epoch is UTC Unix seconds: canonical unsigned

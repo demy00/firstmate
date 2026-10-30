@@ -16,10 +16,17 @@
 #
 # Usage:
 #   fm-branch-report.sh --task <id|fleet> --verdict routine|captain \
-#       --summary <text> [--silent true|false] [--wake <text>]
+#       --summary <text> [--silent true|false] [--tell-now true|false] \
+#       [--wake <text>]
 #
 # The verdict criteria are owned by bin/fm-branch-prompt.sh ("Verdict: routine
 # or captain"); --silent true is legal only for a routine outcome.
+# --tell-now true is legal only for a captain outcome: the engine's judgment
+# that the captain's away words ask to hear about this outcome as it happens.
+# It adds a fifth `tell-now` field to the receipt, and the host, while the away
+# record still exists, wakes MAIN to post that outcome at once instead of
+# holding it for the return (bin/fm-supervision-host.sh). The store row is
+# unchanged, so the outcome still waits for the return brief too.
 # --wake defaults to the wake reason the host recorded for the turn.
 #
 # Only the branch actor of a live host turn may report: FM_SUPERVISION_ACTOR
@@ -63,13 +70,14 @@ refuse() {
   exit 3
 }
 
-TASK='' VERDICT='' SUMMARY='' SILENT=false WAKE='' WAKE_SET=0
+TASK='' VERDICT='' SUMMARY='' SILENT=false TELL_NOW=false WAKE='' WAKE_SET=0
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --task) TASK=${2:-}; shift 2 || usage ;;
     --verdict) VERDICT=${2:-}; shift 2 || usage ;;
     --summary) SUMMARY=${2:-}; shift 2 || usage ;;
     --silent) SILENT=${2:-}; shift 2 || usage ;;
+    --tell-now) TELL_NOW=${2:-}; shift 2 || usage ;;
     --wake) WAKE=${2:-}; WAKE_SET=1; shift 2 || usage ;;
     -h|--help) usage ;;
     *) usage ;;
@@ -80,12 +88,17 @@ TASK=$(printf '%s' "$TASK" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
 SUMMARY=$(printf '%s' "$SUMMARY" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
 case "$VERDICT" in routine|captain) ;; *) VERDICT= ;; esac
 case "$SILENT" in true|false) ;; *) usage ;; esac
+case "$TELL_NOW" in true|false) ;; *) usage ;; esac
 if [ -z "$TASK" ] || [ -z "$SUMMARY" ] || [ -z "$VERDICT" ]; then
   echo "invalid report: --task, --verdict (routine|captain), and --summary are required" >&2
   exit 2
 fi
 if [ "$SILENT" = true ] && [ "$VERDICT" != routine ]; then
   echo "invalid report: --silent true requires the routine verdict" >&2
+  exit 2
+fi
+if [ "$TELL_NOW" = true ] && [ "$VERDICT" != captain ]; then
+  echo "invalid report: --tell-now true requires the captain verdict" >&2
   exit 2
 fi
 
@@ -123,7 +136,9 @@ if ! SEQ=$("$SCRIPT_DIR/fm-branch-outcome.sh" "$@"); then
   echo "outcome store append failed (nothing recorded)" >&2
   exit 1
 fi
-printf '%s\t%s\t%s\t%s\n' "$TURN" "$SEQ" "$VERDICT" "$TASK" >> "$RECEIPTS" || {
+RECEIPT=$(printf '%s\t%s\t%s\t%s' "$TURN" "$SEQ" "$VERDICT" "$TASK")
+[ "$TELL_NOW" != true ] || RECEIPT="$RECEIPT	tell-now"
+printf '%s\n' "$RECEIPT" >> "$RECEIPTS" || {
   echo "recorded seq $SEQ, but the host receipt could not be written; the host will hand this wake to MAIN" >&2
   exit 1
 }
@@ -148,6 +163,10 @@ if ! fm_afk_contract_away_present "$STATE"; then
     exit 0
   fi
   printf 'recorded seq %s [%s]; the captain has returned, so it is queued for MAIN to relay\n' "$SEQ" "$VERDICT"
+  exit 0
+fi
+if [ "$TELL_NOW" = true ]; then
+  printf 'recorded seq %s [captain]; MAIN posts it to the captain when this turn ends, and it also waits for the return brief\n' "$SEQ"
   exit 0
 fi
 printf 'recorded seq %s [%s]; it waits in the outcome store for MAIN\n' "$SEQ" "$VERDICT"

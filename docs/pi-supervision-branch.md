@@ -457,7 +457,7 @@ Main can read the durable outcome store on demand through its `fm_branch_outcome
 
 ## Heartbeat routing
 
-The cheap bash-level heartbeat scan absorbs a genuinely no-op pass before it reaches Pi, unchanged from before.
+The cheap bash-level heartbeat scan absorbs a genuinely no-op pass before it reaches Pi, unchanged from before, except while an away record exists: then every heartbeat reaches the branch, because it is the away session's periodic fleet review, where queued work the away words call for is dispatched.
 Only a scan already flagged as possibly captain-relevant emits the bare `heartbeat` wake.
 `.pi/extensions/fm-primary-pi-watch.ts` flags that offer `heartbeat: true`.
 The branch accepts it without a project only when every branch-ownable row observed in the unread-queue eligibility check is one of these:
@@ -622,6 +622,11 @@ It sets these limits:
 The ordinary cleanup of a task whose pull request has landed needs no relocation, because it is the branch's own job in both postures.
 `bin/fm-branch-prompt.sh` names the `check: merge landed:` wake, and any later stale or inactive-outcome row on that task, as the moment to attempt `bin/fm-teardown.sh` without `--force`.
 At that moment the branch reports any refusal instead of concluding there is "nothing to recover".
+
+### Validation handoff
+
+Starting validation for a no-mistakes ship whose worker reports its pre-validation `done:` needs no relocation either, because it is a steer the branch owns in both postures.
+`bin/fm-branch-prompt.sh` names that moment and where the worker harness's skill invocation is read, so a finished fix never waits idle for main or the return.
 
 ## Verification
 

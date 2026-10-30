@@ -17,7 +17,9 @@
 # while an away record (state/.afk-contract, never quiet mode's) exists an
 # item held for the captain is never rechecked at all, in either posture.
 # While state/.afk exists, the daemon owns triage and this watcher queues and exits
-# on every wake. Printed reason lines:
+# on every wake. While an away record exists without that flag, every heartbeat
+# is still delivered, because it is the away session's periodic fleet review.
+# Printed reason lines:
 #   signal: <file>...      status/turn-end signals, surfaced when a listed status
 #                          span has a captain-relevant event OR a no-verb signal lacks
 #                          positive execution evidence, unless afk is active
@@ -111,7 +113,8 @@
 #                          invalid pending retirements were preserved without
 #                          running a check or removing poll artifacts
 #   heartbeat              fleet-scan backstop found an unsurfaced captain-relevant
-#                          status, unless afk is active
+#                          status, unless afk is active or an away record
+#                          exists, when every heartbeat surfaces
 #   check: inactive-outcome bounded poll-loop reconciliation found a suspicious
 #                          inactive terminal outcome that still lacks its durable
 #                          upstream receipt
@@ -284,6 +287,7 @@ WATCHER_STALE_GRACE=${FM_WATCHER_STALE_GRACE:-${FM_GUARD_GRACE:-$(fm_poll_derive
 WATCHER_STALL_BOUND=$(fm_watcher_stall_bound "$POLL")
 HEARTBEAT=${FM_HEARTBEAT:-600}        # base seconds between heartbeat scans
 HEARTBEAT_MAX=${FM_HEARTBEAT_MAX:-7200}  # heartbeat backoff cap
+AWAY_WORK_PROBED_AT=0                    # epoch of the last away_work_waiting probe
 CHECK_INTERVAL=${FM_CHECK_INTERVAL:-300}  # seconds between *.check.sh sweeps
 CHECK_TIMEOUT=${FM_CHECK_TIMEOUT:-30}     # seconds allowed per *.check.sh
 HOME_SUMMARY_INTERVAL=${FM_HOME_SUMMARY_INTERVAL:-300}
@@ -413,6 +417,30 @@ afk_present() { [ -e "$STATE/.afk" ]; }
 # rechecks of captain-held items as pure noise). Declared external waits keep
 # their condition-aware cadence in both postures.
 away_record_present() { fm_afk_contract_away_present "$STATE"; }
+
+# away_work_waiting: 0 while the away session has work its next heartbeat review
+# would act on - a live worker paused for a usage-limit reset
+# (status_is_usage_reset_wait; any other declared external wait keeps the
+# ordinary backoff), or a queued backlog item that is ready to dispatch (its brief
+# written, not blocked, not held). The heartbeat backoff stops at the base
+# cadence while this holds, so a fleet idled by the away words ("stop at 95% and
+# wait for the reset") is reviewed again soon after the wait clears instead of
+# up to HEARTBEAT_MAX later. An unreadable backlog reads as nothing waiting.
+away_work_waiting() {
+  local meta statusf out id data
+  for meta in "$STATE"/*.meta; do
+    [ -e "$meta" ] || continue
+    statusf="${meta%.meta}.status"
+    [ -f "$statusf" ] || continue
+    status_is_usage_reset_wait "$(status_declared_wait_line "$statusf")" && return 0
+  done
+  data=${FM_DATA_OVERRIDE:-$FM_HOME/data}
+  out=$(FM_HOME="$FM_HOME" "$SCRIPT_DIR/fm-tasks-axi.sh" list --state queued --fields blocked,held </dev/null 2>/dev/null) || return 1
+  while IFS= read -r id; do
+    [ -f "$data/$id/brief.md" ] && return 0
+  done < <(printf '%s\n' "$out" | sed -n 's/^  \([^ ,"][^,"]*\),queued,.*,no,no$/\1/p')
+  return 1
+}
 
 # captain_held_silenced <status-line>: 0 when the line declares a captain-held
 # transfer and an away record exists, so every stale path absorbs the pane
@@ -3188,18 +3216,33 @@ EOF
   # Heartbeat: the watcher runs a cheap fleet-scan at a regular cadence no matter
   # what. Time-based via .last-heartbeat mtime; interval doubles per consecutive
   # no-change heartbeat (idle fleet) up to HEARTBEAT_MAX, and resets on any
-  # surfaced non-heartbeat wake.
+  # surfaced non-heartbeat wake. While the captain is away with work waiting
+  # (away_work_waiting), the interval stops at HEARTBEAT; that probe runs at most
+  # once per HEARTBEAT, and only once the base interval has elapsed.
   streak=$(cat "$STATE/.heartbeat-streak" 2>/dev/null || echo 0)
   [ "$streak" -gt 12 ] && streak=12
   hb=$(( HEARTBEAT * (1 << streak) ))
   [ "$hb" -gt "$HEARTBEAT_MAX" ] && hb=$HEARTBEAT_MAX
-  if [ "$(age_of "$STATE/.last-heartbeat")" -ge "$hb" ]; then
+  hb_age=$(age_of "$STATE/.last-heartbeat")
+  if [ "$hb" -gt "$HEARTBEAT" ] && [ "$hb_age" -ge "$HEARTBEAT" ] && [ "$hb_age" -lt "$hb" ] \
+    && [ $(( $(date +%s) - AWAY_WORK_PROBED_AT )) -ge "$HEARTBEAT" ] && away_record_present; then
+    AWAY_WORK_PROBED_AT=$(date +%s)
+    if away_work_waiting; then
+      hb=$HEARTBEAT
+      triage_log "away work waiting: heartbeat backoff held at ${HEARTBEAT}s"
+    fi
+  fi
+  if [ "$hb_age" -ge "$hb" ]; then
     # Triage: in always-on mode a heartbeat is benign unless the cheap fleet-scan
     # turns up a captain-relevant status the per-wake path missed. Absorb the
     # no-change case (advance the schedule and back off exactly as wake() would,
     # without exiting); the away-mode daemon, when present, owns triage and wants
-    # every heartbeat.
-    if afk_present; then
+    # every heartbeat. While the captain is away with no daemon, the away session
+    # (the supervision host's engine or the Pi branch) wants every heartbeat too:
+    # it is that session's only periodic fleet review, where queued work the
+    # away words call for gets dispatched, so absorbing it left a finished fleet
+    # idle until some worker happened to append a status line.
+    if afk_present || away_record_present; then
       fm_wake_append heartbeat heartbeat heartbeat || exit 1
       touch "$STATE/.last-heartbeat"
       wake "heartbeat"

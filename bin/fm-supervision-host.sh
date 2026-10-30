@@ -74,8 +74,15 @@
 # when that turn exited cleanly, recorded a durable report
 # (bin/fm-branch-report.sh), and left none of its granted rows in the wake
 # queue. A handled wake with only routine outcomes never wakes
-# main, and neither does any handled wake while away: captain outcomes wait in
-# the outcome store for the return drain's BRANCH OUTCOMES section. A handled
+# main, and neither does a handled wake while away whose captain outcomes the
+# engine did not mark --tell-now: those wait in the outcome store for the
+# return drain's BRANCH OUTCOMES section. A handled away wake whose turn marked
+# a captain outcome --tell-now (the captain's away words ask to hear it as it
+# happens; bin/fm-branch-report.sh) exits with one "supervision-host: tell:"
+# line naming those store rows plus one "supervision-host: outcome" line each,
+# without the close it handled, so main posts them while the captain stays
+# away; a failed away turn's handback carries the same lines, or names those
+# rows and the lookup command when they cannot be read back. A handled
 # attended wake that recorded a captain outcome exits with one "supervision-host: branch-outcome:"
 # line naming its store rows, without the close it handled; main drains, where
 # the BRANCH OUTCOMES section (bin/fm-wake-drain.sh) presents every
@@ -963,6 +970,27 @@ turn_captain_seqs() {  # <turn>
   awk -F '\t' -v turn="$1" '$1 == turn && $3 == "captain" { printf "%s%s", sep, $2; sep = ", " }' "$RECEIPTS" 2>/dev/null
 }
 
+# The captain outcomes one away turn marked as something the captain's away
+# words ask to hear as it happens (bin/fm-branch-report.sh --tell-now), read
+# back from the outcome store as one "supervision-host: outcome" line each.
+# Sets TELL_SEQS (comma-separated) and TELL_LINES; both stay empty when the
+# turn marked none. 1 when marked rows could not be read back.
+TELL_SEQS=
+TELL_LINES=
+turn_tell_outcomes() {  # <turn>
+  local rows
+  TELL_SEQS=
+  TELL_LINES=
+  [ -n "$1" ] || return 0
+  TELL_SEQS=$(awk -F '\t' -v turn="$1" '$1 == turn && $3 == "captain" && $5 == "tell-now" { printf "%s%s", sep, $2; sep = "," }' "$RECEIPTS" 2>/dev/null) \
+    || return 1
+  [ -n "$TELL_SEQS" ] || return 0
+  rows=$("$SCRIPT_DIR/fm-branch-outcome.sh" lookup --seqs "$TELL_SEQS" 2>/dev/null) || return 1
+  TELL_LINES=$(printf '%s\n' "$rows" \
+    | jq -r '"supervision-host: outcome \(.seq) for \(.task) [\(.verdict)]: \(.summary)"' | tr -d '\r') || return 1
+  [ -n "$TELL_LINES" ]
+}
+
 # Why an attended close stays with main exactly as the plain arm delivers it,
 # or nothing when the supervision session may take it. Sets ATTENDED_WHY, and
 # ATTENDED_OFFER to the offer's verdict and the scope it judged.
@@ -1095,6 +1123,15 @@ while :; do
         "$(turn_outcome_lookup_warning)${HEALTH_NOTE:+$'\n'$HEALTH_NOTE}"
     fi
     if [ "$TURN_POSTURE" = away ]; then
+      if fm_afk_contract_away_present "$STATE"; then
+        if ! turn_tell_outcomes "$LAST_TURN"; then
+          [ -z "$TELL_SEQS" ] || exit_to_main "the away session could not take this wake: $HANDLE_WHY; this wake is yours, and the turn recorded outcomes the captain's away words ask to hear as they happen (store rows ${TELL_SEQS//,/, }) that could not be read back: read them with bin/fm-branch-outcome.sh lookup --seqs $TELL_SEQS and post each to the captain now as a short message" \
+            "$HEALTH_NOTE"
+        elif [ -n "$TELL_SEQS" ]; then
+          exit_to_main "the away session could not take this wake: $HANDLE_WHY; this wake is yours, and the turn recorded outcomes the captain's away words ask to hear as they happen (store rows ${TELL_SEQS//,/, }): post each following outcome to the captain now as a short message" \
+            "$TELL_LINES${HEALTH_NOTE:+$'\n'$HEALTH_NOTE}"
+        fi
+      fi
       exit_to_main "the away session could not take this wake: $HANDLE_WHY; this wake is yours" "$HEALTH_NOTE"
     fi
     exit_to_main "the supervision session could not take this wake: $HANDLE_WHY; this wake is yours" "$HEALTH_NOTE"
@@ -1115,6 +1152,20 @@ while :; do
       ARM_TEXT=
       exit_to_main "branch-outcome: the supervision session handled this wake and recorded captain outcomes for you (store rows $CAPTAIN_SEQS); run bin/fm-wake-drain.sh, act on its BRANCH OUTCOMES section, and acknowledge them as it prints" \
         "$HEALTH_NOTE"
+    fi
+  fi
+
+  # Away, an outcome the captain's away words ask to hear as it happens wakes
+  # main to post it now; every other captain outcome keeps waiting for the
+  # return. The close itself was handled, so only the host's lines reach main.
+  if [ -n "$LAST_TURN" ] && fm_afk_contract_away_present "$STATE"; then
+    if ! turn_tell_outcomes "$LAST_TURN"; then
+      ARM_TEXT=
+      exit_to_main "tell: the away session handled this wake and recorded outcomes the captain's away words ask to hear as they happen (store rows ${TELL_SEQS//,/, }), but they could not be read back; read them with bin/fm-branch-outcome.sh lookup --seqs $TELL_SEQS and post each to the captain now as a short message"
+    elif [ -n "$TELL_SEQS" ]; then
+      ARM_TEXT=
+      exit_to_main "tell: the away session handled this wake and recorded outcomes the captain's away words ask to hear as they happen (store rows ${TELL_SEQS//,/, }); post each following outcome to the captain now as a short message; the captain is still away, and each outcome also waits for the return brief" \
+        "$TELL_LINES"
     fi
   fi
 
