@@ -26,6 +26,10 @@ concurrency:
 # tiers and their rationale; tests/fm-ci-workflow.test.sh guards this workflow.
 # Each job comment identifies the tier implemented by its executable value.
 
+# Runner pin: Linux jobs run on ubuntu-24.04, not ubuntu-latest. Once
+# ubuntu-latest resolved to ubuntu-26.04, checks that pass on 24.04 failed
+# there; move the pin only after the suite is green on the newer image.
+
 jobs:
   lint:
     name: Lint ${{ matrix.partition }}
