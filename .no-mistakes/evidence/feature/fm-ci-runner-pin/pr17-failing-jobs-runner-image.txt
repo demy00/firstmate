@@ -1,0 +1,27 @@
+PR #17 CI run 40973815018 - failing jobs and their runner image:
+Behavior portable parallel 1 -> ubuntu-26.04
+Behavior portable parallel 2 -> ubuntu-26.04
+Behavior portable serial 1 -> ubuntu-26.04
+Behavior portable serial 2 -> ubuntu-26.04
+Behavior portable serial 3 -> ubuntu-26.04
+Behavior portable serial 4 -> ubuntu-26.04
+Behavior portable serial 5 -> ubuntu-26.04
+Behavior portable serial 6 -> ubuntu-26.04
+Behavior portable serial 7 -> ubuntu-26.04
+Behavior portable serial 8 -> ubuntu-26.04
+Behavior portable serial 9 -> ubuntu-26.04
+Behavior tests (Herdr) -> ubuntu-26.04
+Behavior timing aggregate -> ubuntu-26.04
+Lint 1 -> ubuntu-26.04
+Lint 2 -> ubuntu-26.04
+Repo invariants -> ubuntu-26.04
+Stock macOS Bash snapshot compatibility -> macos-26-arm64
+Test coverage guard -> ubuntu-26.04
+
+Failed:
+Behavior tests (Herdr)
+Behavior portable serial 6
+Behavior portable serial 2
+Behavior portable serial 3
+Behavior portable parallel 1
+Behavior portable serial 8

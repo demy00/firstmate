@@ -1,0 +1,24 @@
+== e1b3a90
+ci.yml                     lint                       ubuntu-latest
+ci.yml                     test-coverage              ubuntu-latest
+ci.yml                     tests-portable-parallel-1  ubuntu-latest
+ci.yml                     tests-portable-parallel-2  ubuntu-latest
+ci.yml                     tests-portable-serial      ubuntu-latest
+ci.yml                     tests-herdr                ubuntu-latest
+ci.yml                     tests-timing-aggregate     ubuntu-latest
+ci.yml                     macos-stock-bash           macos-latest
+ci.yml                     invariants                 ubuntu-latest
+no-mistakes-required.yml   check                      ubuntu-latest
+windows-herdr-spike.yml    measure                    windows-latest
+== bdabe94
+ci.yml                     lint                       ubuntu-24.04
+ci.yml                     test-coverage              ubuntu-24.04
+ci.yml                     tests-portable-parallel-1  ubuntu-24.04
+ci.yml                     tests-portable-parallel-2  ubuntu-24.04
+ci.yml                     tests-portable-serial      ubuntu-24.04
+ci.yml                     tests-herdr                ubuntu-24.04
+ci.yml                     tests-timing-aggregate     ubuntu-24.04
+ci.yml                     macos-stock-bash           macos-latest
+ci.yml                     invariants                 ubuntu-24.04
+no-mistakes-required.yml   check                      ubuntu-24.04
+windows-herdr-spike.yml    measure                    windows-latest
