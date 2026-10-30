@@ -1,0 +1,15 @@
+### AFTER (target 1b42bf5)
+ok - a no-change heartbeat reaches the away session when no daemon runs, and a quiet record still absorbs it
+rc=0
+ok - while away, a worker paused for a usage-limit reset or a ready queued item holds the heartbeat backoff at the base cadence, and another external wait does not
+rc=0
+ok - a usage-reset wait needs a paused line naming a usage, rate, or quota limit or reset, never a bare quota
+rc=0
+
+### BEFORE (base 04e25db bin/, same new tests)
+20727 19722 SN   bash /Users/demy00/.no-mistakes/worktrees/f2cfe607828c/01M65J1EBZW7Q3RMQQ67KKSM39/bin/fm-watch.sh
+not ok - [away-backoff-paused] waiting away work did not hold the heartbeat backoff at the base cadence
+rc=1
+20512 19721 SN   bash /Users/demy00/.no-mistakes/worktrees/f2cfe607828c/01M65J1EBZW7Q3RMQQ67KKSM39/bin/fm-watch.sh
+not ok - a no-change heartbeat was absorbed while the captain is away with no daemon
+rc=1

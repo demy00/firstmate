@@ -1,0 +1,29 @@
+== away-tell-fail-lookup: main's handoff (host.out) ==
+watcher: started pid=56699 (beacon fresh)
+signal: /private/var/folders/y9/b8qt1d396lv9cfh42ft2gt7r0000gn/T/fm-supervision-host.47g0el/away-tell-fail-lookup/state/demo.status
+supervision-host: the away session could not take this wake: the engine turn failed (exit 3); this wake is yours, and the turn recorded outcomes the captain's away words ask to hear as they happen (store rows 1) that could not be read back: read them with bin/fm-branch-outcome.sh lookup --seqs 1 and post each to the captain now as a short message
+
+== away-tell-fail-lookup: engine report receipts ==
+recorded seq 1 [captain]; MAIN posts it to the captain when this turn ends, and it also waits for the return brief
+host-56393-1793335774.1	1	captain	demo	tell-now
+
+== away-tell-fail: main's handoff (host.out) ==
+watcher: started pid=49932 (beacon fresh)
+signal: /private/var/folders/y9/b8qt1d396lv9cfh42ft2gt7r0000gn/T/fm-supervision-host.47g0el/away-tell-fail/state/demo.status
+supervision-host: the away session could not take this wake: the engine turn failed (exit 3); this wake is yours, and the turn recorded outcomes the captain's away words ask to hear as they happen (store rows 1): post each following outcome to the captain now as a short message
+supervision-host: outcome 1 for demo [captain]: fyi: PR https://example.invalid/demo/pull/7 is ready for your review
+
+== away-tell-fail: engine report receipts ==
+recorded seq 1 [captain]; MAIN posts it to the captain when this turn ends, and it also waits for the return brief
+host-49743-1793335770.1	1	captain	demo	tell-now
+
+== away-tell: main's handoff (host.out) ==
+watcher: started pid=41754 (beacon fresh)
+supervision-host: tell: the away session handled this wake and recorded outcomes the captain's away words ask to hear as they happen (store rows 2); post each following outcome to the captain now as a short message; the captain is still away, and each outcome also waits for the return brief
+supervision-host: outcome 2 for demo [captain]: fyi: PR https://example.invalid/demo/pull/7 is ready for your review
+
+== away-tell: engine report receipts ==
+recorded seq 1 [captain]; it waits in the outcome store for MAIN
+recorded seq 2 [captain]; MAIN posts it to the captain when this turn ends, and it also waits for the return brief
+host-41541-1793335761.2	2	captain	demo	tell-now
+
