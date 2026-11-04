@@ -4,8 +4,10 @@
 # (skills).
 # Usage: . bin/fm-typesafe-lib.sh
 #
-# This file is the single owner of what those tools have in common: the key
-# gate, the brief text they send, the never-send check, and the one POST.
+# This file is the single owner of what those tools have in common: the brief
+# text they send and the never-send check. It also holds the typesafe key gate
+# and POST that bin/fm-skill-select.sh uses; bin/fm-dispatch-resolve.sh selects
+# its provider, key, and endpoint itself because it supports more than typesafe.
 # docs/configuration.md "Typed dispatch resolution" owns the operator contract.
 #
 # Key handling: each caller copies TYPESAFE_API_KEY into the unexported shell
@@ -74,19 +76,23 @@ fm_ts_off() {
   exit 0
 }
 
-# fm_ts_never_send_check <label> <request-json> <list> <scratch>: check every
-# string the request carries against the optional never-send list, so no text
-# reaches the network unchecked. Each non-blank, non-# line is a literal
+# fm_ts_never_send_check <label> <request-json> <list> <scratch> [<endpoint>]:
+# check the endpoint (default this library's System One URL) and every string
+# the request carries, including strings inside JSON text such as OpenAI's
+# serialized input, against the optional never-send list, so no text reaches
+# the network unchecked. Each non-blank, non-# line is a literal
 # matched case-insensitively, trimmed, with whitespace runs on both sides
 # collapsed to one space. A match, or a list that is not a readable regular
 # file, is the off outcome naming at most the list line number, never its
 # value. grep's own stderr is discarded because it can echo the pattern.
 fm_ts_never_send_check() {
-  local label=$1 request=$2 list_path=$3 scratch=$4 list value n=0 rc
+  local label=$1 request=$2 list_path=$3 scratch=$4 endpoint=${5:-$FM_TS_BASE/v1/systemone} list value n=0 rc
   [ -e "$list_path" ] || [ -L "$list_path" ] || return 0
   { [ -f "$list_path" ] && [ -r "$list_path" ]; } \
     || fm_ts_off "$label" "$list_path is not a readable regular file"
-  jq -r '.. | strings | gsub("\\s+"; " ")' <<<"$request" > "$scratch" 2>/dev/null \
+  jq -r --arg endpoint "$endpoint" '
+    $endpoint, (.. | strings | ., (try (fromjson | .. | strings) catch empty))
+    | gsub("\\s+"; " ")' <<<"$request" > "$scratch" 2>/dev/null \
     || fm_ts_off "$label" "could not extract the request text to check"
   list=$(jq -Rr 'gsub("\\s+"; " ")' "$list_path" 2>/dev/null) \
     || fm_ts_off "$label" "could not read $list_path"
