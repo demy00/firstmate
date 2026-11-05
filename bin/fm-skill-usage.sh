@@ -66,7 +66,7 @@ for arg in "$@"; do
   esac
 done
 
-selection=$(fm_worker_account_resolve claude "$CONFIG") || die "config/claude-account does not resolve"
+selection=$(fm_worker_account_resolve claude "$CONFIG" config/claude-account) || die "config/claude-account does not resolve"
 if [ -n "$selection" ]; then
   root=${selection#*$'\t'}
   root=${root%%$'\t'*}

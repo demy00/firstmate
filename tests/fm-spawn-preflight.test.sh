@@ -259,6 +259,8 @@ SPAWN_PROJ="$TMP_ROOT/spawn/projects/proj"
 SPAWN_BIN="$TMP_ROOT/spawn/bin"
 mkdir -p "$SPAWN_HOME/data" "$SPAWN_HOME/state" "$SPAWN_HOME/config" "$SPAWN_PROJ" "$SPAWN_BIN"
 git -C "$SPAWN_PROJ" init -q || fail "could not initialize project fixture"
+git -C "$SPAWN_PROJ" -c user.name=fixture -c user.email=fixture@example.invalid commit -q --allow-empty -m "chore: fixture root" \
+  || fail "could not commit the project fixture root"
 cat > "$SPAWN_BIN/tmux" <<SH
 #!/bin/sh
 printf '%s\n' "\$*" >> "$TMP_ROOT/spawn/tmux-calls"

@@ -109,7 +109,7 @@ test_merge_local_lands_both_branch_names() {
     fm_write_meta "$home/state/$id.meta" \
       "window=firstmate:fm-$id" "endpoint_task_id=$id" "worktree=$wt" \
       "project=$proj" "harness=codex" "kind=ship" "mode=local-only" \
-      "spawn_gen=fixture-$id"
+      "spawn_gen=fixture-$id" "local_done_head=$(git -C "$wt" rev-parse HEAD)"
     before=$(git -C "$proj" rev-parse main)
     FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$home" FM_STATE_OVERRIDE="$home/state" \
       FM_DATA_OVERRIDE="$home/data" FM_CONFIG_OVERRIDE="$home/config" \
