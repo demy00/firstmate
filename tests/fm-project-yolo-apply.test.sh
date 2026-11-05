@@ -99,6 +99,21 @@ test_live_tasks_follow_a_project_switched_off_yolo() {
   pass "a project switched off +yolo takes merge authority back from its live ship tasks"
 }
 
+test_posture_change_keeps_an_armed_pr_identity_readable() {
+  local home meta url=https://github.com/o/ada/pull/7 out rc
+  home=$(new_home armed-pr '[no-mistakes +yolo]')
+  meta="$home/state/ada-1.meta"
+  out=$(apply "$home" ada)
+  rc=$?
+  expect_code 0 "$rc" "applying the registered posture to an armed task: $out"
+  assert_equals on "$(meta_yolo "$home" ada-1)" "the armed task did not follow the project's +yolo"
+  # shellcheck disable=SC2016 # Positional parameters expand in the child shell.
+  bash -c '. "$1"; fm_pr_metadata_identity_parse "$2" && [ "$FM_PR_META_URL" = "$3" ]' _ \
+    "$ROOT/bin/fm-pr-lib.sh" "$meta" "$url" \
+    || fail "the posture change broke the armed PR identity the merge poll authenticates:"$'\n'"$(cat "$meta")"
+  pass "a posture change keeps an armed task's PR identity readable"
+}
+
 test_gerrit_project_never_gains_yolo() {
   local home out
   home=$(new_home gerrit '[no-mistakes forge=gerrit +yolo]')
@@ -258,6 +273,7 @@ test_usage() {
 
 test_live_tasks_follow_a_project_switched_to_yolo
 test_live_tasks_follow_a_project_switched_off_yolo
+test_posture_change_keeps_an_armed_pr_identity_readable
 test_gerrit_project_never_gains_yolo
 test_unreadable_posture_changes_nothing
 test_named_tasks_limit_the_apply

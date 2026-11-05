@@ -96,7 +96,7 @@
 #     while away: bin/fm-spawn.sh refuses a fresh ordinary spawn once that many
 #     are still working. A task that finished, waits on a decision a human
 #     owes, or whose endpoint is proven gone holds no slot; a task whose state
-#     cannot be read still counts (fm-spawn.sh owns the count).
+#     cannot be read still counts (bin/fm-away-spend-lib.sh owns that reading).
 #     Without --spend the recorded cap follows SPEND CAP below.
 #   fm-afk-contract.sh readback
 #     The record's content for the captain and for the away session: the words
@@ -131,8 +131,8 @@
 # by the ordinary stale-owner recovery in bin/fm-wake-lib.sh, which owns the lock
 # primitive itself.
 #
-# SPEND CAP (spend_max_concurrent_workers; this script is its one owner, for
-# both the number written at entry and the counting rule behind it).
+# SPEND CAP (spend_max_concurrent_workers; this script owns the number written at
+# entry, and bin/fm-away-spend-lib.sh owns the reading behind its count).
 # The cap bounds how many ordinary workers this home runs concurrently while an
 # away record stands; bin/fm-spawn.sh enforces it by refusing a fresh ordinary
 # spawn once that many are still working. An ordinary worker record is every

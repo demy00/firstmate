@@ -547,7 +547,7 @@ write_forgejo_pr_json() {
 # unconfigured-CI shape verified against a real instance (empty state, zero
 # count), regardless of any state= override.
 write_forgejo_status_json() {
-  local file=$1 kv key value
+  local file=$1 kv key value items='' i
   local state=success total=1
   shift
   for kv in "$@"; do
@@ -562,9 +562,12 @@ write_forgejo_status_json() {
   if [ "$total" = 0 ]; then
     printf '{"state":"","total_count":0,"statuses":[]}\n' > "$file"
   else
-    printf '{"state":"%s","total_count":%s,"statuses":[%s]}\n' "$state" "$total" \
-      "$(seq "$total" | sed "s/.*/{\"context\":\"ci-&\",\"status\":\"$state\"}/" | paste -sd, -)" \
-      > "$file"
+    # A loop, because stock macOS Bash 3.2 brace-expands that list inside a
+    # command substitution and would write a malformed payload.
+    for i in $(seq "$total"); do
+      items="${items:+$items,}{\"context\":\"ci-$i\",\"status\":\"$state\"}"
+    done
+    printf '{"state":"%s","total_count":%s,"statuses":[%s]}\n' "$state" "$total" "$items" > "$file"
   fi
 }
 
@@ -4144,6 +4147,40 @@ test_merge_refuses_when_the_away_record_cannot_be_locked() {
   pass "a merge that cannot lock the away record refuses instead of merging unlocked"
 }
 
+assert_task_pr_identity_parses() {
+  local case_dir=$1 url=$2 label=$3 meta
+  meta="$case_dir/state/task-x1.meta"
+  # shellcheck disable=SC2016 # Positional parameters expand in the child shell.
+  bash -c '. "$1"; fm_pr_metadata_identity_parse "$2" && [ "$FM_PR_META_URL" = "$3" ]' _ \
+    "$ROOT/bin/fm-pr-lib.sh" "$meta" "$url" \
+    || fail "$label: the recorded waiver broke the armed PR identity:"$'\n'"$(cat "$meta")"
+}
+
+test_recorded_waivers_keep_the_pr_identity_readable() {
+  local case_dir head
+  head=a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8
+
+  case_dir=$(make_case github-waived-red-identity)
+  add_gh_mocks "$case_dir" "$head"
+  write_github_red_checks_json "$case_dir" "$head" lint
+  run_required_case "$case_dir" 130 --allow-red lint
+  expect_code 0 "$RC" "waived-red-identity: the waived merge should succeed: $(cat "$case_dir/stderr")"
+  [ "$(recorded_waivers "$case_dir" merge_waived_red)" = lint ] \
+    || fail "waived-red-identity: the waiver was not recorded: $(cat "$case_dir/state/task-x1.meta")"
+  assert_task_pr_identity_parses "$case_dir" https://github.com/example/repo/pull/130 waived-red-identity
+
+  case_dir=$(make_case github-waived-missing-identity)
+  add_gh_mocks "$case_dir" "$head"
+  write_github_required "$case_dir" ruleset:validate
+  run_required_case "$case_dir" 131 --allow-missing validate
+  expect_code 0 "$RC" "waived-missing-identity: the waived merge should succeed: $(cat "$case_dir/stderr")"
+  [ "$(recorded_waivers "$case_dir" merge_waived_missing)" = validate ] \
+    || fail "waived-missing-identity: the waiver was not recorded: $(cat "$case_dir/state/task-x1.meta")"
+  assert_task_pr_identity_parses "$case_dir" https://github.com/example/repo/pull/131 waived-missing-identity
+
+  pass "recorded check waivers keep the task's PR identity readable"
+}
+
 test_allow_red_refused_on_gitlab() {
   local case_dir rc
   case_dir=$(make_gitlab_case gitlab-allow-red)
@@ -4779,6 +4816,7 @@ test_red_and_unreported_checks_are_reported_together
 test_unreadable_required_set_refuses
 test_allow_missing_waives_only_the_named_unreported_check
 test_allow_missing_follows_the_allow_red_rules
+test_recorded_waivers_keep_the_pr_identity_readable
 
 test_required_producer_identity
 test_app_bound_required_status_context_matches_by_name
