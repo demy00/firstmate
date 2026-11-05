@@ -2155,7 +2155,7 @@ The live rule-match evidence is recorded in [`verification/dispatch-resolve.md`]
 ## Typed skill selection (.env TYPESAFE_API_KEY)
 
 Workers do not load installed skills unprompted, so `bin/fm-skill-select.sh` asks the same System One model (Jev) which installed skills fit a written brief and writes the confident picks into the brief as an explicit instruction to load them.
-It shares the resolver's opt-in key, never-send list, task text, and key handling above through `bin/fm-typesafe-lib.sh`, and it is off exactly when the resolver is off.
+It shares the resolver's never-send list, task text, and key handling above through `bin/fm-typesafe-lib.sh`, but keeps its own key gate: it reads `TYPESAFE_API_KEY` from the environment or `.env` only and ignores `FM_DISPATCH_PROVIDER` and the declared credential source, so it is off without that key even when the resolver is on.
 This section is the single owner of the tool's operator contract; the script header owns its exact flags, per-harness directory list, and output lines.
 
 ```sh

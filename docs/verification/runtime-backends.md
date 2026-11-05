@@ -1128,7 +1128,7 @@ Two findings from the run shaped the shipped behavior: an OpenCode vendor update
 The current pending-composer ring contract is owned by `bin/fm-task-inbox-lib.sh`.
 Kimi was not installed on the verification machine; its receive path is the same one-line-plus-shell contract, and the portable ladder and enqueue regressions in `tests/fm-task-inbox.test.sh` and `tests/fm-send-inbox.test.sh` cover every harness-independent half.
 This guard is the refresh command after any harness upgrade; it spends a small number of real tokens per installed harness, reports an absent harness explicitly, and refuses a run that verified nothing.
-Its 220x50 tmux window shows every doorbell whole; the Claude doorbell in a default-size Herdr pane, which wraps past the composer view, is covered by [Claude doorbell scrolled past the composer view](#claude-doorbell-scrolled-past-the-composer-view).
+Its 220x50 tmux window shows every doorbell whole; a Claude doorbell long enough to wrap past the composer view of a default-size Herdr pane is covered by [Claude doorbell scrolled past the composer view](#claude-doorbell-scrolled-past-the-composer-view).
 
 The doorbell no longer prints the inbox's absolute path, so its length no longer grows with the home's depth.
 It names the inbox as `"$FM_TASK_INBOX"`, which `bin/fm-spawn.sh` exports into every launch as the absolute `state/<task>.inbox` path, followed by the short `<task>.inbox` name; the brief's full path remains the fallback for a worker launched without that export.
@@ -1687,6 +1687,9 @@ len=273 shown=yes composer_rows=6
 len=293 shown=no composer_rows=6
 len=297 shown=no composer_rows=6
 ```
+
+Those doorbells still printed the absolute inbox path.
+The current doorbell names `"$FM_TASK_INBOX"` and the short inbox name instead, so only a long task id wraps it past that bound, which is the case `tests/fm-herdr-submit-confirm-live-e2e.test.sh` sets up and asserts.
 
 For a 437-character doorbell, the tail read, the read after Ctrl+A, and the read after Ctrl+E (whitespace removed) gave `payload=416 tail=271 head=278 back=271`: the head window is a prefix, the tail window a suffix, they cover every byte, and the restored view matches the tail.
 Enter then submitted the whole line and the worker acted on and acknowledged three queued records.

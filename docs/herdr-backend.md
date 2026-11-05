@@ -692,7 +692,7 @@ That comparison ignores whitespace and U+2063, the invisible mark that starts op
 It ignores U+2063 because Claude's Herdr read-back never shows it.
 
 Claude shows a bounded number of composer rows (six in a default-size 54x23 Herdr pane, more in a taller one) and keeps the cursor row in view, so a payload that wraps past them reads back as only its last rows.
-A steering doorbell to a Claude worker in a default-size pane always takes that shape.
+A steering doorbell to a Claude worker in a default-size pane takes that shape when a long task id wraps it past those rows.
 For a single-line payload whose read-back is such a suffix, the adapter presses Ctrl+A, which scrolls the composer's head into view, then Ctrl+E, which returns the cursor to the end.
 It continues only when the head window is a prefix of the payload and differs from the tail window, the two windows together cover every byte, and the view after Ctrl+E is the tail window again.
 A composer that genuinely lost its head shows that suffix's own head after Ctrl+A, so it is still refused.
