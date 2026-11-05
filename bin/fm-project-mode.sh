@@ -24,8 +24,8 @@
 # project fact rather than a task choice. bin/fm-project-yolo-apply.sh reads
 # the yolo word to carry a captain's posture change onto live ship tasks
 # and queued ship notes.
-# project fact rather than a task choice. --pr is read the same way by
-# bin/fm-spawn.sh's PR-text agreement and by bin/fm-promote.sh.
+# --pr is read the same way by bin/fm-spawn.sh's PR-text agreement and by
+# bin/fm-promote.sh.
 #
 # Registry line format (data/projects.md):
 #   - <name> - <desc> (added <date>)                                 -> no-mistakes off <default-prefix>

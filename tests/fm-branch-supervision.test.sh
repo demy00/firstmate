@@ -1734,6 +1734,9 @@ SH
   out=$(PATH="$fakebin:$PATH" FM_HOME="$home" FM_ROOT_OVERRIDE="$root" \
     "$ROOT/bin/fm-spawn.sh" task-new --mode no-mistakes --yolo off 2>&1)
   assert_not_contains "$out" "caps concurrent workers" "finished workers still consumed away slots"
+  # The entry default reads the same count over the same live panes.
+  out=$(PATH="$fakebin:$PATH" FM_HOME="$home" "$ROOT/bin/fm-afk-contract.sh" live-workers)
+  assert_equals "1" "$out" "the entry default counted finished workers with live panes"
 
   # A record whose current state cannot be read still counts as spending.
   fm_write_meta "$home/state/task-unread.meta" "window=fm-task-unread" "kind=ship"
@@ -1745,6 +1748,8 @@ SH
     "the refusal miscounted the working workers"
   assert_contains "$out" "3 task(s) that finished, wait on a human decision, or lost their endpoint" \
     "the refusal did not name the finished tasks it left out"
+  out=$(PATH="$fakebin:$PATH" FM_HOME="$home" "$ROOT/bin/fm-afk-contract.sh" live-workers)
+  assert_equals "2" "$out" "the entry default and the refusal disagree on the workers still working"
   pass "the away spend cap counts only workers still spending, never finished or decision-parked ones"
 }
 

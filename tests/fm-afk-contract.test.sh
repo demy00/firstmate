@@ -627,7 +627,7 @@ test_away_entry_over_quiet_mode_becomes_away_and_quiet_never_masks_away() {
 # away mode never narrows work that is already under way. The earlier default
 # stays a floor, and a secondmate is a persistent home rather than spend.
 test_entry_without_spend_records_the_live_worker_count_never_below_the_floor() {
-  local home out i
+  local home out i fakebin gen
   home=$(make_home spend-live-above)
   for i in 1 2 3 4 5 6; do
     fm_write_meta "$home/state/task-$i.meta" "window=fm-task-$i" "kind=ship"
@@ -663,15 +663,31 @@ test_entry_without_spend_records_the_live_worker_count_never_below_the_floor() {
     || fail "an explicit --spend lost to the live count"
 
   # Six finished workers are spending nothing, so they must not raise the cap.
+  # Their panes stay live and idle, so the read comes from the status log and
+  # not from a lost endpoint.
   home=$(make_home spend-live-finished)
+  fakebin="$home/fakebin"
+  mkdir -p "$fakebin"
+  cat > "$fakebin/tmux" <<'SH'
+#!/usr/bin/env bash
+case "${1:-}" in
+  list-windows) printf 'fm-task-%s\n' 1 2 3 4 5 6 ;;
+  display-message) printf '%%1\n' ;;
+  capture-pane) printf 'all quiet\n> \n' ;;
+esac
+exit 0
+SH
+  chmod +x "$fakebin/tmux"
   for i in 1 2 3 4 5 6; do
     mkdir -p "$home/wt/task-$i"
-    fm_write_meta "$home/state/task-$i.meta" "window=fm:fm-task-$i" "kind=ship" "worktree=$home/wt/task-$i"
+    fm_write_meta "$home/state/task-$i.meta" "window=fm:fm-task-$i" "kind=ship" "worktree=$home/wt/task-$i" "harness=claude"
+    gen=$("$ROOT/bin/fm-busy-event.sh" arm "$home/state" "task-$i")
+    "$ROOT/bin/fm-busy-event.sh" apply "$home/state" "task-$i" idle --gen "$gen" --source claude-hook --event stop
     printf 'done [at=1]: PR https://example.invalid/demo/pull/%s ready\n' "$i" > "$home/state/task-$i.status"
   done
-  [ "$(contract "$home" live-workers)" = 0 ] \
-    || fail "finished workers counted as still working: $(contract "$home" live-workers)"
-  contract "$home" enter --words 'hold the line' >/dev/null 2>&1 || fail "entry over finished workers failed"
+  [ "$(PATH="$fakebin:$PATH" contract "$home" live-workers)" = 0 ] \
+    || fail "finished workers counted as still working: $(PATH="$fakebin:$PATH" contract "$home" live-workers)"
+  PATH="$fakebin:$PATH" contract "$home" enter --words 'hold the line' >/dev/null 2>&1 || fail "entry over finished workers failed"
   [ "$(contract "$home" field spend_max_concurrent_workers)" = 4 ] \
     || fail "finished records raised the cap: $(contract "$home" field spend_max_concurrent_workers)"
   pass "entry without --spend records the workers still working, never below the default floor, and an explicit --spend still wins"

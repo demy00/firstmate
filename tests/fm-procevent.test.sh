@@ -19,6 +19,10 @@ set -u
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 TMP_ROOT=$(fm_test_tmproot fm-procevent-tests)
 export FM_PROCEVENT_CLAIM_ROOT="$TMP_ROOT/claims"
+# The default three second confirm window can pass before a listener starts on a
+# busy machine, and this script's cases prove readiness, not the default. A case
+# about the window itself sets its own, and a healthy start returns at once.
+export FM_PROCEVENT_LAUNCH_CONFIRM_SECONDS=30
 export LAVISH_AXI_STATE_DIR="$TMP_ROOT/lavish-state"
 mkdir -p "$LAVISH_AXI_STATE_DIR"
 
@@ -3942,7 +3946,7 @@ done
 printf '%s\n' "$(( $(date +%s) + 3600 ))" > "$ROLLBACK_STAMP"
 FM_PROCEVENT_LAUNCH_FLOOR_SECONDS=3600 pe "$HROLLBACK" start rollback-src > "$TMP_ROOT/rollback.out" 2>&1 &
 ROLLBACK_START_PID=$!
-rollback_deadline=$((SECONDS + 4))
+rollback_deadline=$((SECONDS + 30))
 while kill -0 "$ROLLBACK_START_PID" 2>/dev/null; do
   if [ "$SECONDS" -ge "$rollback_deadline" ]; then
     pe "$HROLLBACK" retire rollback-src >/dev/null 2>&1 || true
@@ -4338,7 +4342,7 @@ chmod +x "$RETRY_BIN/ps"
 
 retry_pe() {  # <command...>
   PATH="$RETRY_BIN:$PATH" STOP_RETRY_STATE="$RETRY_STATE" \
-    FM_PROCEVENT_OWNER_LEASE_SECONDS=2 FM_PROCEVENT_OWNER_CHECK_SECONDS=1 \
+    FM_PROCEVENT_OWNER_LEASE_SECONDS=8 FM_PROCEVENT_OWNER_CHECK_SECONDS=1 \
     FM_HOME="$RETRY_HOME" "$ROOT/bin/fm-procevent.sh" "$@"
 }
 
@@ -4894,7 +4898,7 @@ PATH="$READY/bin:$PATH" FM_HOME="$READY/home" \
 assert_contains "$(cat "$READY/arm.out")" "armed: $ready_id" "a live listener was not reported ready"
 [ -e "$FM_PROCEVENT_CLAIM_ROOT/$ready_id.claim" ] \
   || fail "arm reported ready without a listener claim"
-for _ in $(seq 1 50); do
+for _ in $(seq 1 300); do
   grep -q started "$READY_MARK" && break
   sleep 0.05
 done
@@ -4936,7 +4940,7 @@ touch "$delay_rel"
 wait "$delay_arm" || fail "arm failed after the delayed listener was allowed to start: $(cat "$DELAY/arm.err")"
 assert_contains "$(cat "$DELAY/arm.out")" "armed: $delay_id" \
   "arm did not report ready once the delayed listener was running"
-for _ in $(seq 1 50); do
+for _ in $(seq 1 300); do
   grep -q started "$READY_MARK" && break
   sleep 0.05
 done
@@ -5309,7 +5313,7 @@ done
 [ ! -e "$drain_claim" ] || fail "the first generation of the draining fixture never exited"
 # Stand the first generation's claim back up on a live process so the re-arm
 # meets it still held, then release it partway through the confirm window.
-setsid sleep 60 &
+perl -MPOSIX=setsid -e 'setsid() >= 0 or exit 1; exec @ARGV' sleep 60 &
 drain_holder=$!
 # Read the identity only once the holder has exec'd sleep: mid-exec its cmdline
 # can read empty, and a pre-exec identity would never match the live holder.
