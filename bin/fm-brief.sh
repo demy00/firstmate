@@ -699,7 +699,7 @@ SHARED_DOCKER_RULE=${SHARED_DOCKER_RULE%$'\n'}
 
 # One shared string keeps the ship and scout shell-path rule identical.
 IFS= read -r -d '' SHARED_NO_CD_RULE <<'EOF' || true
-8. Never start a shell command with `cd`, and never run a search whose path depends on the current directory.
+9. Never start a shell command with `cd`, and never run a search whose path depends on the current directory.
    Use absolute paths, `git -C <abs>`, or a `( cd <abs> && ... )` subshell.
    Pass this rule to every sub-agent you launch.
 EOF

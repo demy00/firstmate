@@ -737,7 +737,6 @@ sub lavish_array {  # <count> <fields or undef> <lines>
     return \%r;
   }
   for my $group (@$groups) {
-    last if @{$r{items}} + $r{malformed} >= $want;
     my ($head, $indent, $sub) = @$group;
     my ($body) = $head =~ /\A-(?: (.*))?\z/;
     if (!defined $body && $head !~ /\A-\z/) {

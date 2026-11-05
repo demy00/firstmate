@@ -3705,6 +3705,29 @@ assert_contains "$out" "complete: no" "a list-form capture with malformed items 
 assert_contains "$out" "| Good element" "a valid list item beside malformed ones was not presented"
 pass "read never certifies malformed list-form items as complete"
 
+cat > "$READ" <<'EOF'
+session:
+  file: /review.html
+  status: feedback
+prompts[1]:
+  - uid: "1"
+    prompt: declared comment
+    selector: div#a
+    tag: div
+    text: Declared element
+  - uid: "2"
+    prompt: surplus comment
+    selector: div#b
+    tag: div
+    text: Surplus element
+EOF
+out=$(read_out) || fail "read failed on a list-form capture with a surplus item"
+assert_contains "$out" "declared_items: 1" "a surplus list item changed the declared count"
+assert_contains "$out" "presented_items: 2" "a surplus list item was dropped"
+assert_contains "$out" "complete: no" "a list with an undeclared surplus item was certified complete"
+assert_contains "$out" "| surplus comment" "a surplus list item's comment was not presented"
+pass "read presents an undeclared surplus list item and never certifies it as complete"
+
 # The guard for issue #4726: a raw header declaring N > 0 items that this
 # adapter parses as nothing is never a complete, empty result.
 for header in 'prompts[2]:' 'prompts[2]<uid,tag>:' 'prompts[2]{uid,tag}'; do

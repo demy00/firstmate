@@ -661,7 +661,20 @@ test_entry_without_spend_records_the_live_worker_count_never_below_the_floor() {
   contract "$home" enter --words 'hold it down' --spend 2 >/dev/null 2>&1 || fail "explicit entry failed"
   [ "$(contract "$home" field spend_max_concurrent_workers)" = 2 ] \
     || fail "an explicit --spend lost to the live count"
-  pass "entry without --spend records the live worker count, never below the default floor, and an explicit --spend still wins"
+
+  # Six finished workers are spending nothing, so they must not raise the cap.
+  home=$(make_home spend-live-finished)
+  for i in 1 2 3 4 5 6; do
+    mkdir -p "$home/wt/task-$i"
+    fm_write_meta "$home/state/task-$i.meta" "window=fm:fm-task-$i" "kind=ship" "worktree=$home/wt/task-$i"
+    printf 'done [at=1]: PR https://example.invalid/demo/pull/%s ready\n' "$i" > "$home/state/task-$i.status"
+  done
+  [ "$(contract "$home" live-workers)" = 0 ] \
+    || fail "finished workers counted as still working: $(contract "$home" live-workers)"
+  contract "$home" enter --words 'hold the line' >/dev/null 2>&1 || fail "entry over finished workers failed"
+  [ "$(contract "$home" field spend_max_concurrent_workers)" = 4 ] \
+    || fail "finished records raised the cap: $(contract "$home" field spend_max_concurrent_workers)"
+  pass "entry without --spend records the workers still working, never below the default floor, and an explicit --spend still wins"
 }
 
 test_readback_renders_words_verbatim_with_the_record_scalars

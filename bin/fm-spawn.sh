@@ -971,6 +971,8 @@ fm_backlog_directory_present "$STATE" "state directory" || {
 . "$SCRIPT_DIR/fm-remote-readiness-lib.sh"
 # shellcheck source=bin/fm-timeout-lib.sh
 . "$SCRIPT_DIR/fm-timeout-lib.sh"
+# shellcheck source=bin/fm-away-spend-lib.sh
+. "$SCRIPT_DIR/fm-away-spend-lib.sh"
 # shellcheck source=bin/fm-project-capacity-lib.sh
 . "$SCRIPT_DIR/fm-project-capacity-lib.sh"
 # shellcheck source=bin/fm-worker-account-lib.sh
@@ -2223,62 +2225,6 @@ fi
 if [ "$RELAUNCH" -ne 1 ]; then
   fm_lease_forbid_branch "new-task spawn (fm-spawn)" --away-relocated
 fi
-# 0 when <task>'s current state shows a worker that has stopped spending.
-# bin/fm-crew-state.sh owns that reading (its forge fallback is skipped
-# because it only refines the detail of a terminal reading), and only these
-# readings free a slot:
-#   - done;
-#   - failed, from the status log (reached only on an idle pane) or from a
-#     run step while the busy contract (bin/fm-busy-lib.sh) reads the pane
-#     idle, so a worker still fixing its failed run keeps counting;
-#   - parked on a decision a human owes: a needs-decision from the status
-#     log, or a run-step gate carrying the whole FM_GATE_HUMAN_DECISION
-#     component (bin/fm-classify-lib.sh), so a gate the worker answers itself
-#     keeps counting;
-#   - an endpoint the backend's recovery-grade classifier proved gone or
-#     agentless (tmux and herdr), never a probe that failed to answer.
-# Every other state - working, any other gate, a declared wait on its own
-# validation, a blocker firstmate still has to clear, a torn-down worktree,
-# unknown, or a read that hit its bound - keeps the task counted.
-spawn_task_stopped_spending() {  # <task-id>
-  local line state src rest part busy
-  line=$(fm_run_timed "${FM_SPAWN_CREW_STATE_TIMEOUT:-15}" \
-    env FM_HOME="$FM_HOME" FM_STATE_OVERRIDE="$STATE" FM_DATA_OVERRIDE="$DATA" \
-    FM_PROJECTS_OVERRIDE="$PROJECTS" FM_CONFIG_OVERRIDE="$CONFIG" FM_CREW_STATE_NO_FORGE=1 \
-    "$SCRIPT_DIR/fm-crew-state.sh" "$1" </dev/null 2>/dev/null | head -1) || true
-  case "$line" in "state: "*" · source: "*) ;; *) return 1 ;; esac
-  state=${line#state: }
-  state=${state%% *}
-  src=${line#* · source: }
-  src=${src%% *}
-  case "$state:$src" in
-  done:*) return 0 ;;
-  failed:status-log) return 0 ;;
-  failed:run-step)
-    busy=$(fm_busy_classify_meta "$STATE/$1.meta" "$1" "$STATE" 2>/dev/null) || return 1
-    [ "${busy%% *}" = idle ]
-    return
-    ;;
-  parked:status-log) return 0 ;;
-  parked:run-step)
-    rest="$line · "
-    while [ -n "$rest" ]; do
-      part=${rest%% · *}
-      rest=${rest#* · }
-      [ "$part" != "$FM_GATE_HUMAN_DECISION" ] || return 0
-    done
-    return 1
-    ;;
-  unknown:none)
-    case "$line" in *" · backend target gone: "*) ;; *) return 1 ;; esac
-    case "$(fm_backend_of_meta "$STATE/$1.meta")" in
-    tmux | herdr) return 0 ;;
-    esac
-    return 1
-    ;;
-  esac
-  return 1
-}
 SPAWN_AWAY_STOPPED_IDS=
 SPAWN_AWAY_STOPPED_READ=0
 spawn_refuse_if_away_spend_cap() {
@@ -2299,7 +2245,7 @@ spawn_refuse_if_away_spend_cap() {
     [ "$(grep '^kind=' "$meta" 2>/dev/null | tail -1 | cut -d= -f2-)" != secondmate ] || continue
     task=${meta##*/}
     task=${task%.meta}
-    if [ "$SPAWN_AWAY_STOPPED_READ" -eq 0 ] && spawn_task_stopped_spending "$task"; then
+    if [ "$SPAWN_AWAY_STOPPED_READ" -eq 0 ] && fm_away_task_stopped_spending "$task" "$STATE" "$DATA" "$PROJECTS" "$CONFIG"; then
       SPAWN_AWAY_STOPPED_IDS="$SPAWN_AWAY_STOPPED_IDS $task "
     fi
     case "$SPAWN_AWAY_STOPPED_IDS" in
@@ -2321,7 +2267,7 @@ spawn_refuse_if_away_spend_cap() {
 # spends as attended: bin/fm-afk-contract.sh mode), a fresh ordinary spawn
 # refuses for BOTH actors once this home already holds that many ordinary
 # workers still spending - every state/*.meta whose kind is not secondmate,
-# minus the tasks spawn_task_stopped_spending reads as stopped. A finished
+# minus the tasks fm_away_task_stopped_spending reads as stopped. A finished
 # worker keeps its record until cleanup, and a ship's cleanup waits on its
 # merge, so counting records instead let finished work hold every slot and
 # refuse independent queued work. A relaunch replaces a worker that already

@@ -108,8 +108,8 @@
 #   fm-afk-contract.sh words [--path <record>]
 #   fm-afk-contract.sh validate [--path <record>]  exit 0 when the record is readable and complete
 #   fm-afk-contract.sh live-workers
-#     Print the ordinary worker record count this home holds right now (SPEND CAP
-#     below). Reads no record, so it answers before an entry as well as during
+#     Print how many ordinary workers this home has still working right now (SPEND
+#     CAP below). Reads no record, so it answers before an entry as well as during
 #     one.
 #   fm-afk-contract.sh archive              move the record aside; print its path
 #   fm-afk-contract.sh archived <entered_epoch>   print that archived record's path
@@ -135,12 +135,13 @@
 # both the number written at entry and the counting rule behind it).
 # The cap bounds how many ordinary workers this home runs concurrently while an
 # away record stands; bin/fm-spawn.sh enforces it by refusing a fresh ordinary
-# spawn once that many are still working, and owns that count. An ordinary worker
-# record is every state/*.meta whose kind is not secondmate, counted by
-# fm_afk_contract_live_ordinary_workers and exposed as `live-workers`.
-# Without --spend, entry records the record count standing at that moment, which
-# is never below the workers still working, so away mode never narrows work
-# already under way; it never records less than
+# spawn once that many are still working. An ordinary worker record is every
+# state/*.meta whose kind is not secondmate, and it is still working unless
+# bin/fm-away-spend-lib.sh reads it as stopped. Entry and refusal share that
+# reading, counted here by fm_afk_contract_live_ordinary_workers and exposed as
+# `live-workers`, so finished records never raise the cap.
+# Without --spend, entry records the count standing at that moment, so away mode
+# never narrows work already under way; it never records less than
 # FM_AFK_CONTRACT_SPEND_DEFAULT, so an idle home still enters with the ordinary
 # room to work, and never 0. An explicit --spend is the captain's number and is
 # recorded unchanged.
@@ -189,15 +190,31 @@ fm_afk_contract_present() {  # [state-dir]
   [ -f "$(fm_afk_contract_path "${1:-$FM_AFK_CONTRACT_STATE}")" ]
 }
 
-# The ordinary worker records this home holds right now (the header's SPEND
+# The ordinary workers this home has still working right now (the header's SPEND
 # CAP): every state/*.meta whose kind is not secondmate, because a secondmate is
-# a persistent home rather than spend. The entry default reads this count.
+# a persistent home rather than spend, less those fm_away_task_stopped_spending
+# reads as stopped. The entry default reads this count. The libraries behind that
+# reading load here, not at the top, because other scripts source this one only
+# for its path, posture, and lock helpers.
 fm_afk_contract_live_ordinary_workers() {  # [state-dir]
-  local state=${1:-$FM_AFK_CONTRACT_STATE} meta live=0
+  local state=${1:-$FM_AFK_CONTRACT_STATE} meta task live=0
+  # shellcheck source=bin/fm-backend.sh
+  . "$FM_AFK_CONTRACT_DIR/fm-backend.sh"
+  # shellcheck source=bin/fm-busy-lib.sh
+  . "$FM_AFK_CONTRACT_DIR/fm-busy-lib.sh"
+  # shellcheck source=bin/fm-timeout-lib.sh
+  . "$FM_AFK_CONTRACT_DIR/fm-timeout-lib.sh"
+  # shellcheck source=bin/fm-away-spend-lib.sh
+  . "$FM_AFK_CONTRACT_DIR/fm-away-spend-lib.sh"
   for meta in "$state"/*.meta; do
     [ -f "$meta" ] || continue
     [ "$(grep '^kind=' "$meta" 2>/dev/null | tail -1 | cut -d= -f2-)" != secondmate ] || continue
-    live=$((live + 1))
+    task=${meta##*/}
+    task=${task%.meta}
+    if ! fm_away_task_stopped_spending "$task" "$state" "${FM_DATA_OVERRIDE:-$FM_HOME/data}" \
+      "${FM_PROJECTS_OVERRIDE:-$FM_HOME/projects}" "${FM_CONFIG_OVERRIDE:-$FM_HOME/config}"; then
+      live=$((live + 1))
+    fi
   done
   printf '%s\n' "$live"
 }

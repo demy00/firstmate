@@ -1665,8 +1665,8 @@ test_crewmate_scaffolds_forbid_pool_administration() {
   [ "$ship_rule" = "$scout_rule" ] \
     || fail "ship and scout shared-infrastructure rules have drifted apart"
 
-  ship_cd_rule=$(awk '/^8\. Never start a shell command with/,/^$/' "$home/data/brief-pool-no-mistakes/brief.md")
-  scout_cd_rule=$(awk '/^8\. Never start a shell command with/,/^$/' "$brief")
+  ship_cd_rule=$(awk '/^9\. Never start a shell command with/,/^$/' "$home/data/brief-pool-no-mistakes/brief.md")
+  scout_cd_rule=$(awk '/^9\. Never start a shell command with/,/^$/' "$brief")
   [ -n "$ship_cd_rule" ] || fail "ship brief emitted no leading-cd rule"
   [ "$ship_cd_rule" = "$scout_cd_rule" ] \
     || fail "scout brief leading-cd rule is missing or differs from the ship brief"

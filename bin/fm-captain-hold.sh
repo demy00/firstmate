@@ -416,38 +416,6 @@ task_show_or_fail() {  # <id> <absence-message>; sets show
   show=$TASK_SHOW_OUTPUT
 }
 
-# --- the done archive as durable captain-answer evidence --------------------
-#
-# Retention prunes a closed row out of the live backlog into the configured
-# archive, so an answered captain call stops resolving through tasks-axi long
-# before its recorded answer stops being true. The completion gate re-resolves
-# every previously attested key on every later attempt, which made an ordinary
-# lifecycle - answer the call, let retention archive it - wedge every later
-# completion for that origin permanently, with no supported command able to
-# reach it.
-#
-# Reading the archive restores that evidence without relaxing the gate. Only
-# the LOOKUP widens: verify_hold_durable applies the same rule to an archived
-# row as to a live one, so a row closed with no recorded captain answer still
-# refuses, and a key naming no row in either place still refuses.
-#
-# The archive is an ordinary markdown backlog except that its sections are
-# dated "## Archived <date>" headings rather than "## Done", which tasks-axi's
-# markdown parser skips outright - it reads such a file as zero tasks. The
-# probe therefore renames those headings in a private scratch copy and reads
-# that copy with tasks-axi itself, so an archived row is parsed by the same
-# parser, into the same --full field shape, as a live one. The archive itself
-# is never written, and the scratch copy never outlives the probe.
-#
-# The archive is append-only and tasks-axi does not consult it when minting an
-# id, so a key re-raised after its earlier row was pruned leaves several rows
-# under one id, and tasks-axi reads the first. The newest row is the
-# authoritative one - it is what most recently happened to that id, and older
-# rows belong to earlier tasks that reused the identifier - so the scratch copy
-# keeps only the final row block for the probed id. An older answered row can
-# therefore never vouch for a later unanswered close, and an older unanswered
-# row can never refuse a later recorded answer.
-
 show_field() {  # <show-output> <field>
   local output=$1 field=$2
   printf '%s\n' "$output" | sed -n "s/^  $field: //p" | head -1

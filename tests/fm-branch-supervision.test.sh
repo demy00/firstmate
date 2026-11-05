@@ -81,6 +81,10 @@ test_branch_prompt_is_byte_stable_and_above_cache_floor() {
     *) fail "branch prompt lost the away queue-dispatch moment or MAIN's guarded spawn path" ;;
   esac
   case "$out_a" in
+    *"\`--base-branch <branch>\` when the brief records a \`Base branch:\` line"*"\`--upstream-consent <host>/<owner>/<repo>\` when its \`Delivery contract:\` line records \`upstream-consent=\`"*) ;;
+    *) fail "branch prompt's away dispatch recipe lost the flags a brief can require" ;;
+  esac
+  case "$out_a" in
     *"When the words plainly ask to hear about an event as it happens"*"add \`--tell-now true\` so MAIN posts it to the captain at once"*"every outcome the words do not ask to hear now only waits for it"*) ;;
     *) fail "branch prompt lost the away tell-now rule" ;;
   esac
