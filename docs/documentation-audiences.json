@@ -674,6 +674,10 @@
       "audience": "maintainer-verification"
     },
     {
+      "path": "tests/captures/claude-2.1.319-titled-wrap/README.md",
+      "audience": "maintainer-verification"
+    },
+    {
       "path": ".agents/skills/agent-skill-trigger-index/SKILL.md",
       "audience": "agent-runtime"
     },

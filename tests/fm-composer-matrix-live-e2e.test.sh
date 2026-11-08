@@ -167,6 +167,80 @@ check_harness_idle_cursorless() {  # <name> <version> <target>
   fi
 }
 
+# A named claude session holding typed input that wraps past one composer row,
+# under the titled rule: the cursorless read must call it pending and read
+# every typed byte back, because that read-back is the payload proof the Herdr
+# submit needs before it presses Enter on a steering doorbell. The window is
+# narrowed so the real doorbell line wraps, as it does in any pane narrower
+# than about 176 columns. Nothing is submitted: the typed line is cleared with
+# Ctrl+U, never Enter.
+check_claude_named_wrapped_readback() {
+  local name=claude-named-wrap win=hx-claude-named-wrap version verdict='' i=0 budget=${FM_COMPOSER_MATRIX_LIVE_POLLS:-45}
+  local payload pane caps content identity rows
+  version=$(harness_version claude)
+  payload=": Firstmate instruction waiting: list \"\$FM_TASK_INBOX\"/*.msg in your 'fm-cmx-named.inbox' steering inbox, read and act on each in numeric order, then mv each into its handled/."
+  tmux -L "$SOCKET" new-window -d -t "$SESSION:" -n "$win" -c "$ROOT" -- claude -n fm-cmx-named \
+    || fail "$name ($version): could not launch in the isolated tmux server"
+  tmux -L "$SOCKET" resize-window -t "$SESSION:$win" -x 120 -y 40 \
+    || fail "$name ($version): could not narrow the probe window"
+  while [ "$i" -lt "$budget" ]; do
+    verdict=$(fm_tmux_composer_state "$SESSION:$win")
+    [ "$verdict" = empty ] && break
+    i=$((i + 1))
+    sleep 1
+  done
+  if [ "$verdict" != empty ]; then
+    FAILED=1
+    printf 'not ok - %s (%s): the named composer never classified empty before typing (last verdict: %s)\n' \
+      "$name" "$version" "${verdict:-unreadable}" >&2
+    tmux -L "$SOCKET" kill-window -t "$SESSION:$win" 2>/dev/null || true
+    return 0
+  fi
+  tmux -L "$SOCKET" send-keys -t "$SESSION:$win" -l "$payload"
+  caps=$(printf 'styled=1\ncursor=0\nidentity=1\nrows=0')
+  i=0
+  while [ "$i" -lt 10 ]; do
+    sleep 0.5
+    pane=$(fm_tmux_composer_capture "$SESSION:$win") || pane=
+    verdict=$(fm_composer_classify_screen "$caps" "$pane")
+    if [ "$verdict" = need-identity ]; then
+      if ! identity=$(fm_tmux_composer_identity "$SESSION:$win") || [ -z "$identity" ]; then
+        identity='probe-absent'
+      fi
+      verdict=$(fm_composer_classify_screen "$caps" "$pane" '' "$identity")
+    fi
+    content=$(FM_COMPOSER_GHOST_LUMA_MAX=0 fm_composer_extract_selected_content "$caps" "$pane") || content=
+    [ "$(printf '%s' "$content" | tr -d '[:space:]')" = "$(printf '%s' "$payload" | tr -d '[:space:]')" ] && break
+    i=$((i + 1))
+  done
+  # The check is only meaningful while the typed line really wraps.
+  rows=$(printf '%s\n' "$pane" | fm_composer_strip_ansi | awk '
+    /^─+ fm-cmx-named ─$/ { inside = 1; next }
+    inside && /^─+$/ { exit }
+    inside { n++ }
+    END { print n + 0 }')
+  for _ in 1 2 3 4 5 6; do
+    tmux -L "$SOCKET" send-keys -t "$SESSION:$win" C-u 2>/dev/null || true
+    sleep 0.2
+  done
+  if [ "$rows" -lt 2 ]; then
+    FAILED=1
+    printf 'not ok - %s (%s): the typed doorbell did not wrap under the titled rule (%s composer rows), so the check proved nothing\n' \
+      "$name" "$version" "$rows" >&2
+  elif [ "$verdict" != pending ] \
+     || [ "$(printf '%s' "$content" | tr -d '[:space:]')" != "$(printf '%s' "$payload" | tr -d '[:space:]')" ]; then
+    printf '# %s cursorless pane tail:\n' "$name" >&2
+    printf '%s\n' "$pane" | fm_composer_strip_ansi | grep '[^[:space:]]' | tail -8 | sed 's/^/#   /' >&2
+    FAILED=1
+    printf 'not ok - %s (%s): a wrapped doorbell under the titled rule read %s with content %s; the Herdr submit would clear it and report it undelivered\n' \
+      "$name" "$version" "${verdict:-unreadable}" "${content:-<none>}" >&2
+  else
+    CHECKED=$((CHECKED + 1))
+    pass "$name ($version): a doorbell wrapped over $rows rows under the titled rule reads pending and reads back whole"
+  fi
+  tmux -L "$SOCKET" kill-window -t "$SESSION:$win" 2>/dev/null || true
+}
+
 # --- 1. Every installed verified harness must reach a proven-empty composer --
 for h in claude codex opencode pi grok kimi muse; do
   if command -v "$h" >/dev/null 2>&1; then
@@ -180,8 +254,10 @@ done
 # away-mode delivery to a named primary on a cursorless backend defers forever.
 if command -v claude >/dev/null 2>&1; then
   CMX_REQUIRE_CURSORLESS_EMPTY=1 check_harness_idle_empty claude-named claude -n fm-cmx-named
+  check_claude_named_wrapped_readback
 else
   note "harness absent, not verified here: claude-named"
+  note "harness absent, not verified here: claude-named-wrap"
 fi
 
 # --- 2. The strict blank-row posture, live ----------------------------------

@@ -5874,6 +5874,82 @@ EOF
   pass "fm_backend_herdr_send_text_submit: with Claude 2.1.291's popup on screen a suffix, a placeholder plus remainder, or a prefix is still refused and cleared"
 }
 
+# A named Claude Code 2.1.319 session draws its name into the composer's top
+# rule, and in a pane narrower than about 176 columns the steering doorbell
+# wraps onto a second composer row under it. That read-back used to fail, so
+# the submit cleared the doorbell and reported send-failed, and fm-send told
+# the supervisor the doorbell did not reach an idle pane with an empty
+# composer. The screens are real captures, described in
+# tests/captures/claude-2.1.319-titled-wrap/README.md.
+herdr_titled_wrap_capture() {  # <name>
+  cat "$ROOT/tests/captures/claude-2.1.319-titled-wrap/$1.ansi"
+}
+
+HERDR_TITLED_WRAP_DOORBELL=": Firstmate instruction waiting: list \"\$FM_TASK_INBOX\"/*.msg in your 'lifemate.inbox' steering inbox, read and act on each in numeric order, then mv each into its handled/."
+
+test_composer_reads_claude_titled_wrapped_doorbell() {
+  local dir log resp fb out pair name want verdict
+  for pair in "idle:empty:" "doorbell-typed:pending:$HERDR_TITLED_WRAP_DOORBELL"; do
+    name=${pair%%:*}
+    want=${pair#*:}
+    verdict=${want%%:*}
+    want=${want#*:}
+    dir="$TMP_ROOT/composer-claude-titled-wrap-$name"; mkdir -p "$dir/responses"; log="$dir/log"; resp="$dir/responses"; : > "$log"
+    herdr_titled_wrap_capture "$name" > "$resp/1.out"
+    herdr_titled_wrap_capture "$name" > "$resp/2.out"
+    fb=$(make_herdr_fakebin "$dir")
+    out=$( PATH="$fb:$PATH" FM_HERDR_LOG="$log" FM_HERDR_RESPONSES="$resp" \
+      bash -c '. "$0/bin/backends/herdr.sh"; fm_backend_herdr_composer_state default:w1:p2' "$ROOT" )
+    [ "$out" = "$verdict" ] || fail "$name: the composer state must be $verdict, got '$out'"
+    out=$( PATH="$fb:$PATH" FM_HERDR_LOG="$log" FM_HERDR_RESPONSES="$resp" \
+      bash -c '. "$0/bin/backends/herdr.sh"; fm_backend_herdr_composer_content default:w1:p2' "$ROOT" ) \
+      || fail "$name: the composer content could not be read"
+    [ "$out" = "$want" ] || fail "$name: the composer content must be '$want', got '$out'"
+  done
+  pass "fm_backend_herdr_composer_state: a named Claude composer reads empty idle and reads its wrapped doorbell back"
+}
+
+test_send_text_submit_claude_titled_wrapped_doorbell_is_proven_and_submitted() {
+  local dir log resp fb out enter_count text=$HERDR_TITLED_WRAP_DOORBELL
+  dir="$TMP_ROOT/submit-claude-titled-wrap"; mkdir -p "$dir/responses"; log="$dir/log"; resp="$dir/responses"; : > "$log"
+  herdr_submit_claude_prefix "$resp" "$text"
+  herdr_titled_wrap_capture idle > "$resp/2.out"
+  herdr_titled_wrap_capture doorbell-typed > "$resp/4.out"
+  printf '{"result":{"agent":{"agent":"claude","agent_status":"idle"}}}\n' > "$resp/5.out"
+  printf '{"result":{"agent":{"agent_status":"working"}}}\n' > "$resp/7.out"
+  fb=$(make_herdr_fakebin "$dir")
+  out=$( PATH="$fb:$PATH" FM_HERDR_LOG="$log" FM_HERDR_RESPONSES="$resp" FM_BACKEND_HERDR_SUBMIT_POLLS=1 \
+    bash -c '. "$0/bin/backends/herdr.sh"; fm_backend_herdr_send_text_submit default:w1:p2 "$1" 2 0.01 0.01' "$ROOT" "$text" )
+  [ "$out" = empty ] || fail "a doorbell wrapped under a titled Claude rule must be proven and submitted, got '$out'"
+  assert_contains "$(cat "$log")" $'\x1f''send-text'$'\x1f''w1:p2'$'\x1f'"$text" "the doorbell was not typed"
+  enter_count=$(grep -c $'\x1f''pane'$'\x1f''send-keys'$'\x1f''w1:p2'$'\x1f''enter' "$log")
+  [ "$enter_count" -eq 1 ] || fail "the proven doorbell should be submitted once, sent $enter_count Enter(s)"
+  [ "$(herdr_ctrl_u_count "$log")" -eq 0 ] || fail "a proven doorbell must not be cleared"
+  pass "fm_backend_herdr_send_text_submit: a doorbell wrapped under a named Claude session's titled rule is proven and submitted"
+}
+
+# The same titled composer holding a wrapped draft is pending text, so the
+# doorbell is never typed into it.
+test_send_text_submit_claude_titled_wrapped_draft_is_never_typed_into() {
+  local dir log resp fb out
+  dir="$TMP_ROOT/submit-claude-titled-wrap-draft"; mkdir -p "$dir/responses"; log="$dir/log"; resp="$dir/responses"; : > "$log"
+  herdr_titled_wrap_capture draft-typed > "$resp/1.out"
+  fb=$(make_herdr_fakebin "$dir")
+  out=$( PATH="$fb:$PATH" FM_HERDR_LOG="$log" FM_HERDR_RESPONSES="$resp" \
+    bash -c '. "$0/bin/backends/herdr.sh"; fm_backend_herdr_composer_state default:w1:p2' "$ROOT" )
+  [ "$out" = pending ] || fail "a wrapped draft under a titled Claude rule must read pending, got '$out'"
+  dir="$TMP_ROOT/submit-claude-titled-wrap-draft-send"; mkdir -p "$dir/responses"; log="$dir/log"; resp="$dir/responses"; : > "$log"
+  printf '{"result":{"agent":{"agent":"claude","agent_status":"idle"}}}\n' > "$resp/1.out"
+  herdr_titled_wrap_capture draft-typed > "$resp/2.out"
+  fb=$(make_herdr_fakebin "$dir")
+  out=$( PATH="$fb:$PATH" FM_HERDR_LOG="$log" FM_HERDR_RESPONSES="$resp" FM_BACKEND_HERDR_SUBMIT_POLLS=1 \
+    bash -c '. "$0/bin/backends/herdr.sh"; fm_backend_herdr_send_text_submit default:w1:p2 "$1" 2 0.01 0.01' "$ROOT" "$HERDR_TITLED_WRAP_DOORBELL" )
+  [ "$out" = send-failed ] || fail "a submit over a wrapped draft must refuse, got '$out'"
+  [ "$(grep -c $'\x1f''send-text' "$log")" -eq 0 ] || fail "nothing may be typed over a wrapped draft"
+  [ "$(grep -c $'\x1f''send-keys' "$log")" -eq 0 ] || fail "no key may be sent over a wrapped draft"
+  pass "fm_backend_herdr_send_text_submit: a wrapped draft under a titled Claude rule is never typed into"
+}
+
 # Live Claude Code 2.1.283 draws a recognized typed slash command in muted
 # truecolor grey (38;2;112;112;112, luminance 112), below the grok-tuned
 # dark-foreground ghost threshold. Claude's own ghost suggestion is SGR-2 dim,
@@ -6834,6 +6910,9 @@ test_send_text_submit_claude_slash_popup_composer_is_still_proven_and_submitted
 test_composer_content_claude_2_1_291_marked_popup_row_is_not_the_composer
 test_send_text_submit_claude_2_1_291_marked_popup_row_is_proven_and_submitted
 test_send_text_submit_claude_2_1_291_popup_still_refuses_a_partial_payload
+test_composer_reads_claude_titled_wrapped_doorbell
+test_send_text_submit_claude_titled_wrapped_doorbell_is_proven_and_submitted
+test_send_text_submit_claude_titled_wrapped_draft_is_never_typed_into
 test_send_text_submit_claude_grey_slash_command_is_proven_and_submitted
 test_send_text_submit_lone_paste_placeholder_submits_the_long_payload
 test_send_text_submit_multiline_paste_placeholder_submits_the_long_payload

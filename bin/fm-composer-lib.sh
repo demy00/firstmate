@@ -1978,9 +1978,45 @@ _fm_composer_bare_is_popup_selection() {  # <plain-screen> <screen> <styled> <ro
   [[ $rest =~ ^(/|…)[^[:space:]].*[[:space:]]{2,}[^[:space:]] ]]
 }
 
+# _fm_composer_bare_wrap_last: the last row of the bare composer whose glyph
+# row is <glyph-row>. Typed input wider than the pane wraps onto the rows
+# beneath the glyph row, so the composer runs down through every contiguous
+# row that is non-blank, carries no structural edge, and is not omp's status
+# row or braille animation furniture. A composer's own closing rule is such
+# an edge, so the walk stops directly above it. In the kiro scope a hinted
+# idle placeholder is the whole composer, so the row below it (kiro's
+# `/copy to clipboard` footer) is never wrapped input.
+_fm_composer_bare_wrap_last() {  # <plain-screen> <glyph-row>
+  local plain=$1 last=$2 next trimmed glyph
+  next=$((last + 1))
+  if fm_composer_kiro_scope; then
+    trimmed=$(_fm_composer_screen_row "$last" "$plain")
+    fm_composer_normalize_trim_var trimmed
+    if fm_composer_leading_agent_glyph_var glyph "$trimmed"; then
+      trimmed=${trimmed#*"$glyph"}
+      fm_composer_normalize_trim_var trimmed
+      fm_composer_idle_matches "$trimmed" "$FM_COMPOSER_HINTED_IDLE_RE_DEFAULT" sensitive \
+        && next=-1
+    fi
+  fi
+  while [ "$next" -ge 0 ]; do
+    trimmed=$(_fm_composer_screen_row "$next" "$plain")
+    fm_composer_normalize_trim_var trimmed
+    [ -n "$trimmed" ] || break
+    fm_composer_row_has_edge "$trimmed" && break
+    _fm_composer_row_is_omp_status "$trimmed" && break
+    _fm_composer_row_is_braille_furniture "$trimmed" && break
+    last=$next
+    next=$((next + 1))
+  done
+  printf '%s' "$last"
+}
+
 # _fm_composer_bare_rule_sandwich: 0 when bare agent-glyph <row> sits in its
 # own titled composer: a titled rule directly above it and the screen's only
-# unmatched separator directly below it, which is that composer's closing rule.
+# unmatched separator directly below the composer's last row, which is that
+# composer's closing rule. The last row is the glyph row itself, or the last
+# row its typed input wrapped onto (_fm_composer_bare_wrap_last).
 #
 # The cursorless staleness rule reads an unmatched separator BELOW a candidate
 # as proof the candidate is scrollback. A titled top rule never opens the
@@ -1988,11 +2024,17 @@ _fm_composer_bare_is_popup_selection() {  # <plain-screen> <screen> <styled> <ro
 # separator and a genuinely idle composer read `unknown`. Adjacency on BOTH
 # edges keeps the staleness rule intact everywhere else: a glyph stranded in
 # scrollback has transcript rows, not its own rules, around it.
+# The wrapped case matters to every steer: the steering doorbell is wider than
+# one composer row in a pane narrower than about 176 columns, so once it was
+# typed into a named Claude session the closing rule sat below its second row,
+# the payload read-back failed, and the Herdr submit cleared the doorbell and
+# reported it undelivered (Claude Code 2.1.319 on Herdr 0.7.4).
 _fm_composer_bare_rule_sandwich() {  # <plain-screen> <row>
-  local plain=$1 row=$2 above below
+  local plain=$1 row=$2 last above below
   [ "$row" -ge 1 ] || return 1
-  [ "$FM_COMPOSER_SCAN_PI_LAST_SEPARATOR" -eq "$((row + 1))" ] || return 1
-  below=$(_fm_composer_screen_row "$((row + 1))" "$plain")
+  last=$(_fm_composer_bare_wrap_last "$plain" "$row")
+  [ "$FM_COMPOSER_SCAN_PI_LAST_SEPARATOR" -eq "$((last + 1))" ] || return 1
+  below=$(_fm_composer_screen_row "$((last + 1))" "$plain")
   fm_composer_normalize_trim_var below
   _fm_composer_pi_separator_row "$below" || return 1
   above=$(_fm_composer_screen_row "$((row - 1))" "$plain")
@@ -2070,30 +2112,7 @@ _fm_composer_select_cursorless() {  # <plain-screen> <screen> <styled>
     return 1
   fi
   if [ "$FM_COMPOSER_SELECTED_KIND" = bare ]; then
-    next=$((FM_COMPOSER_SELECTED_LAST + 1))
-    # In the kiro scope a hinted idle placeholder is the whole composer, so the
-    # row below it (kiro's `/copy to clipboard` footer) is never wrapped input.
-    if fm_composer_kiro_scope; then
-      trimmed=$(_fm_composer_screen_row "$FM_COMPOSER_SELECTED_FIRST" "$plain")
-      fm_composer_normalize_trim_var trimmed
-      if fm_composer_leading_agent_glyph_var glyph "$trimmed"; then
-        trimmed=${trimmed#*"$glyph"}
-        fm_composer_normalize_trim_var trimmed
-        fm_composer_idle_matches "$trimmed" "$FM_COMPOSER_HINTED_IDLE_RE_DEFAULT" sensitive \
-          && next=-1
-      fi
-    fi
-    while [ "$next" -ge 0 ]; do
-      raw=$(_fm_composer_screen_row "$next" "$plain")
-      trimmed=$raw
-      fm_composer_normalize_trim_var trimmed
-      [ -n "$trimmed" ] || break
-      fm_composer_row_has_edge "$trimmed" && break
-      _fm_composer_row_is_omp_status "$trimmed" && break
-      _fm_composer_row_is_braille_furniture "$trimmed" && break
-      FM_COMPOSER_SELECTED_LAST=$next
-      next=$((next + 1))
-    done
+    FM_COMPOSER_SELECTED_LAST=$(_fm_composer_bare_wrap_last "$plain" "$FM_COMPOSER_SELECTED_FIRST")
   fi
   if [ "$FM_COMPOSER_SELECTED_KIND" = box ] \
      || [ "$FM_COMPOSER_SELECTED_KIND" = leftbar ]; then
