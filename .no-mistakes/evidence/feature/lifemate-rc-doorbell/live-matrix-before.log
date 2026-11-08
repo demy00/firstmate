@@ -1,0 +1,25 @@
+ok - claude (2.1.319 (Claude Code)): real idle composer classifies empty
+ok - claude (2.1.319 (Claude Code)): the same idle pane read cursorless is not pending (verdict: empty)
+# harness absent, not verified here: codex
+ok - opencode (1.18.10): real idle composer classifies empty
+ok - opencode (1.18.10): the same idle pane read cursorless is not pending (verdict: unknown)
+# harness absent, not verified here: pi
+# harness absent, not verified here: grok
+# harness absent, not verified here: kimi
+# harness absent, not verified here: muse
+ok - claude-named (2.1.319 (Claude Code)): real idle composer classifies empty
+ok - claude-named (2.1.319 (Claude Code)): the same idle pane read cursorless is not pending (verdict: empty)
+# claude-named-wrap cursorless pane tail:
+#    ▝▝   ▝▝   ~/.no-mistakes/worktrees/f2cfe607828c/01M6YC5RDCD2V9HDQZEA36JSVC
+#                                                                                                       ◐ medium · /effort
+#   ───────────────────────────────────────────────────────────────────────────────────────────────────────── fm-cmx-named ─
+#   ❯ : Firstmate instruction waiting: list "$FM_TASK_INBOX"/*.msg in your 'fm-cmx-named.inbox' steering inbox, read and
+#     act on each in numeric order, then mv each into its handled/.
+#   ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+#     ➜  01M6YC5RDCD2V9HDQZEA36JSVC git:(e6507973) ✗ · Opus 5.5
+#     ⏵⏵ auto mode on (shift+tab to cycle)
+not ok - claude-named-wrap (2.1.319 (Claude Code)): a wrapped doorbell under the titled rule read unknown with content <none>; the Herdr submit would clear it and report it undelivered
+ok - strict posture live: a blank shell row classifies unknown and injection defers
+# harness absent, not verified here: zellij (false-positive regression not exercised)
+not ok - live composer-matrix guard observed failures above
+exit 1

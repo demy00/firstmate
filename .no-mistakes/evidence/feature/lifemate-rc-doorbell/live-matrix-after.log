@@ -1,0 +1,16 @@
+ok - claude (2.1.319 (Claude Code)): real idle composer classifies empty
+ok - claude (2.1.319 (Claude Code)): the same idle pane read cursorless is not pending (verdict: empty)
+# harness absent, not verified here: codex
+ok - opencode (1.18.10): real idle composer classifies empty
+ok - opencode (1.18.10): the same idle pane read cursorless is not pending (verdict: unknown)
+# harness absent, not verified here: pi
+# harness absent, not verified here: grok
+# harness absent, not verified here: kimi
+# harness absent, not verified here: muse
+ok - claude-named (2.1.319 (Claude Code)): real idle composer classifies empty
+ok - claude-named (2.1.319 (Claude Code)): the same idle pane read cursorless is not pending (verdict: empty)
+ok - claude-named-wrap (2.1.319 (Claude Code)): a doorbell wrapped over 2 rows under the titled rule reads pending and reads back whole
+ok - strict posture live: a blank shell row classifies unknown and injection defers
+# harness absent, not verified here: zellij (false-positive regression not exercised)
+ok - live composer-matrix guard verified 8 live surface(s)
+exit 0
