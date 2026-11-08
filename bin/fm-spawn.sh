@@ -326,7 +326,9 @@
 #   defaults unless the caller also passes explicit --model/--effort flags. When
 #   the file governs the spawn, its model/effort tokens are re-resolved on every
 #   respawn exactly like the harness axis, and explicit --model/--effort flags
-#   still win over the file's tokens.
+#   still win over the file's tokens. A pin without a model or effort token
+#   keeps the recorded value for that axis when an existing secondmate
+#   respawns on the same harness.
 #   A --secondmate spawn also propagates the primary's declared inherited local
 #   material, so the secondmate's OWN crewmates inherit primary config and the
 #   secondmate receives the primary's read-only shared captain-preference file
@@ -2921,7 +2923,16 @@ launch_template() {
   # Claude's system-prompt carrier while preserving the normal distrust of
   # project and fetched content. A persistent secondmate receives its own
   # supervisor contract instead, so this task-worker statement does not apply.
+  # Claude turns transcript saving off when it inherits a
+  # CLAUDE_CODE_CHILD_SESSION marker outside tmux (inside tmux it treats the
+  # marker as ambient; verified on 2.1.319). A pane inherits its multiplexer's
+  # environment, not fm-spawn's, so a Herdr server first started from a Claude
+  # session hands that marker to every pane it ever opens. A persistent
+  # secondmate's conversation must survive a relaunch, so its launch carries
+  # Claude's own override, CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1, in the
+  # command itself, where no inherited environment can drop it.
   claude)
+    [ "$kind" != secondmate ] || printf '%s' 'CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1 '
     printf '%s' 'CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION=false CLAUDE_CODE_SEND_FEEDBACK=0 claude __CLAUDEPERMFLAG__ __CLAUDEADDDIRS__--settings __CLAUDESETTINGS__ '
     if [ "$kind" != secondmate ]; then
       printf '%s' "--append-system-prompt '$(spawn_claude_task_channel_statement)' "
@@ -3437,10 +3448,21 @@ esac
 # --secondmate spawn and no explicit per-spawn harness/raw launch was supplied, so
 # the harness itself came from the secondmate config fallback chain. Resolving
 # here on every spawn makes the pin durable across respawns. Precedence: explicit
-# --model/--effort flags still win over the file's tokens.
+# --model/--effort flags still win over the file's tokens. A pin without a model
+# or effort token does not name that axis, so a respawn of an existing mate on
+# the same harness keeps the value its record carries for that axis.
 if [ "$KIND" = secondmate ] && [ -z "$ARG3" ]; then
+  SM_PRIOR_MODEL=
+  SM_PRIOR_EFFORT=
+  if fm_backlog_record_present "$STATE/$ID.meta" "task record" "$STATE" 2>/dev/null \
+     && [ "$(fm_meta_get "$STATE/$ID.meta" kind)" = secondmate ] \
+     && [ "$(fm_meta_get "$STATE/$ID.meta" harness)" = "$HARNESS" ]; then
+    SM_PRIOR_MODEL=$(fm_meta_get "$STATE/$ID.meta" model)
+    SM_PRIOR_EFFORT=$(fm_meta_get "$STATE/$ID.meta" effort)
+  fi
   if [ "$MODEL_SET" -eq 0 ]; then
     SM_MODEL=$("$SCRIPT_DIR/fm-harness.sh" secondmate-model "$ID")
+    [ -n "$SM_MODEL" ] || SM_MODEL=$SM_PRIOR_MODEL
     [ -z "$SM_MODEL" ] || MODEL=$SM_MODEL
   fi
   if [ "$EFFORT_SET" -eq 0 ]; then
@@ -3449,6 +3471,10 @@ if [ "$KIND" = secondmate ] && [ -z "$ARG3" ]; then
       case "$SM_EFFORT" in
       low | medium | high | xhigh | max | ultra) EFFORT=$SM_EFFORT ;;
       *) echo "warning: config/secondmate-harness effort token '$SM_EFFORT' is not one of low, medium, high, xhigh, max, ultra; ignoring" >&2 ;;
+      esac
+    else
+      case "$SM_PRIOR_EFFORT" in
+      low | medium | high | xhigh | max | ultra) EFFORT=$SM_PRIOR_EFFORT ;;
       esac
     fi
   fi

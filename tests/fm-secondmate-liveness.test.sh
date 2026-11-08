@@ -425,6 +425,31 @@ test_sweep_respawns_on_the_recorded_backend() {
   pass "sweep: a dead secondmate respawns on its recorded backend, not a changed default"
 }
 
+test_sweep_respawn_keeps_the_recorded_model_and_effort() {
+  local w fb tmuxfb log out launches
+  w=$(new_world sweep-profile)
+  printf 'claude\n' > "$w/home/config/secondmate-harness"
+  add_sm_home "$w" sm1 firstmate:fm-sm1 claude
+  printf '%s\n' 'model=opus' 'effort=high' >> "$w/home/state/sm1.meta"
+  fb=$(make_toolchain "$w"); tmuxfb=$(make_liveness_tmux "$w")
+  log="$w/calls.log"; : > "$log"
+  launches="$w/launches.log"; : > "$launches"
+
+  out=$(run_bootstrap "$tmuxfb:$fb" "$w/home" zsh "$log" FM_FAKE_LAUNCH_LOG="$launches")
+
+  assert_not_contains "$out" "SECONDMATE_LIVENESS: secondmate sm1:" \
+    "the respawn should succeed: $out"
+  assert_grep 'model=opus' "$w/home/state/sm1.meta" \
+    "a pin naming no model must keep the recorded model across the liveness respawn"
+  assert_grep 'effort=high' "$w/home/state/sm1.meta" \
+    "a pin naming no effort must keep the recorded effort across the liveness respawn"
+  assert_grep "--model 'opus'" "$launches" \
+    "the relaunched Claude command must carry the recorded model"
+  assert_grep "--effort 'high'" "$launches" \
+    "the relaunched Claude command must carry the recorded effort"
+  pass "sweep: a dead secondmate respawns with its recorded model and effort when the pin names neither"
+}
+
 test_sweep_recovers_the_durable_secondmate_account() {
   local w fb tmuxfb log out
   w=$(new_world sweep-account)
@@ -996,6 +1021,7 @@ test_herdr_agent_state_preserves_husk_classifier
 test_agent_state_dispatcher_and_compatibility
 test_sweep_respawns_confirmed_dead_secondmate
 test_sweep_respawns_on_the_recorded_backend
+test_sweep_respawn_keeps_the_recorded_model_and_effort
 test_sweep_recovers_the_durable_secondmate_account
 test_sweep_serializes_distinct_secondmate_relaunches
 test_sweep_keeps_tmux_best_effort_kill_when_close_fails

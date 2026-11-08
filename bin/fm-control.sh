@@ -78,7 +78,9 @@
 #              re-resolves its durable config/secondmate-harness pin (harness
 #              plus its optional model and effort tokens) exactly as any other
 #              respawn does, while a ship or scout keeps the exact adapter
-#              already recorded for it.
+#              already recorded for it. A pin without a model or effort token
+#              keeps the recorded value for that axis when the harness stays
+#              the same.
 #              A prefixed raw-command basename cannot reconstruct its launch
 #              command, so relaunch requires an explicit --harness for it.
 #              A replacement Claude or Pi profile must also pass this home's
@@ -1038,12 +1040,13 @@ resolve_relaunch_profile() {
   fm_control_harness_supports_kind "$TARGET_HARNESS" "$KIND" \
     || die "'$TARGET_HARNESS' is not verified to run a $KIND task, so relaunching $ID onto it would stop the running agent for a launch that must be refused; choose an adapter verified for this kind"
   # A model or effort chosen for the previous harness does not transfer to a
-  # different one, so an explicit harness change resets both axes unless the
-  # caller names them too.
+  # different one, so a harness change resets both axes unless the caller or
+  # the secondmate pin names them too. A pin without a model or effort token
+  # does not name that axis, so a same-harness relaunch keeps the recorded one.
   if [ "$MODEL_SET" = 1 ]; then
     TARGET_MODEL=$NEW_MODEL
-  elif [ "$HARNESS_SET" = 0 ] && [ -n "$CONFIG_HARNESS" ]; then
-    TARGET_MODEL=${CONFIG_MODEL:-default}
+  elif [ "$HARNESS_SET" = 0 ] && [ -n "$CONFIG_HARNESS" ] && [ -n "$CONFIG_MODEL" ]; then
+    TARGET_MODEL=$CONFIG_MODEL
   elif [ "$TARGET_HARNESS" = "$PRIOR_HARNESS" ]; then
     TARGET_MODEL=$PRIOR_MODEL
   else
@@ -1051,8 +1054,8 @@ resolve_relaunch_profile() {
   fi
   if [ "$EFFORT_SET" = 1 ]; then
     TARGET_EFFORT=$NEW_EFFORT
-  elif [ "$HARNESS_SET" = 0 ] && [ -n "$CONFIG_HARNESS" ]; then
-    TARGET_EFFORT=${CONFIG_EFFORT:-default}
+  elif [ "$HARNESS_SET" = 0 ] && [ -n "$CONFIG_HARNESS" ] && [ -n "$CONFIG_EFFORT" ]; then
+    TARGET_EFFORT=$CONFIG_EFFORT
   elif [ "$TARGET_HARNESS" = "$PRIOR_HARNESS" ]; then
     TARGET_EFFORT=$PRIOR_EFFORT
   else

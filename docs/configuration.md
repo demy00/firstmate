@@ -1328,7 +1328,7 @@ Blank lines and `#` comments stay legal anywhere, and a mate line is honored whe
 In a file that declares an override, a second default line, two overrides for one id, an override with no tokens or more than three, or a `mate` keyword naming an invalid secondmate id is an actionable error: resolution exits nonzero naming the file's line number and prints no token, so malformed pin config cannot resolve to a fallback in silence.
 In a file that declares no override, none of that applies: the legacy first-line rule governs, so an existing, already-valid file is read exactly as it was before this grammar existed.
 
-A bare `<harness>` preserves the previous behavior: harness only, with no model or effort launch flag.
+A bare `<harness>` names neither model nor effort: a first spawn launches with no model or effort flag, and a respawn of an existing secondmate on that same harness keeps the model and effort its record carries; relaunch with `--model default --effort default` to return it to the harness defaults.
 When the harness token is absent or `default`, secondmate launch falls back through `config/crew-harness` and then the primary's own harness, and no model or effort is read from that file.
 
 [`fm-harness.sh`](../bin/fm-harness.sh)'s header owns the resolver commands and optional secondmate-id argument.
