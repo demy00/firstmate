@@ -326,7 +326,9 @@
 #   defaults unless the caller also passes explicit --model/--effort flags. When
 #   the file governs the spawn, its model/effort tokens are re-resolved on every
 #   respawn exactly like the harness axis, and explicit --model/--effort flags
-#   still win over the file's tokens.
+#   still win over the file's tokens. A pin without a model or effort token
+#   keeps the recorded value for that axis when an existing secondmate
+#   respawns on the same harness.
 #   A --secondmate spawn also propagates the primary's declared inherited local
 #   material, so the secondmate's OWN crewmates inherit primary config and the
 #   secondmate receives the primary's read-only shared captain-preference file
