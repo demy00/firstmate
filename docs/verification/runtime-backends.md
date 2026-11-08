@@ -1013,6 +1013,46 @@ ok - claude-named (2.1.284 (Claude Code)): real idle composer classifies empty
 ok - claude-named (2.1.284 (Claude Code)): the same idle pane read cursorless is not pending (verdict: empty)
 ```
 
+### 2026-11-08 claude 2.1.319 named session with wrapped input through Herdr
+
+Verified on 2026-11-08 on macOS arm64 (Darwin 25.6.0) against Claude Code 2.1.319 in a 142-column Herdr 0.7.4 pane, read with `herdr pane read <pane> --source visible --format ansi`, and against the same Claude in a 142-column tmux window.
+The named session's top rule carried its title (`───…─── LifeMate ─`), with a right-aligned `✘ Auto-update failed · Run claude doctor` notice above it and the transcript-saving warning, statusline, and mode rows below the closing rule.
+The steering doorbell is wider than one composer row there, so once it was typed the closing rule sat below the second composer row.
+The titled-rule exception required that rule directly below the `❯` row, so the typed doorbell read `unknown` with no readable content.
+The Claude payload proof in `fm_backend_herdr_send_text_submit` then cleared it and returned `send-failed`, and `fm-send` reported that the doorbell did not reach an idle pane.
+The idle titled composer read `empty`, so the ring's pre-check passed every time.
+
+Before the fix, through the shared classifier with Herdr's capability descriptor:
+
+```text
+idle titled composer                     empty
+doorbell typed, 2 rows, titled rule      unknown  (content read fails)
+doorbell typed, 2 rows, untitled rule    pending
+3-row typed draft, titled rule           unknown
+```
+
+The titled-rule exception now measures from the composer's last wrapped row (`_fm_composer_bare_wrap_last` in `bin/fm-composer-lib.sh`), so the typed doorbell reads `pending` and reads back whole, and the draft reads `pending`.
+`test_claude_titled_composer_reads_wrapped_input_back` in `tests/fm-composer-lib.test.sh` and the `titled_wrapped` cases in `tests/fm-backend-herdr.test.sh` replay the captures under `tests/captures/claude-2.1.319-titled-wrap/`.
+The composer-matrix guard's `claude-named-wrap` arm types the doorbell into a real named Claude in a 120-column window, never submits it, and requires the wrapped read to be `pending` with the whole payload read back:
+
+```sh
+FM_COMPOSER_MATRIX_LIVE=1 tests/fm-composer-matrix-live-e2e.test.sh
+```
+
+```text
+ok - claude-named (2.1.319 (Claude Code)): real idle composer classifies empty
+ok - claude-named (2.1.319 (Claude Code)): the same idle pane read cursorless is not pending (verdict: empty)
+ok - claude-named-wrap (2.1.319 (Claude Code)): a doorbell wrapped over 2 rows under the titled rule reads pending and reads back whole
+```
+
+With the fix reverted, the same arm fails:
+
+```text
+not ok - claude-named-wrap (2.1.319 (Claude Code)): a wrapped doorbell under the titled rule read unknown with content <none>; the Herdr submit would clear it and report it undelivered
+```
+
+The full Herdr submit was not driven live here, because that needs an isolated Herdr lab pane; the Herdr evidence is the viewport capture above.
+
 ### 2026-09-15 codex-cli 0.154.0 idle starfield and status footer through Herdr
 
 Verified on 2026-09-15 on macOS arm64 (Darwin 25.5.0) against codex-cli 0.154.0 (model gpt-6-astra, fast mode) running as a Codex second mate inside a Herdr pane, read through Herdr's ANSI capture with its exact capability descriptor (`styled=1`, `cursor=0`, `identity=1`, `rows=20`).

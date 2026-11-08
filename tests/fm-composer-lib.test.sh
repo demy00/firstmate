@@ -205,10 +205,12 @@ test_matrix_claude_named_session_titled_rule() {
   assert_screen "named claude idle on zellij" empty "$CAPS_STYLED_NOID" "$idle"
   assert_screen "named claude idle on cmux/orca" empty "$CAPS_PLAIN" "$idle"
   assert_screen "named claude idle on tmux" empty "$CAPS_TMUX" "$idle" 2 "$claude_idle"
-  # A multiword session name renders the same way, at the same width.
+  # A multiword session name renders the same way, at the same width. The
+  # screen is spelled out because bash 3.2 keeps the quotes of a quoted
+  # pattern-substitution replacement as literal text.
   multi='────────────────── Andrew Chen ─'
   assert_screen "multiword named claude idle on herdr" empty "$CAPS_STYLED" \
-    "${idle/"$titled"/"$multi"}" '' "$claude_idle"
+    "transcript line"$'\n'"$multi"$'\n'"❯$NBSP"$'\n'"$rule"$'\n  ⏵⏵ auto mode on (shift+tab to cycle)' '' "$claude_idle"
   assert_screen "multiword named claude typed on herdr" pending "$CAPS_STYLED" \
     "transcript line"$'\n'"$multi"$'\n'"❯ fix the login bug"$'\n'"$rule" '' "$claude_idle"
   # Claude's prompt suggestion is dim ghost text, not input.
@@ -1241,6 +1243,62 @@ test_matrix_claude_titled_top_rule() {
   pass "matrix: claude's titled top rule proves an idle composer empty and a draft pending (#5601, #5558)"
 }
 
+# A named Claude Code 2.1.319 session on Herdr 0.7.4, 142 columns wide, with the
+# right-aligned auto-update notice above its titled top rule and the transcript
+# warning, statusline, and mode rows below the closing rule. The steering
+# doorbell is wider than one composer row there, so once it is typed the
+# closing rule sits below the second row. That read used to fail: the typed
+# doorbell read `unknown` with no content, the Herdr payload proof cleared it,
+# and fm-send reported the doorbell never reached the pane. The captures are
+# described in tests/captures/claude-2.1.319-titled-wrap/README.md.
+test_claude_titled_composer_reads_wrapped_input_back() {
+  local dir=$ROOT/tests/captures/claude-2.1.319-titled-wrap claude_idle screen out pair name want
+  local plain rows doorbell draft lines
+  claude_idle=$(printf 'claude\tidle')
+  doorbell=": Firstmate instruction waiting: list \"\$FM_TASK_INBOX\"/*.msg in your 'lifemate.inbox' steering inbox, read and act on each in numeric order, then mv each into its handled/."
+  draft='also add the weekly review to the plan, move the gym session to Thursday evening if the Friday slot stays busy, and keep Saturday morning free for the errands. when you are done, update the calendar so every new block has a reminder before it starts, and tell me which of the new tasks still need a fixed date before next week'
+  for pair in "idle:" "doorbell-typed:$doorbell" "draft-typed:$draft"; do
+    name=${pair%%:*}
+    want=${pair#*:}
+    screen=$(cat "$dir/$name.ansi")
+    # The case is only meaningful while the typed captures really wrap: the
+    # rows between the titled rule and the closing rule are the composer.
+    plain=$(printf '%s\n' "$screen" | fm_composer_strip_ansi | tr -d '\r')
+    rows=$(printf '%s\n' "$plain" | awk '/^─+ LifeMate ─$/ { inside = 1; next } inside && /^─+$/ { exit } inside { n++ } END { print n + 0 }')
+    case "$name" in
+      idle) [ "$rows" -eq 1 ] || fail "$name: the capture must hold one composer row, found $rows" ;;
+      *) [ "$rows" -ge 2 ] || fail "$name: the capture must wrap past one composer row, found $rows" ;;
+    esac
+    if [ -z "$want" ]; then
+      assert_screen "$name on herdr" empty "$CAPS_STYLED" "$screen" '' "$claude_idle"
+      assert_screen "$name on zellij" empty "$CAPS_STYLED_NOID" "$screen"
+    else
+      assert_screen "$name on herdr" pending "$CAPS_STYLED" "$screen" '' "$claude_idle"
+      assert_screen "$name on zellij" pending "$CAPS_STYLED_NOID" "$screen"
+      assert_screen "$name on cmux/orca" unknown "$CAPS_PLAIN" "$screen"
+    fi
+    out=$(FM_COMPOSER_GHOST_LUMA_MAX=0 fm_composer_extract_selected_content "$CAPS_STYLED_NOID" "$screen") \
+      || fail "$name: the composer content could not be read"
+    [ "$out" = "$want" ] || fail "$name: the composer content must be '$want', got '$out'"
+    out=$(LC_ALL=C FM_COMPOSER_GHOST_LUMA_MAX=0 fm_composer_extract_selected_content "$CAPS_STYLED_NOID" "$screen") \
+      || fail "$name under LC_ALL=C: the composer content could not be read"
+    [ "$out" = "$want" ] || fail "$name under LC_ALL=C: the composer content must be '$want', got '$out'"
+  done
+  # The staleness rule still holds for a wrapped composer. A blank row between
+  # the wrapped input and the closing rule means that rule is not this
+  # composer's, and a titled composer stranded in scrollback above a lower
+  # unmatched rule is not the live one.
+  screen=$(cat "$dir/doorbell-typed.ansi")
+  lines=$(printf '%s\n' "$screen" | awk '/numeric/ { print; print ""; next } { print }')
+  [ "$lines" != "$screen" ] || fail "the doorbell capture's first composer row was not found"
+  assert_screen "a blank row before the closing rule" unknown "$CAPS_STYLED" "$lines" '' "$claude_idle"
+  out=$(fm_composer_extract_selected_content "$CAPS_STYLED_NOID" "$lines") \
+    && fail "a blank row before the closing rule must leave nothing to read, got '$out'"
+  lines="$screen"$'\nlater transcript output\n'"$(printf '%0.s─' $(seq 1 142))"$'\nmore output'
+  assert_screen "a wrapped titled composer in scrollback" unknown "$CAPS_STYLED" "$lines" '' "$claude_idle"
+  pass "fm_composer_classify_screen: a titled Claude composer reads its wrapped input back, and stale shapes stay refused"
+}
+
 test_matrix_grok_144_approval_titled_bottom_border() {
   # Grok 1.0.44 draws the title inside a bottom border exactly as wide as the
   # top border and appends its approval mode (` · always-approve`). The mid-dot
@@ -1704,6 +1762,7 @@ test_matrix_opencode_leftbar_cwd_furniture
 test_matrix_opencode_leftbar_abs_cwd_furniture
 test_matrix_grok_titled_bottom_border
 test_matrix_claude_titled_top_rule
+test_claude_titled_composer_reads_wrapped_input_back
 test_matrix_grok_144_approval_titled_bottom_border
 test_matrix_kimi_bordered_shell_glyph_box
 test_matrix_claude_inside_zellij_ansi_dump
