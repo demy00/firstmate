@@ -2921,7 +2921,16 @@ launch_template() {
   # Claude's system-prompt carrier while preserving the normal distrust of
   # project and fetched content. A persistent secondmate receives its own
   # supervisor contract instead, so this task-worker statement does not apply.
+  # Claude turns transcript saving off when it inherits a
+  # CLAUDE_CODE_CHILD_SESSION marker outside tmux (inside tmux it treats the
+  # marker as ambient; verified on 2.1.319). A pane inherits its multiplexer's
+  # environment, not fm-spawn's, so a Herdr server first started from a Claude
+  # session hands that marker to every pane it ever opens. A persistent
+  # secondmate's conversation must survive a relaunch, so its launch carries
+  # Claude's own override, CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1, in the
+  # command itself, where no inherited environment can drop it.
   claude)
+    [ "$kind" != secondmate ] || printf '%s' 'CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1 '
     printf '%s' 'CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION=false CLAUDE_CODE_SEND_FEEDBACK=0 claude __CLAUDEPERMFLAG__ __CLAUDEADDDIRS__--settings __CLAUDESETTINGS__ '
     if [ "$kind" != secondmate ]; then
       printf '%s' "--append-system-prompt '$(spawn_claude_task_channel_statement)' "

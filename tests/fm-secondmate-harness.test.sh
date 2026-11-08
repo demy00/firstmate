@@ -998,6 +998,26 @@ test_spawn_bare_harness_no_model_effort_flag() {
   pass "C2 spawn: a bare harness-only secondmate-harness file launches with no model/effort flag (backward-compat)"
 }
 
+# A Herdr pane inherits its server's environment, which can carry Claude's
+# CLAUDE_CODE_CHILD_SESSION marker and silently turn transcript saving off, so
+# a Claude secondmate launch must carry Claude's persistence override itself.
+test_spawn_claude_secondmate_forces_session_persistence() {
+  local w sm launchlog launch out status
+  w="$TMP_ROOT/spawn-session-persistence"
+  sm="$w/sm"
+  launchlog="$w/launch.log"
+  mkdir -p "$w/home/config"
+  printf 'claude\n' > "$w/home/config/secondmate-harness"
+  make_seeded_home "$sm" sm
+
+  out=$(CLAUDE_CODE_CHILD_SESSION=1 spawn_secondmate_capture "$w" sm "$sm" "$launchlog" 2>&1); status=$?
+  expect_code 0 "$status" "Claude secondmate spawn should succeed"$'\n'"$out"
+  launch=$(cat "$launchlog")
+  assert_contains "$launch" "CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1 CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION=false CLAUDE_CODE_SEND_FEEDBACK=0 claude " \
+    "Claude secondmate launch must force transcript saving in the launch command itself"
+  pass "C1b spawn: a Claude secondmate launch forces transcript saving past an inherited child-session marker"
+}
+
 # "<harness> <model>" durably threads --model into the secondmate launch and
 # records it in meta, with no --effort flag (no effort token supplied).
 test_spawn_secondmate_harness_model_token() {
@@ -2978,6 +2998,7 @@ test_spawn_cursor_secondmate_launches_with_its_primary_contract
 test_spawn_backend_precedence_over_inherited_config
 test_spawn_explicit_backend_precedence_over_env_and_inherited_config
 test_spawn_bare_harness_no_model_effort_flag
+test_spawn_claude_secondmate_forces_session_persistence
 test_spawn_secondmate_harness_model_token
 test_spawn_secondmate_harness_model_and_effort_tokens
 test_spawn_secondmate_with_a_legacy_pin_file_uses_the_first_line

@@ -1327,6 +1327,46 @@ test_secondmate_relaunch_picks_up_the_configured_harness_pin() {
   pass "fm-control relaunch: a secondmate relaunch re-resolves its durable configured harness pin"
 }
 
+# A secondmate pin that names only the harness says nothing about model or
+# effort, so a same-harness relaunch must keep what the mate was running with
+# instead of dropping both axes to the harness default.
+test_secondmate_relaunch_without_pin_tokens_keeps_recorded_profile() {
+  local dir home out rc
+  dir=$(new_case smkeep smk1)
+  home="$dir/home"
+  mkdir -p "$home/config" "$home/data/smk1"
+  printf 'claude\n' > "$home/config/secondmate-harness"
+  printf '# secondmate brief\n' > "$home/data/smk1/brief.md"
+  fm_git_worktree "$dir/proj" "$dir/smhome" sm-branch
+  mkdir -p "$dir/smhome/state" "$dir/smhome/data" "$dir/smhome/bin"
+  printf 'smk1\n' > "$dir/smhome/.fm-secondmate-home"
+  printf '# agents\n' > "$dir/smhome/AGENTS.md"
+  {
+    echo "window=fmses:fm-smk1"
+    echo "endpoint_task_id=smk1"
+    echo "worktree=$dir/smhome"
+    echo "project=$dir/smhome"
+    echo "harness=claude"
+    echo "kind=secondmate"
+    echo "mode=secondmate"
+    echo "yolo=off"
+    echo "model=opus"
+    echo "effort=high"
+    echo "home=$dir/smhome"
+  } > "$home/state/smk1.meta"
+  printf '%s\n' "fm-smk1" > "$dir/fake/windows"
+  printf '%s' "$dir/smhome" > "$dir/fake/cwd"
+  out=$(run_control "$dir" smk1 relaunch); rc=$?
+  expect_code 0 "$rc" "a token-free secondmate pin should relaunch"$'\n'"$out"
+  [ "$(journal_field "$dir" smk1 to_model)" = opus ] \
+    || fail "a pin with no model token should keep the recorded model, got '$(journal_field "$dir" smk1 to_model)'"
+  [ "$(journal_field "$dir" smk1 to_effort)" = high ] \
+    || fail "a pin with no effort token should keep the recorded effort, got '$(journal_field "$dir" smk1 to_effort)'"
+  [ "$(meta_field "$dir" smk1 model)" = opus ] || fail "the relaunched record should keep model=opus"
+  [ "$(meta_field "$dir" smk1 effort)" = high ] || fail "the relaunched record should keep effort=high"
+  pass "fm-control relaunch: a secondmate pin without model or effort tokens keeps the recorded profile"
+}
+
 # The relaunch half of the opt-in scope: a pin file that declares no
 # "mate <id>:" line is read exactly as it was before that grammar existed, so a
 # second default line and a fourth token must not stop the relaunch. The mate
@@ -2799,6 +2839,8 @@ test_herdr_relaunch_resumes_only_the_registered_pi_session() {
       return 0
     }
     dir=$HERDR_CASE_DIR
+    printf '#!/usr/bin/env bash\nprintf "Options: --tui-mode\\n"\n' > "$dir/fakebin/pi"
+    chmod +x "$dir/fakebin/pi"
     rm -f "$dir/fake/herdr-stopped"
     sed 's/^harness=claude$/harness=pi/' "$dir/home/state/resume-$registered.meta" \
       > "$dir/home/state/resume-$registered.meta.tmp"
@@ -3180,6 +3222,7 @@ test_prior_harness_turnend_registry_entry_is_cleared
 test_wiring_removal_failure_refuses_before_replacement_arm
 test_turnend_auth_paths_are_owned_by_the_control_adapter
 test_secondmate_relaunch_picks_up_the_configured_harness_pin
+test_secondmate_relaunch_without_pin_tokens_keeps_recorded_profile
 test_secondmate_claude_relaunch_keeps_local_settings
 test_secondmate_relaunch_lands_on_the_per_mate_pin
 test_secondmate_relaunch_uses_the_default_for_an_unpinned_mate

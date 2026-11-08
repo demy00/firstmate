@@ -71,6 +71,11 @@ A Claude task worker's launch brief and Firstmate steering-inbox messages arrive
 A `--secondmate` launch omits the statement because a secondmate operates under its own supervisor contract instead of a task worker's.
 On the t3code backend, follow the [per-directory worker-channel contract](../../../../../docs/t3code-backend.md#per-directory-harness-environment).
 
+## Transcript saving
+
+A Claude secondmate launch carries `CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1`, so its conversation is saved even when its pane inherits Claude's `CLAUDE_CODE_CHILD_SESSION` marker.
+Ship and scout launches do not, so a Herdr worker pane showing `Transcript saving is off` is expected; [`docs/verification/runtime-backends.md`](../../../../../docs/verification/runtime-backends.md#secondmate-transcript-saving) owns the evidence.
+
 ## Skill listing budget
 
 Claude Code lists every skill name but keeps descriptions only within a budget of 1% of the model's context window, and on overflow it drops descriptions from the least-invoked skills first ([skills](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short), read 2026-10-19).

@@ -558,6 +558,24 @@ The lab home was deleted and the test entry was removed from the store and verif
 That automated spawn case runs against a fake claude, so it asserts the store entry and the launch command and nothing more; the live arms above are what establish that the entry actually suppresses the dialog.
 The composer-classification record below observes the same gate from the other side, where an untrusted worktree left Claude, Grok, and Muse unverified because the guard reads a first-launch trust dialog as an unreadable composer.
 
+### Secondmate transcript saving
+
+Verified 2026-11-08 on Claude Code 2.1.319.
+Claude turns transcript saving off when it inherits a `CLAUDE_CODE_CHILD_SESSION` marker, unless it runs inside tmux, where it treats the marker as ambient and keeps saving.
+A Herdr pane inherits the Herdr server's environment, and a server first started by `bin/fm-spawn.sh` from inside a Claude session carries that marker, so every pane it opens is affected.
+Both arms ran in a private tmux server with the tmux variables removed, which is how a Herdr pane presents, and each sent one prompt.
+
+```sh
+env -u TMUX -u TMUX_PANE CLAUDE_CODE_CHILD_SESSION=1 claude --model haiku
+env -u TMUX -u TMUX_PANE CLAUDE_CODE_CHILD_SESSION=1 CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1 claude --model haiku
+```
+
+The first arm wrote no session file under `~/.claude/projects/<dir>/`, and its footer showed `Transcript saving is off` followed by `inherited CLAUDE_CODE_CHILD_SESSION marker · restart with CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1 to keep future transcripts`.
+
+The second arm showed no warning and wrote `<session-id>.jsonl`.
+The same marker with `TMUX` left set saved a transcript in both arms.
+`bin/fm-spawn.sh` therefore puts `CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1` in every Claude secondmate launch command, and `tests/fm-secondmate-harness.test.sh` pins that the command carries it.
+
 ## Pi seeded-secondmate project trust
 
 [`fm-spawn.sh --help`](../../bin/fm-spawn.sh) owns the seeded-secondmate project-trust approval contract and compatibility fallback.
