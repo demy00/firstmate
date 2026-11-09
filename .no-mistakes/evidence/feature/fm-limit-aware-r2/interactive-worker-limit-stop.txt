@@ -1,0 +1,62 @@
+== worker pane (interactive Claude 2.1.319 (Claude Code)) ==
+
+ ▐▛███▛█   Claude Code v2.1.319
+▝▜██████▀  Haiku 5.5 · Claude Max
+ ▝▝   ▝▝   /private/var/folders/y9/b8qt1d396lv9cfh42ft2gt7r0000gn/T/fm-claude-usage-int.xj4X9f/live/wt
+
+❯ Reply with the single word ok.
+  ⎿  You've hit your 5-hour limit · resets 8:27pm (Europe/Budapest)
+
+⏺ Usage limit reached · continuing automatically at 8:27pm · esc to cancel
+
+✻ Churned for 2s · done 6:27 PM
+
+                                                                                                                                            ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⚠ Usage limit reached · limit resets 8:27pm
+    Continuing automatically at 8:27pm · Esc to cancel
+  ➜  wt git:(wt-limit-int) · Haiku 5.5
+  ⏵⏵ bypass permissions on (shift+tab to cycle) · ← 1 agent
+== limit-int-1.status ==
+paused [at=1794245263]: usage limit - You've hit your 5-hour limit · resets 8:27pm (Europe/Budapest) until 2026-11-09T19:28Z; after the reset: bin/fm-claude-usage.sh resume limit-int-1
+== classifier view ==
+status_is_usage_reset_wait: yes; until epoch 1794252480 = 2026-11-09T19:28:00Z; published reset 2026-11-09T19:27:30Z
+== firstmate: resume before reset ==
+refused limit-int-1: its usage limit resets at 2026-11-09T19:28Z, not yet
+rc=1
+== firstmate: resume --due after reset (stand-in API still limiting) ==
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no live watcher process holds this home lock (last beat: 15s ago).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the requested message WILL still be sent.
+●  repair missing watcher supervision according to the session-start block for this harness; do not use shell &.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+fm-send: doorbell not typed because the agent in firstmate:fm-limit-int-1 has exited; the steer is durably recorded at /private/var/folders/y9/b8qt1d396lv9cfh42ft2gt7r0000gn/T/fm-claude-usage-int.xj4X9f/live/home/state/limit-int-1.inbox/001.msg for recovery (stuck-crewmate-recovery), and the watcher will not re-ring a dead pane
+resumed limit-int-1
+rc=0
+== limit-int-1.status after resume ==
+paused [at=1794245263]: usage limit - You've hit your 5-hour limit · resets 8:27pm (Europe/Budapest) until 2026-11-09T19:28Z; after the reset: bin/fm-claude-usage.sh resume limit-int-1
+resolved [at=1794252570]: usage limit reset passed; firstmate steered the worker to continue
+== worker pane after resume ==
+
+ ▐▛███▛█   Claude Code v2.1.319
+▝▜██████▀  Haiku 5.5 · Claude Max
+ ▝▝   ▝▝   /private/var/folders/y9/b8qt1d396lv9cfh42ft2gt7r0000gn/T/fm-claude-usage-int.xj4X9f/live/wt
+
+❯ Reply with the single word ok.
+  ⎿  You've hit your 5-hour limit · resets 8:27pm (Europe/Budapest)
+
+⏺ Usage limit reached · continuing automatically at 8:27pm · esc to cancel
+
+✻ Churned for 2s · done 6:27 PM
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⚠ Usage limit reached · limit resets 8:27pm
+    Continuing automatically at 8:27pm · Esc to cancel
+  ➜  wt git:(wt-limit-int) · Haiku 5.5
+  ⏵⏵ bypass permissions on (shift+tab to cycle) · ← 1 agent

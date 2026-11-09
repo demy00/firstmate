@@ -1,0 +1,26 @@
+# 2026-09-09 08:00Z: the account limit stops three workers; each StopFailure hook fires
+$ cat state/fz-a.status
+paused [at=1788940800]: usage limit - You've hit your session limit · resets 11:40am (Europe/Budapest) until 2026-09-09T09:41Z; after the reset: bin/fm-claude-usage.sh resume fz-a
+$ cat state/fz-b.status
+paused [at=1788940800]: usage limit - You've hit your session limit · resets 11:40am (Europe/Budapest) until 2026-09-09T09:41Z; after the reset: bin/fm-claude-usage.sh resume fz-b
+$ cat state/fz-d.status
+paused [at=1788940800]: usage limit - You've hit your weekly limit · resets Sep 12 at 7pm (Europe/Budapest) until 2026-09-12T17:01Z; after the reset: bin/fm-claude-usage.sh resume fz-d
+
+# 09:40Z: firstmate tries to resume fz-a before the reset
+$ fm-claude-usage.sh resume fz-a
+refused fz-a: its usage limit resets at 2026-09-09T09:41Z, not yet
+exit=1
+
+# 09:42Z: the session reset passed; one command recovers every freed worker
+$ fm-claude-usage.sh resume --due
+resumed fz-a
+resumed fz-b
+exit=0
+$ cat state/fz-a.status
+paused [at=1788940800]: usage limit - You've hit your session limit · resets 11:40am (Europe/Budapest) until 2026-09-09T09:41Z; after the reset: bin/fm-claude-usage.sh resume fz-a
+resolved [at=1788946920]: usage limit reset passed; firstmate steered the worker to continue
+$ cat state/fz-b.status
+paused [at=1788940800]: usage limit - You've hit your session limit · resets 11:40am (Europe/Budapest) until 2026-09-09T09:41Z; after the reset: bin/fm-claude-usage.sh resume fz-b
+resolved [at=1788946920]: usage limit reset passed; firstmate steered the worker to continue
+$ cat state/fz-d.status
+paused [at=1788940800]: usage limit - You've hit your weekly limit · resets Sep 12 at 7pm (Europe/Budapest) until 2026-09-12T17:01Z; after the reset: bin/fm-claude-usage.sh resume fz-d
