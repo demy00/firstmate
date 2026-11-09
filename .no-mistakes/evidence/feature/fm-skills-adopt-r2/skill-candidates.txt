@@ -1,0 +1,2 @@
+  diagnostic-reasoning [project] .agents/skills/diagnostic-reasoning/SKILL.md
+  firstmate-coding-guidelines [project] .agents/skills/firstmate-coding-guidelines/SKILL.md
