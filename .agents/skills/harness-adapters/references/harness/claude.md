@@ -9,6 +9,7 @@ These command-line and terminal facts apply to pane-backed sessions; for T3 Code
 | Fact | Value |
 |---|---|
 | Busy | Owned hooks: `UserPromptSubmit` opens while `Stop`, `StopFailure`, and `SessionEnd` close; a secondmate gets no `Stop` busy hook, because its home's tracked Stop guard is its only Stop writer, unless that guard predates `.fm-busy-stop` and the launch keeps the `Stop` idle hook (`../../../docs/turnend-guard.md` owns that); manual interrupt emits no hook, so control reports delivered keys and live endpoint only, publishes no idle event or cancellation claim, and usually leaves `claude-hook` busy. |
+| Usage limit | A plan-limit stop declares its own `paused:` wait with the reset time and the next turn start closes it (`../../../../../bin/fm-claude-usage.sh` owns both); Claude continues the session by itself after the reset and Escape cancels that, so never interrupt a limit-stopped worker; `fm-claude-usage.sh resume --due` steers any worker the reset left idle. [Verified](../../../../../docs/verification/runtime-backends.md#claude-usage-limit-stop) on 2.1.319. |
 | Exit | `/exit`. |
 | Interrupt | Single Escape. |
 | Skill | `/<skill>`, for example `/no-mistakes`. |

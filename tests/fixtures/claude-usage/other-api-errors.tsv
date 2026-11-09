@@ -1,0 +1,6 @@
+authentication_failed	Failed to authenticate: OAuth session expired and could not be refreshed
+oauth_org_not_allowed	Claude Code can't use your Claude subscription, usually because a payment is past due · Pay or renew at https://claude.ai/settings/billing (if you just paid, try again shortly), or use an Anthropic API key instead
+server_error	API Error: Can't reach the API server — check your internet or DNS (ENOTFOUND)
+server_error	API Error: Connection lost mid-response. The response above may be incomplete.
+server_error	API Error: Connection refused — a firewall or proxy may be blocking it (ECONNREFUSED)
+server_error	API Error: Your computer went to sleep mid-response. The response above may be incomplete.
