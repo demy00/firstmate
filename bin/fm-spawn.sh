@@ -6516,7 +6516,10 @@ BUSY_GEN=
     # predates .fm-busy-stop would never close the turn, so that launch keeps
     # the ordinary Stop idle hook, without the parent turn-ended touch. Every
     # hook command tolerates a refused event (|| true) so a stale-gen writer
-    # can never break Claude's own lifecycle.
+    # can never break Claude's own lifecycle. StopFailure and UserPromptSubmit
+    # also run bin/fm-claude-usage.sh, which declares an account usage-limit
+    # stop as a `paused:` wait with its reset time and closes it when the next
+    # turn starts (that script's header owns the rule).
     # A crewmate writes those hooks into the disposable worktree's
     # .claude/settings.local.json. A secondmate does not: that file in a
     # persistent home is where Claude Code stores the captain's "don't ask
@@ -6530,6 +6533,9 @@ BUSY_GEN=
     busy_suffix="--gen $(shell_quote "$BUSY_GEN") --source claude-hook"
     j_submit=$(json_escape "$busy_cmd_prefix busy $busy_suffix --event user-prompt-submit 2>/dev/null || true")
     j_stopfail=$(json_escape "$busy_cmd_prefix idle $busy_suffix --event stop-failure 2>/dev/null || true")
+    usage_cmd_prefix="$(shell_quote "$FM_ROOT/bin/fm-claude-usage.sh")"
+    j_limit=$(json_escape "$usage_cmd_prefix stop-failure $(shell_quote "$STATE_REAL") $(shell_quote "$ID") 2>/dev/null || true")
+    j_limit_turn=$(json_escape "$usage_cmd_prefix turn-start $(shell_quote "$STATE_REAL") $(shell_quote "$ID") 2>/dev/null || true")
     j_sessionend=$(json_escape "$busy_cmd_prefix idle $busy_suffix --event session-end 2>/dev/null || true")
     stop_entry=
     if [ "$KIND" = secondmate ] && grep -qF '.fm-busy-stop' "$WT/bin/fm-turnend-guard.sh" 2>/dev/null; then
@@ -6548,7 +6554,7 @@ BUSY_GEN=
       j_stop=$(json_escape "${stop_turnend}$busy_cmd_prefix idle $busy_suffix --event stop 2>/dev/null || true")
       stop_entry="\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"$j_stop\"}]}],"
     fi
-    hooks_json="\"hooks\":{\"UserPromptSubmit\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"$j_submit\"}]}],${stop_entry}\"StopFailure\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"$j_stopfail\"}]}],\"SessionEnd\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"$j_sessionend\"}]}]}"
+    hooks_json="\"hooks\":{\"UserPromptSubmit\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"$j_submit\"},{\"type\":\"command\",\"command\":\"$j_limit_turn\"}]}],${stop_entry}\"StopFailure\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"$j_stopfail\"},{\"type\":\"command\",\"command\":\"$j_limit\"}]}],\"SessionEnd\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"$j_sessionend\"}]}]}"
     if [ "$KIND" = secondmate ]; then
       session_keys='"feedbackDrafts":"off",'
       if [ "$KEEP_AI_TRAILERS" != 1 ]; then

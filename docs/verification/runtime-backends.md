@@ -706,6 +706,33 @@ skip-runner: pi-signed is not installed, so its pin check was not exercised
 
 The guard submits no prompt and spends no tokens, so it runs by default wherever a runner is installed; rerun it after every Claude or Pi upgrade.
 
+## Claude usage-limit stop
+
+Verified 2026-11-09 on this host with Claude Code 2.1.319.
+
+A claude.ai plan limit ends a Claude turn with a `StopFailure` hook whose `error` is `rate_limit` and whose `last_assistant_message` is Claude's own limit text, such as `You've hit your 5-hour limit · resets 8:36pm (Europe/Budapest)`.
+Every `rate_limit` record in this host's saved Claude transcripts (2.1.288 to 2.1.318) has that `You've hit your <session|5-hour|weekly> limit · resets <time> (<zone>)` shape, with a date before the time for a weekly reset more than a day out; `tests/fixtures/claude-usage/` keeps the 23 distinct texts and the other API-error texts those transcripts hold.
+Claude shows the reset floored to the minute: a reset published for 16:38:45 rendered as `resets 5:38pm`.
+
+Claude Code continues a limited session by itself after the reset (`autoContinueAtUsageLimit`, on by default since 2.1.234), and Escape cancels that wait.
+An interactive session in a tmux pane, started without `TMUX` and with an inherited `CLAUDE_CODE_CHILD_SESSION=1` as a Herdr worker pane is, was stopped by a stand-in API answering a spent plan window with a 70-second reset.
+The pane showed `Continuing automatically at 5:38pm · Esc to cancel`, and after the reset Claude printed `Usage limit reset · Continuing automatically`, fired `UserPromptSubmit`, and sent a new request.
+
+The portable regression is `tests/fm-claude-usage.test.sh`, which replays every recorded limit text at the moment Claude recorded it.
+The live guard is `tests/fm-claude-usage-live-e2e.test.sh`.
+It runs by default wherever `claude` and `node` are installed, and `FM_CLAUDE_USAGE_LIVE=1` makes an absent binary fail rather than skip.
+It writes a worker's hook settings through the real `bin/fm-spawn.sh`, then runs the real `claude -p` in that worktree twice against `tests/fixtures/claude-usage/limit-api.mjs`, a local stand-in API answering HTTP 429 with the unified rate-limit headers, so no model token is spent.
+
+```sh
+bash tests/fm-claude-usage-live-e2e.test.sh
+```
+
+```text
+1..1
+ok - Claude 2.1.319 (Claude Code): a real limit stop declares the wait with its reset, and the next turn start closes it
+FM_TEST_COMPLETE
+```
+
 ## Secondmate busy contract
 
 Verified 2026-09-22 on this host with Claude Code 2.1.278, OpenCode 1.18.31, Pi 0.86.1, and Grok 1.0.40.
