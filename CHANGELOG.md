@@ -7,10 +7,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
-- A Claude worker stopped by an account usage limit now declares the wait itself, with the time the limit resets, instead of going silent; the next turn closes it, and `bin/fm-claude-usage.sh resume --due` brings back every worker the reset left idle in one step.
+- A Claude worker stopped by an account usage limit now declares the wait itself, with the time the limit resets, instead of going silent; the next turn closes it, and `bin/fm-claude-usage.sh resume --due` brings back every worker the reset left idle in one step (#23).
+- A design-variants skill: firstmate proposes design directions for a UI, has workers build them as live code versions or as Paper designs, shows them on one compare board for a pick, and turns the pick into a PR.
 
 ### Fixed
 
+- Cleanup with the captain's discard approval now closes a task whose local copy has a broken git link, leaving the copy untouched and reporting its lost pool slot, instead of failing; a copy linked to another task's copy no longer has that task's branch deleted.
 - Claude second mates launch with transcript saving on, even when their terminal inherits Claude's child-session marker, so a restart keeps their conversation.
 - Relaunching a second mate, by hand or through the automatic liveness respawn, keeps its recorded model and effort when its configured pin names neither.
 
