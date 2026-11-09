@@ -69,6 +69,7 @@
 #   (z5b) --force + .git link bound to another copy           -> other copy's branch kept, record closed
 #   (z5c) no --force + either broken link                     -> REFUSE, nothing changed
 #   (z5d) --force + copy directory deleted                    -> record closed
+#   (z5e) Orca + --force + crossed link                       -> no orca worktree rm, copy kept
 set -u
 
 # shellcheck source=tests/fixtures.sh disable=SC1091
@@ -2110,6 +2111,49 @@ test_forced_teardown_closes_a_task_whose_copy_was_deleted() {
   [ "$(backlog_row_state "$case_dir")" = "done" ] || fail "deleted-copy: the backlog item is still open"
   assert_absent "$case_dir/treehouse-return.log" "deleted-copy: teardown tried to return a deleted copy"
   pass "a forced teardown closes a task whose copy directory was deleted"
+}
+
+test_forced_orca_teardown_leaves_a_copy_with_a_broken_git_link() {
+  local case_dir other other_head rc
+  case_dir=$(make_case broken-link-orca)
+  write_meta "$case_dir" no-mistakes ship
+  sed 's/^window=.*/window=fm-task-x1/' "$case_dir/state/task-x1.meta" > "$case_dir/meta-new"
+  mv "$case_dir/meta-new" "$case_dir/state/task-x1.meta"
+  printf 'backend=orca\nterminal=term-test\norca_worktree_id=wt-test::/orca/wt-test\n' >> "$case_dir/state/task-x1.meta"
+  seed_backlog_in_flight "$case_dir"
+  seed_copy_work "$case_dir" "$case_dir/wt"
+  add_treehouse_needing_a_git_copy "$case_dir"
+  cat > "$case_dir/fakebin/orca" <<'SH'
+#!/usr/bin/env bash
+case "${1:-} ${2:-}" in
+  'worktree show')
+    printf '{"ok":true,"result":{"worktree":{"id":"wt-test::/orca/wt-test","path":"%s"}}}\n' "$FM_ORCA_CASE/wt" ;;
+  'worktree rm')
+    printf 'remove\n' >> "$FM_ORCA_CASE/orca-remove.log"
+    printf '{"ok":true,"result":{}}\n' ;;
+  *) printf '{"ok":true,"result":{}}\n' ;;
+esac
+SH
+  chmod +x "$case_dir/fakebin/orca"
+  other=$(cross_link_copy_to_another_task "$case_dir")
+  other_head=$(git -C "$other" rev-parse HEAD)
+
+  rc=0
+  FM_ORCA_CASE="$case_dir" run_teardown "$case_dir" --force > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+
+  expect_code 0 "$rc" "broken-link-orca: a forced Orca close should succeed: $(cat "$case_dir/stderr")"
+  assert_absent "$case_dir/orca-remove.log" "broken-link-orca: Orca was asked to remove a copy with a broken git link"
+  [ "$(git -C "$case_dir/project" rev-parse --verify -q refs/heads/fm/other-task)" = "$other_head" ] \
+    || fail "broken-link-orca: the other task's branch was deleted or moved"
+  [ "$(git -C "$other" symbolic-ref -q --short HEAD)" = fm/other-task ] \
+    || fail "broken-link-orca: the other task's copy was moved off its branch"
+  assert_absent "$case_dir/state/task-x1.meta" "broken-link-orca: the task record was not closed"
+  [ "$(backlog_row_state "$case_dir")" = "done" ] || fail "broken-link-orca: the backlog item is still open"
+  assert_grep "broken git link" "$case_dir/stderr" "broken-link-orca: no message named the broken link"
+  assert_grep "Orca still lists it as worktree wt-test::/orca/wt-test" "$case_dir/stderr" \
+    "broken-link-orca: the message did not report the leftover Orca worktree"
+  [ "$(cat "$case_dir/wt/draft.txt")" = draft ] || fail "broken-link-orca: the copy's files were touched"
+  pass "a forced Orca teardown closes a task whose copy has a broken git link without removing the copy"
 }
 
 test_scout_ignored_files_survive_scratch_clean() {
@@ -6471,6 +6515,7 @@ test_forced_teardown_closes_a_copy_whose_git_link_is_gone
 test_forced_teardown_closes_a_copy_linked_to_another_copy
 test_teardown_without_force_refuses_a_copy_with_a_broken_git_link
 test_forced_teardown_closes_a_task_whose_copy_was_deleted
+test_forced_orca_teardown_leaves_a_copy_with_a_broken_git_link
 test_scout_ignored_files_survive_scratch_clean
 test_gh_error_and_content_absent_refuses
 test_legacy_record_without_the_flag_refuses

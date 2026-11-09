@@ -104,13 +104,14 @@
 # to stderr, and then exits 4.
 # A task copy whose .git link is provably broken - it names a worktree admin
 # directory that is gone, or one git has bound to a different copy - is never
-# handed to git or Treehouse: git cannot inspect the first, and in the second it
-# would rewrite the other copy's index, HEAD, and branch. teardown_copy_link_broken
-# owns that proof. A ship refuses such a copy without --force. With --force, or
+# handed to git, Treehouse, or Orca: git cannot inspect the first, and in the
+# second it would rewrite the other copy's index, HEAD, and branch.
+# teardown_copy_link_broken owns that proof. A ship refuses such a copy without --force. With --force, or
 # for a scout's scratch copy, cleanup closes the task's record, endpoint, and
 # backlog item, drops this task's slot claim, and leaves every file of the copy
 # in place; a copy left in a Treehouse pool is reported as a lost slot (exit 4)
-# with the `treehouse destroy` preview that clears it. A copy whose directory is
+# with the `treehouse destroy` preview that clears it, and an Orca copy stays
+# listed in Orca. A copy whose directory is
 # already gone needs no such handling: nothing remains to inspect or return.
 # Before destructive cleanup, teardown validates task check artifacts as
 # ordinary single-link files on the state device. It refuses and preserves
@@ -4090,7 +4091,12 @@ if [ "$BACKEND" = orca ] && [ "$KIND" != secondmate ]; then
     fm_backend_kill "$BACKEND" "$T" "$(meta_value "$META" zellij_tab_id)" "fm-$ID" \
       || { endpoint_close_refusal "$ID" "$BACKEND" "$T" 0; exit 1; }
   fi
-  fm_backend_remove_worktree "$BACKEND" "$ORCA_WORKTREE_ID"
+  if [ "$TEARDOWN_COPY_BROKEN" = 1 ]; then
+    teardown_note_broken_copy "$WT"
+    echo "Orca still lists it as worktree $ORCA_WORKTREE_ID; remove it there once its files are dealt with." >&2
+  else
+    fm_backend_remove_worktree "$BACKEND" "$ORCA_WORKTREE_ID"
+  fi
 elif [ "$KIND" != secondmate ] && ! teardown_owns_worktree; then
   :
 elif [ "$TEARDOWN_COPY_BROKEN" = 1 ]; then
