@@ -110,6 +110,9 @@ Exercise Herdr.app backend auto-detection for $1.
 
 ## Firstmate spec
 Verify the real spawn path selects hc.
+
+# Required skills
+- tdd
 EOF
 }
 
