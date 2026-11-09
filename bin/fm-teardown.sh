@@ -3770,7 +3770,7 @@ if [ -n "$X_REQUEST" ]; then
 fi
 
 # A copy whose git link is provably broken (teardown_copy_link_broken) cannot be
-# inspected for unlanded work and is never handed to git or Treehouse. A ship
+# inspected for unlanded work and is never handed to git, Treehouse, or Orca. A ship
 # refuses here, before anything changes; with --force, or for a scratch scout
 # copy, cleanup closes the task and leaves the copy alone.
 TEARDOWN_COPY_BROKEN=0
