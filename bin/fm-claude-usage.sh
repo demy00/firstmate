@@ -42,8 +42,10 @@
 #       predates it. For each named task whose declared wait is a usage limit,
 #       this refuses while the declared reset is still ahead (naming it), and
 #       otherwise steers the worker through bin/fm-send.sh to continue where
-#       it stopped - its own conversation still holds that point - then
-#       appends `resolved` to close the wait. `--due` selects every live task
+#       it stopped - its own conversation still holds that point. It closes
+#       the wait with `resolved` before the steer, so a limit stop the steered
+#       turn hits lands after it and stays declared; a steer that fails puts
+#       the wait back unchanged. `--due` selects every live task
 #       in the home whose wait this script declared and whose reset has
 #       passed, so one freeze is recovered with one command. Exits 0 when
 #       every selected task was resumed, 1 when any was refused or failed.
@@ -171,7 +173,7 @@ text_reset_epoch() {  # <text> <now>
 # --- stop-failure -----------------------------------------------------------
 
 cmd_stop_failure() {  # <state-dir> <id>
-  local state=$1 id=$2 payload error text now reset note last
+  local state=$1 id=$2 payload error text now reset note
   payload=$(cat) || return 0
   error=$(printf '%s' "$payload" | jq -r '.error // empty' 2>/dev/null) || return 0
   [ "$error" = rate_limit ] || return 0
@@ -186,13 +188,6 @@ cmd_stop_failure() {  # <state-dir> <id>
     note="$note until $(utc_minute $((reset + 60)))"
   fi
   note="$note; after the reset: $DECLARED_MARKER $id"
-  # One declaration per limit: a steer sent during the limit starts a turn that
-  # fails the same way, and repeating a wait firstmate already holds would only
-  # wake it again. A limit with a different reset is new news and is declared.
-  last=$(last_status_line "$state/$id.status" 2>/dev/null)
-  case "$last" in
-    paused*": $note") return 0 ;;
-  esac
   printf 'paused [at=%s]: %s\n' "$now" "$note" >> "$state/$id.status" 2>/dev/null || true
   return 0
 }
@@ -231,11 +226,12 @@ resume_one() {  # <state-dir> <id> <now>
     printf 'refused %s: its usage limit resets at %s, not yet\n' "$id" "$(utc_minute "$until")" >&2
     return 1
   fi
+  printf 'resolved [at=%s]: usage limit reset passed; firstmate steered the worker to continue\n' "$now" >> "$state/$id.status"
   if ! "$SCRIPT_DIR/fm-send.sh" "$id" "$RESUME_TEXT" >/dev/null; then
-    printf 'failed %s: the resume steer was not delivered; nothing was closed\n' "$id" >&2
+    printf '%s\n' "$line" >> "$state/$id.status"
+    printf 'failed %s: the resume steer was not delivered; its wait stays declared\n' "$id" >&2
     return 1
   fi
-  printf 'resolved [at=%s]: usage limit reset passed; firstmate steered the worker to continue\n' "$now" >> "$state/$id.status"
   printf 'resumed %s\n' "$id"
 }
 

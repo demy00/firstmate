@@ -141,23 +141,6 @@ test_other_api_errors_declare_nothing() {
   pass "the $n recorded non-limit API errors declare nothing"
 }
 
-test_a_repeat_stop_in_the_same_limit_is_not_redeclared() {
-  local state now text lines
-  state=$(new_state)
-  now=$(utc_epoch 2026-09-09T08:00Z)
-  text="You've hit your session limit · resets 11:40am (Europe/Budapest)"
-  declare_from "$state" w "$now" rate_limit "$text" >/dev/null
-  # A steer during the limit starts a turn that fails the same way.
-  declare_from "$state" w $((now + 600)) rate_limit "$text" >/dev/null
-  lines=$(grep -c '^paused' "$state/w.status")
-  assert_equals 1 "$lines" "the same limit must be declared once, not once per failed turn"
-  # A limit with a new reset is new news.
-  declare_from "$state" w $((now + 7200)) rate_limit "You've hit your weekly limit · resets 7pm (Europe/Budapest)" >/dev/null
-  lines=$(grep -c '^paused' "$state/w.status")
-  assert_equals 2 "$lines" "a different limit must be declared again"
-  pass "a repeat stop in the same limit is declared once; a new limit is declared again"
-}
-
 # Every StopFailure hook command fm-spawn wrote, run the way Claude runs them:
 # each one separately, each with the whole payload on stdin.
 run_stop_failure_hooks() {  # <settings.json> <payload>
@@ -307,14 +290,59 @@ test_resume_due_brings_back_every_worker_the_reset_freed_and_only_those() {
   pass "resume --due steers every worker whose limit has reset in one call, and leaves the rest waiting"
 }
 
+# A bin dir holding the real scripts and a stand-in fm-send.sh that runs
+# <steer-body> as the steered worker, so a test controls what the worker's next
+# turn does while the steer is being delivered.
+bin_with_send() {  # <dir> <steer-body>
+  local dir=$1 f
+  mkdir -p "$dir"
+  for f in "$ROOT"/bin/*; do
+    [ "${f##*/}" = fm-send.sh ] || ln -s "$f" "$dir/${f##*/}"
+  done
+  printf '#!/usr/bin/env bash\n%s\n' "$2" > "$dir/fm-send.sh"
+  chmod +x "$dir/fm-send.sh"
+}
+
+test_resume_keeps_a_limit_the_steered_turn_hits_and_restores_the_wait_on_a_failed_steer() {
+  local state stopped reset bin out line declared
+  state=$(new_state)
+  stopped=$(utc_epoch 2026-09-09T08:00Z)
+  reset=$(utc_epoch 2026-09-09T09:41Z)
+
+  # The session window resets, the steered turn hits the weekly limit at once,
+  # and its StopFailure fires before fm-send.sh returns.
+  declare_from "$state" w "$stopped" rate_limit "You've hit your session limit · resets 11:40am (Europe/Budapest)" >/dev/null
+  bin="$TMP_ROOT/bin-relimit"
+  stop_failure_payload rate_limit "You've hit your weekly limit · resets Sep 12 at 7pm (Europe/Budapest)" > "$TMP_ROOT/relimit.json"
+  bin_with_send "$bin" "FM_CLAUDE_USAGE_NOW=$((reset + 61)) $(printf '%q stop-failure %q w < %q' "$bin/fm-claude-usage.sh" "$state" "$TMP_ROOT/relimit.json")"
+  out=$(FM_HOME="$TMP_ROOT/home" FM_STATE_OVERRIDE="$state" FM_CLAUDE_USAGE_NOW=$((reset + 60)) "$bin/fm-claude-usage.sh" resume w 2>&1)
+  expect_code 0 $? "resume after the reset should succeed: $out"
+  line=$(status_declared_wait_line "$state/w.status")
+  status_is_usage_reset_wait "$line" || fail "the limit the steered turn hit must stay declared (got: $(cat "$state/w.status"))"
+  assert_contains "$line" "weekly limit" "the standing wait must be the new weekly limit"
+
+  # A steer that is not delivered leaves the worker idle on its limit, so the
+  # wait it declared stands exactly as it was.
+  declare_from "$state" f "$stopped" rate_limit "You've hit your session limit · resets 11:40am (Europe/Budapest)" >/dev/null
+  declared=$(status_declared_wait_line "$state/f.status")
+  bin="$TMP_ROOT/bin-undelivered"
+  bin_with_send "$bin" 'exit 1'
+  if out=$(FM_HOME="$TMP_ROOT/home" FM_STATE_OVERRIDE="$state" FM_CLAUDE_USAGE_NOW=$((reset + 60)) "$bin/fm-claude-usage.sh" resume f 2>&1); then
+    fail "an undelivered resume must fail: $out"
+  fi
+  assert_contains "$out" "failed f" "the failure must be reported"
+  assert_equals "$declared" "$(status_declared_wait_line "$state/f.status")" "an undelivered resume must leave the declared wait as it was"
+  pass "resume keeps a limit the steered turn hits declared, and an undelivered steer leaves the wait declared"
+}
+
 fm_test_run \
   test_real_session_limit_declares_usage_wait_with_reset \
   test_every_recorded_limit_text_declares_a_bounded_wait \
   test_reset_shapes_resolve_to_the_right_instant \
   test_a_reset_minute_already_begun_is_not_pushed_a_day_out \
   test_other_api_errors_declare_nothing \
-  test_a_repeat_stop_in_the_same_limit_is_not_redeclared \
   test_spawned_claude_worker_declares_its_own_limit_stop \
   test_a_new_turn_after_the_stop_closes_the_declared_wait \
   test_resume_steers_a_worker_whose_limit_has_reset_and_closes_the_wait \
-  test_resume_due_brings_back_every_worker_the_reset_freed_and_only_those
+  test_resume_due_brings_back_every_worker_the_reset_freed_and_only_those \
+  test_resume_keeps_a_limit_the_steered_turn_hits_and_restores_the_wait_on_a_failed_steer
