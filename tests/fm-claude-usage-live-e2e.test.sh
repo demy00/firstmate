@@ -57,12 +57,25 @@ test_real_claude_limit_stop_declares_and_next_turn_closes() {
   done
   port=$(cat "$port_file" 2>/dev/null) || fail "the stand-in API did not start"
 
-  run_claude() {
-    ( cd "$wt" && env -u FM_HOME ANTHROPIC_BASE_URL="http://127.0.0.1:$port" \
-      claude -p --model haiku 'Reply with the single word ok.' </dev/null >/dev/null 2>&1 ) || :
+  # A headless `claude -p` exits as soon as its turn fails and cancels hooks
+  # still running, so the StopFailure declaration would race the exit. A real
+  # worker's session stays open after the stop; holding the headless session's
+  # stream-json input open until the declaration lands (or 30s pass) gives the
+  # hooks the same chance a live worker gives them.
+  run_claude() {  # <paused lines expected after this turn>
+    local want_paused=$1
+    ( cd "$wt" && {
+        printf '%s\n' '{"type":"user","message":{"role":"user","content":"Reply with the single word ok."}}'
+        local j=0
+        while [ "$(grep -c '^paused' "$status" 2>/dev/null)" -lt "$want_paused" ] && [ "$j" -lt 300 ]; do
+          perl -e 'select(undef, undef, undef, 0.1)'
+          j=$((j + 1))
+        done
+      } | env -u FM_HOME ANTHROPIC_BASE_URL="http://127.0.0.1:$port" \
+        claude -p --model haiku --input-format stream-json --output-format stream-json --verbose >/dev/null 2>&1 ) || :
   }
 
-  run_claude
+  run_claude 1
   line=$(last_status_line "$status")
   status_is_usage_reset_wait "$line" \
     || fail "Claude $CLAUDE_VERSION: the real limit stop declared no usage-limit wait (status: $(cat "$status"))"
@@ -71,7 +84,7 @@ test_real_claude_limit_stop_declares_and_next_turn_closes() {
   assert_equals "$want" "$(status_paused_until "$line")" \
     "Claude $CLAUDE_VERSION: the declared wait must clear the minute after the published reset"
 
-  run_claude
+  run_claude 2
   paused=$(grep -c '^paused' "$status")
   resolved=$(grep -c '^resolved' "$status")
   assert_equals 2 "$paused" "Claude $CLAUDE_VERSION: the second stop must declare again after the turn start closed the first"
