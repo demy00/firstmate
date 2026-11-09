@@ -1,0 +1,80 @@
+===== BEFORE (base 4123a5eb) =====
+### gone-unforced: fm-teardown.sh task-x1    (copy .git link: gone)
+$ cat /private/var/folders/y9/b8qt1d396lv9cfh42ft2gt7r0000gn/T/fm-teardown-tests.9YGe9z/demo-gone-unforced/pool/1/repo/.git
+gitdir: /private/var/folders/y9/b8qt1d396lv9cfh42ft2gt7r0000gn/T/fm-teardown-tests.9YGe9z/demo-gone-unforced/project/.git/worktrees/wt
+REFUSED: cannot inspect worktree <tmp>/demo-gone-unforced/pool/1/repo for uncommitted changes.
+Restore the git index state, or get the captain's explicit OK to discard, then --force.
+exit=1
+task record: still-in-flight   backlog: in_flight   copy draft.txt: draft
+
+### gone-forced: fm-teardown.sh task-x1 --force   (copy .git link: gone)
+$ cat /private/var/folders/y9/b8qt1d396lv9cfh42ft2gt7r0000gn/T/fm-teardown-tests.9YGe9z/demo-gone-forced/pool/1/repo/.git
+gitdir: /private/var/folders/y9/b8qt1d396lv9cfh42ft2gt7r0000gn/T/fm-teardown-tests.9YGe9z/demo-gone-forced/project/.git/worktrees/wt
+Error: not a git repository: <tmp>/demo-gone-forced/pool/1/repo
+error: treehouse return failed for worktree <tmp>/demo-gone-forced/pool/1/repo; teardown aborted
+exit=1
+task record: still-in-flight   backlog: in_flight   copy draft.txt: draft
+
+### crossed-unforced: fm-teardown.sh task-x1    (copy .git link: crossed)
+$ cat /private/var/folders/y9/b8qt1d396lv9cfh42ft2gt7r0000gn/T/fm-teardown-tests.9YGe9z/demo-crossed-unforced/wt/.git
+gitdir: /private/var/folders/y9/b8qt1d396lv9cfh42ft2gt7r0000gn/T/fm-teardown-tests.9YGe9z/demo-crossed-unforced/project/.git/worktrees/other-wt
+REFUSED: worktree <tmp>/demo-crossed-unforced/wt has uncommitted changes.
+uncommitted changes present (untracked-only leftovers)
+untracked paths (up to 10):
+  draft.txt
+Commit them (or get the captain's explicit OK to discard, then --force).
+exit=1
+task record: still-in-flight   backlog: in_flight   copy draft.txt: draft
+other task branch fm/other-task: 23d2539
+
+### crossed-forced: fm-teardown.sh task-x1 --force   (copy .git link: crossed)
+$ cat /private/var/folders/y9/b8qt1d396lv9cfh42ft2gt7r0000gn/T/fm-teardown-tests.9YGe9z/demo-crossed-forced/wt/.git
+gitdir: /private/var/folders/y9/b8qt1d396lv9cfh42ft2gt7r0000gn/T/fm-teardown-tests.9YGe9z/demo-crossed-forced/project/.git/worktrees/other-wt
+<tmp>/demo-crossed-forced/project: already current
+teardown task-x1 complete (window firstmate:fm-task-x1, worktree <tmp>/demo-crossed-forced/wt)
+Backlog: task-x1 is closed in <tmp>/demo-crossed-forced/data/backlog.md. Run bin/fm-tasks-axi.sh ready for dependency-cleared candidates, check date gates, and dispatch only work whose blockers are gone and date is due.
+exit=0
+task record: closed   backlog: done   copy draft.txt: MISSING
+other task branch fm/other-task: DELETED
+
+===== AFTER (e011bac8) =====
+### gone-unforced: fm-teardown.sh task-x1    (copy .git link: gone)
+$ cat /private/var/folders/y9/b8qt1d396lv9cfh42ft2gt7r0000gn/T/fm-teardown-tests.gnjjr0/demo-gone-unforced/pool/1/repo/.git
+gitdir: /private/var/folders/y9/b8qt1d396lv9cfh42ft2gt7r0000gn/T/fm-teardown-tests.gnjjr0/demo-gone-unforced/project/.git/worktrees/wt
+REFUSED: task task-x1's copy at <tmp>/demo-gone-unforced/pool/1/repo has a broken git link: its .git names <tmp>/demo-gone-unforced/project/.git/worktrees/wt, which no longer exists. It cannot be inspected for unlanded work, so nothing was changed.
+Repair the link (git worktree repair) and re-run, or get the captain's explicit OK to discard the copy, then --force: cleanup then closes the task without touching the copy.
+exit=1
+task record: still-in-flight   backlog: in_flight   copy draft.txt: draft
+
+### gone-forced: fm-teardown.sh task-x1 --force   (copy .git link: gone)
+$ cat /private/var/folders/y9/b8qt1d396lv9cfh42ft2gt7r0000gn/T/fm-teardown-tests.gnjjr0/demo-gone-forced/pool/1/repo/.git
+gitdir: /private/var/folders/y9/b8qt1d396lv9cfh42ft2gt7r0000gn/T/fm-teardown-tests.gnjjr0/demo-gone-forced/project/.git/worktrees/wt
+warning: task task-x1's copy at <tmp>/demo-gone-forced/pool/1/repo has a broken git link (its .git names <tmp>/demo-gone-forced/project/.git/worktrees/wt, which no longer exists), so it was neither returned nor cleaned; its files stay in place and its work is discarded with this task.
+warning: the pool lost slot 1 (<tmp>/demo-gone-forced/pool/1/repo); preview its removal with: treehouse destroy <tmp>/demo-gone-forced/pool/1/repo
+<tmp>/demo-gone-forced/project: already current
+teardown task-x1 finished its cleanup and removed its task record, but its pool slot holds a copy with a broken git link (see the warning above); remove that slot so the pool can replace it
+Backlog: task-x1 is closed in <tmp>/demo-gone-forced/data/backlog.md. Run bin/fm-tasks-axi.sh ready for dependency-cleared candidates, check date gates, and dispatch only work whose blockers are gone and date is due.
+exit=4
+task record: closed   backlog: done   copy draft.txt: draft
+
+### crossed-unforced: fm-teardown.sh task-x1    (copy .git link: crossed)
+$ cat /private/var/folders/y9/b8qt1d396lv9cfh42ft2gt7r0000gn/T/fm-teardown-tests.gnjjr0/demo-crossed-unforced/wt/.git
+gitdir: /private/var/folders/y9/b8qt1d396lv9cfh42ft2gt7r0000gn/T/fm-teardown-tests.gnjjr0/demo-crossed-unforced/project/.git/worktrees/other-wt
+REFUSED: task task-x1's copy at <tmp>/demo-crossed-unforced/wt has a broken git link: its .git names <tmp>/demo-crossed-unforced/project/.git/worktrees/other-wt, which git has bound to the copy at <tmp>/demo-crossed-unforced/other-wt. It cannot be inspected for unlanded work, so nothing was changed.
+Repair the link (git worktree repair) and re-run, or get the captain's explicit OK to discard the copy, then --force: cleanup then closes the task without touching the copy.
+exit=1
+task record: still-in-flight   backlog: in_flight   copy draft.txt: draft
+other task branch fm/other-task: 03c3b43
+
+### crossed-forced: fm-teardown.sh task-x1 --force   (copy .git link: crossed)
+$ cat /private/var/folders/y9/b8qt1d396lv9cfh42ft2gt7r0000gn/T/fm-teardown-tests.gnjjr0/demo-crossed-forced/wt/.git
+gitdir: /private/var/folders/y9/b8qt1d396lv9cfh42ft2gt7r0000gn/T/fm-teardown-tests.gnjjr0/demo-crossed-forced/project/.git/worktrees/other-wt
+warning: task task-x1's copy at <tmp>/demo-crossed-forced/wt has a broken git link (its .git names <tmp>/demo-crossed-forced/project/.git/worktrees/other-wt, which git has bound to the copy at <tmp>/demo-crossed-forced/other-wt), so it was neither returned nor cleaned; its files stay in place and its work is discarded with this task.
+Remove that copy once nothing else needs it.
+<tmp>/demo-crossed-forced/project: already current
+teardown task-x1 complete (window firstmate:fm-task-x1, worktree <tmp>/demo-crossed-forced/wt)
+Backlog: task-x1 is closed in <tmp>/demo-crossed-forced/data/backlog.md. Run bin/fm-tasks-axi.sh ready for dependency-cleared candidates, check date gates, and dispatch only work whose blockers are gone and date is due.
+exit=0
+task record: closed   backlog: done   copy draft.txt: draft
+other task branch fm/other-task: 4b229bb
+
