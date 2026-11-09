@@ -1,0 +1,2 @@
+ok - fm-spawn: a fresh ship or scout brief must name skills or record an explicit --no-skills reason
+ok - fm-spawn: --no-skills records its one-line reason in the task record

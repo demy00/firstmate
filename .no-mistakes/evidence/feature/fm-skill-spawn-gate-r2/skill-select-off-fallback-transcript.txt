@@ -1,0 +1,42 @@
+$ cat projects/webapp/AGENTS.md
+# webapp
+## Skills to load
+| Kind of work | Files | Skills |
+| --- | --- | --- |
+| Any fix or behaviour change | | `tdd`, `typescript` |
+| Docs only | `**/*.md` | none |
+
+$ fm-skill-select.sh brief.md --project webapp --harness claude --apply   # no TYPESAFE_API_KEY
+skill-select: off (TYPESAFE_API_KEY absent from the environment and /tmp/demo/home/.env)
+skill-select:
+  status: fallback
+  reason: TYPESAFE_API_KEY absent from the environment and /tmp/demo/home/.env; using the Skills to load table in the project AGENTS.md
+  skills: tdd typescript
+  brief: written
+exit=0
+
+$ cat brief.md
+# Task
+## Captain's intent
+Fix the flaky login test.
+
+## Firstmate spec
+Reproduce first.
+
+# Required skills
+Load each of these skills before any other task work (after the Setup isolation check), with your tool's skill mechanism or by reading the SKILL.md at the path shown, and follow it throughout this task:
+- `tdd` (`/tmp/demo/user/.claude/skills/tdd/SKILL.md`)
+- `typescript` (`/tmp/demo/user/.claude/skills/typescript/SKILL.md`)
+If one of them cannot be loaded, append `blocked [at=<epoch>]: required skill <name> cannot be loaded` and stop.
+List the skills you loaded in your final report or PR description.
+
+# Setup
+x
+
+$ fm-skill-select.sh missing.md --project webapp --harness claude --apply
+error: brief file not readable: /tmp/demo/missing.md
+exit=2
+
+$ fm-skill-select.sh brief.md --harness claude --apply   # no --project
+error: --project or --project-dir required
+exit=2
