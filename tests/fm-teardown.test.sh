@@ -63,6 +63,12 @@
 #   (z3d) forced secondmate + child return leaves residue    -> warning, retirement completes, exit 4
 #   (z3e) return removes the copy                            -> cannot-verify warning, exit 4
 #   (z4) scout + ignored file                                -> ignored file survives
+#
+# A copy git cannot safely open is closed without being touched:
+#   (z5) --force + .git link to a gone admin dir, pool slot  -> record closed, copy kept, exit 4
+#   (z5b) --force + .git link bound to another copy           -> other copy's branch kept, record closed
+#   (z5c) no --force + either broken link                     -> REFUSE, nothing changed
+#   (z5d) --force + copy directory deleted                    -> record closed
 set -u
 
 # shellcheck source=tests/fixtures.sh disable=SC1091
@@ -1957,6 +1963,153 @@ test_return_that_removes_copy_warns_cannot_verify() {
     "return-removes-copy: stdout still reported a clean return"
   assert_absent "$case_dir/state/task-x1.meta" "return-removes-copy: task record was not removed"
   pass "a return that leaves no readable copy reports the slot as unverified, not clean"
+}
+
+# Treehouse's own return runs git in the copy, so a copy git cannot open fails
+# it with "not a git repository", as it does for a real broken link. Each
+# return it is asked for is logged.
+add_treehouse_needing_a_git_copy() {
+  local case_dir=$1
+  cat > "$case_dir/fakebin/treehouse" <<'SH'
+#!/usr/bin/env bash
+if [ "${1:-}" = return ]; then
+  for a in "$@"; do wt=$a; done
+  printf '%s\n' "$wt" >> "${0%/*}/../treehouse-return.log"
+  git -C "$wt" rev-parse --git-dir >/dev/null 2>&1 || { echo "Error: not a git repository: $wt" >&2; exit 1; }
+fi
+exit 0
+SH
+  chmod +x "$case_dir/fakebin/treehouse"
+}
+
+# The task copy's own .git link names this admin directory.
+copy_admin_dir() {  # <worktree>
+  sed -n '1s/^gitdir: //p' "$1/.git"
+}
+
+# Seed a task copy holding committed and uncommitted work, so a test can prove
+# a forced close left every byte of it alone.
+seed_copy_work() {  # <case-dir> <worktree>
+  git -C "$2" -c user.email=t@t -c user.name=t commit -q --allow-empty -m "unlanded work"
+  printf 'draft\n' > "$2/draft.txt"
+}
+
+test_forced_teardown_closes_a_copy_whose_git_link_is_gone() {
+  local case_dir wt rc
+  case_dir=$(make_case broken-link-gone)
+  wt=$(move_case_to_pool_slot "$case_dir" 1)
+  write_meta "$case_dir" no-mistakes ship "$wt"
+  seed_backlog_in_flight "$case_dir"
+  seed_copy_work "$case_dir" "$wt"
+  add_treehouse_needing_a_git_copy "$case_dir"
+  rm -rf "$(copy_admin_dir "$wt")"
+
+  rc=0
+  run_teardown "$case_dir" --force > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+
+  expect_code 4 "$rc" "broken-link-gone: a forced close of a broken pool slot should exit 4: $(cat "$case_dir/stderr")"
+  assert_absent "$case_dir/state/task-x1.meta" "broken-link-gone: the task record was not closed"
+  [ "$(backlog_row_state "$case_dir")" = "done" ] \
+    || fail "broken-link-gone: the backlog item is still open"
+  assert_absent "$case_dir/treehouse-return.log" "broken-link-gone: teardown still tried to return a copy git cannot open"
+  assert_grep "broken git link" "$case_dir/stderr" "broken-link-gone: no message named the broken link"
+  assert_grep "no longer exists" "$case_dir/stderr" "broken-link-gone: the message did not say the link target is gone"
+  assert_grep "$wt" "$case_dir/stderr" "broken-link-gone: the message did not name the copy"
+  assert_grep "treehouse destroy" "$case_dir/stderr" "broken-link-gone: the message gave no way to clear the lost slot"
+  [ "$(cat "$wt/draft.txt")" = draft ] || fail "broken-link-gone: the copy's files were touched"
+  pass "a forced teardown closes a task whose copy has a .git link to a gone admin directory, leaving the copy alone"
+}
+
+# The copy's .git names another live copy's admin directory, so git run in it
+# reads and rewrites that other copy's index, HEAD, and branch. Echoes the other
+# copy's path.
+cross_link_copy_to_another_task() {  # <case-dir>
+  local case_dir=$1 other=$1/other-wt admin
+  git -C "$case_dir/project" worktree add -q -b fm/other-task "$other" main
+  git -C "$other" -c user.email=t@t -c user.name=t commit -q --allow-empty -m "other task work"
+  admin=$(copy_admin_dir "$case_dir/wt")
+  printf 'gitdir: %s\n' "$(copy_admin_dir "$other")" > "$case_dir/wt/.git"
+  rm -rf "$admin"
+  printf '%s\n' "$other"
+}
+
+test_forced_teardown_closes_a_copy_linked_to_another_copy() {
+  local case_dir other other_head rc
+  case_dir=$(make_case broken-link-crossed)
+  write_meta "$case_dir" no-mistakes ship
+  seed_backlog_in_flight "$case_dir"
+  seed_copy_work "$case_dir" "$case_dir/wt"
+  add_treehouse_needing_a_git_copy "$case_dir"
+  other=$(cross_link_copy_to_another_task "$case_dir")
+  other_head=$(git -C "$other" rev-parse HEAD)
+
+  rc=0
+  run_teardown "$case_dir" --force > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+
+  expect_code 0 "$rc" "broken-link-crossed: a forced close outside a pool should succeed: $(cat "$case_dir/stderr")"
+  [ "$(git -C "$case_dir/project" rev-parse --verify -q refs/heads/fm/other-task)" = "$other_head" ] \
+    || fail "broken-link-crossed: the other task's branch was deleted or moved"
+  [ "$(git -C "$other" symbolic-ref -q --short HEAD)" = fm/other-task ] \
+    || fail "broken-link-crossed: the other task's copy was moved off its branch"
+  assert_absent "$case_dir/treehouse-return.log" "broken-link-crossed: teardown still returned a crossed copy"
+  assert_absent "$case_dir/state/task-x1.meta" "broken-link-crossed: the task record was not closed"
+  [ "$(backlog_row_state "$case_dir")" = "done" ] \
+    || fail "broken-link-crossed: the backlog item is still open"
+  assert_grep "bound to the copy at $(cd "$other" && pwd -P)" "$case_dir/stderr" \
+    "broken-link-crossed: the message did not name the copy the link belongs to"
+  [ "$(cat "$case_dir/wt/draft.txt")" = draft ] || fail "broken-link-crossed: the copy's files were touched"
+  pass "a forced teardown closes a task whose copy's .git names another copy, leaving both copies alone"
+}
+
+test_teardown_without_force_refuses_a_copy_with_a_broken_git_link() {
+  local case_dir other other_head shape rc
+  for shape in gone crossed; do
+    case_dir=$(make_case "broken-link-unforced-$shape")
+    write_meta "$case_dir" no-mistakes ship
+    seed_backlog_in_flight "$case_dir"
+    add_treehouse_needing_a_git_copy "$case_dir"
+    if [ "$shape" = gone ]; then
+      rm -rf "$(copy_admin_dir "$case_dir/wt")"
+    else
+      other=$(cross_link_copy_to_another_task "$case_dir")
+      other_head=$(git -C "$other" rev-parse HEAD)
+    fi
+
+    rc=0
+    run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+
+    expect_code 1 "$rc" "broken-link-unforced-$shape: teardown without --force should refuse"
+    assert_grep "REFUSED: task task-x1's copy at $case_dir/wt has a broken git link" "$case_dir/stderr" \
+      "broken-link-unforced-$shape: the refusal did not name the broken link"
+    assert_present "$case_dir/state/task-x1.meta" "broken-link-unforced-$shape: the task record was removed"
+    [ "$(backlog_row_state "$case_dir")" = in_flight ] \
+      || fail "broken-link-unforced-$shape: the backlog item was closed"
+    assert_absent "$case_dir/treehouse-return.log" "broken-link-unforced-$shape: the copy was returned"
+    if [ "$shape" = crossed ]; then
+      [ "$(git -C "$case_dir/project" rev-parse --verify -q refs/heads/fm/other-task)" = "$other_head" ] \
+        || fail "broken-link-unforced-$shape: the other task's branch was deleted or moved"
+    fi
+  done
+  pass "teardown without --force refuses a copy whose .git link is gone or names another copy"
+}
+
+test_forced_teardown_closes_a_task_whose_copy_was_deleted() {
+  local case_dir rc
+  case_dir=$(make_case deleted-copy)
+  write_meta "$case_dir" no-mistakes ship
+  seed_backlog_in_flight "$case_dir"
+  wt_commit "$case_dir" "unlanded work"
+  add_treehouse_needing_a_git_copy "$case_dir"
+  rm -rf "$case_dir/wt"
+
+  rc=0
+  run_teardown "$case_dir" --force > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+
+  expect_code 0 "$rc" "deleted-copy: a forced close of a deleted copy should succeed: $(cat "$case_dir/stderr")"
+  assert_absent "$case_dir/state/task-x1.meta" "deleted-copy: the task record was not closed"
+  [ "$(backlog_row_state "$case_dir")" = "done" ] || fail "deleted-copy: the backlog item is still open"
+  assert_absent "$case_dir/treehouse-return.log" "deleted-copy: teardown tried to return a deleted copy"
+  pass "a forced teardown closes a task whose copy directory was deleted"
 }
 
 test_scout_ignored_files_survive_scratch_clean() {
@@ -6314,6 +6467,10 @@ test_dirty_return_warns_even_when_a_later_step_refuses
 test_forced_secondmate_child_scout_nested_clone_returns_clean
 test_forced_secondmate_dirty_child_return_warns_and_completes
 test_return_that_removes_copy_warns_cannot_verify
+test_forced_teardown_closes_a_copy_whose_git_link_is_gone
+test_forced_teardown_closes_a_copy_linked_to_another_copy
+test_teardown_without_force_refuses_a_copy_with_a_broken_git_link
+test_forced_teardown_closes_a_task_whose_copy_was_deleted
 test_scout_ignored_files_survive_scratch_clean
 test_gh_error_and_content_absent_refuses
 test_legacy_record_without_the_flag_refuses

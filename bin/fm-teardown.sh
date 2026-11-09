@@ -98,10 +98,20 @@
 # no longer a readable worktree is reported at once with the lost pool slot and
 # what remains. Teardown then finishes every cleanup step, reports the lost slot
 # instead of a clean return, and exits 4. Exit 4 means only "cleaned up, but a
-# returned pool slot was lost"; refusals and errors exit 1, and an invalid
+# pool slot was lost"; refusals and errors exit 1, and an invalid
 # request exits 2. A local retirement of a remote secondmate whose remote run
 # exits 4 still completes locally, forwards only the remote lost-slot warning
 # to stderr, and then exits 4.
+# A task copy whose .git link is provably broken - it names a worktree admin
+# directory that is gone, or one git has bound to a different copy - is never
+# handed to git or Treehouse: git cannot inspect the first, and in the second it
+# would rewrite the other copy's index, HEAD, and branch. teardown_copy_link_broken
+# owns that proof. A ship refuses such a copy without --force. With --force, or
+# for a scout's scratch copy, cleanup closes the task's record, endpoint, and
+# backlog item, drops this task's slot claim, and leaves every file of the copy
+# in place; a copy left in a Treehouse pool is reported as a lost slot (exit 4)
+# with the `treehouse destroy` preview that clears it. A copy whose directory is
+# already gone needs no such handling: nothing remains to inspect or return.
 # Before destructive cleanup, teardown validates task check artifacts as
 # ordinary single-link files on the state device. It refuses and preserves
 # task state when that proof fails; otherwise it removes the task's check,
@@ -2121,6 +2131,49 @@ teardown_note_dirty_return() {
   printf '%s\n' "$residue" | sed 's/^/  /' >&2
 }
 
+# A copy whose .git link is provably broken: it names a worktree admin
+# directory that no longer exists, or one git has bound to a different copy.
+# Git cannot inspect the first, and in the second it would read and rewrite the
+# other copy's index, HEAD, and branch. Anything less certain - no .git file, a
+# link git did not write, an unreadable back-pointer - is not proof and keeps the
+# ordinary path. Sets TEARDOWN_COPY_LINK_REASON.
+TEARDOWN_COPY_LINK_REASON=
+teardown_copy_link_broken() {  # <worktree>
+  local wt=$1 link admin back owner copy
+  [ -d "$wt" ] && [ -f "$wt/.git" ] && [ ! -L "$wt/.git" ] || return 1
+  link=$(sed -n '1s/^gitdir: //p' "$wt/.git" 2>/dev/null) || return 1
+  [ -n "$link" ] || return 1
+  case "$link" in /*) admin=$link ;; *) admin=$wt/$link ;; esac
+  if [ ! -e "$admin" ] && [ ! -L "$admin" ]; then
+    TEARDOWN_COPY_LINK_REASON="its .git names $link, which no longer exists"
+    return 0
+  fi
+  [ -d "$admin" ] && [ -f "$admin/gitdir" ] || return 1
+  back=$(head -n 1 "$admin/gitdir" 2>/dev/null) || return 1
+  [ -n "$back" ] || return 1
+  case "$back" in /*) ;; *) back=$admin/$back ;; esac
+  copy=$(canonical_existing_dir "$wt") || return 1
+  owner=$(canonical_existing_dir "$(dirname "$back")") || owner=$(dirname "$back")
+  [ "$owner" != "$copy" ] || return 1
+  TEARDOWN_COPY_LINK_REASON="its .git names $link, which git has bound to the copy at $owner"
+}
+
+# The forced close of a broken copy: nothing under it is returned, cleaned, or
+# handed to git, only this task's slot claim is dropped. A copy left in a pool
+# is a lost slot, reported like a dirty return.
+teardown_note_broken_copy() {  # <worktree>
+  local wt=$1 slot
+  echo "warning: task $ID's copy at $wt has a broken git link ($TEARDOWN_COPY_LINK_REASON), so it was neither returned nor cleaned; its files stay in place and its work is discarded with this task." >&2
+  slot=$(canonical_existing_dir "$wt") || slot=$wt
+  if [ -f "$(dirname "$(dirname "$slot")")/treehouse-state.json" ]; then
+    TEARDOWN_POOL_SLOT_LOST=1
+    echo "warning: the pool lost slot $(basename "$(dirname "$slot")") ($wt); preview its removal with: treehouse destroy $(printf '%q' "$wt")" >&2
+  else
+    echo "Remove that copy once nothing else needs it." >&2
+  fi
+  fm_treehouse_slot_owner_release "$wt" "$ID"
+}
+
 validate_worktree_teardown_safety() {
   local dirty_raw dirty unpushed_raw unpushed DEFAULT unmerged_raw unmerged branch
   [ -d "$WT" ] || return 0
@@ -3715,6 +3768,20 @@ if [ -n "$X_REQUEST" ]; then
   echo "warning: task $ID still carries an unreconciled Relay request link ($X_REQUEST) on its task record." >&2
 fi
 
+# A copy whose git link is provably broken (teardown_copy_link_broken) cannot be
+# inspected for unlanded work and is never handed to git or Treehouse. A ship
+# refuses here, before anything changes; with --force, or for a scratch scout
+# copy, cleanup closes the task and leaves the copy alone.
+TEARDOWN_COPY_BROKEN=0
+if [ "$KIND" != secondmate ] && teardown_owns_worktree && teardown_copy_link_broken "$WT"; then
+  if [ "$KIND" != scout ] && [ "$FORCE" != "--force" ]; then
+    echo "REFUSED: task $ID's copy at $WT has a broken git link: $TEARDOWN_COPY_LINK_REASON. It cannot be inspected for unlanded work, so nothing was changed." >&2
+    echo "Repair the link (git worktree repair) and re-run, or get the captain's explicit OK to discard the copy, then --force: cleanup then closes the task without touching the copy." >&2
+    exit 1
+  fi
+  TEARDOWN_COPY_BROKEN=1
+fi
+
 if [ "$BACKEND" = orca ] && [ "$KIND" != scout ] && [ "$KIND" != secondmate ] && [ "$FORCE" != "--force" ]; then
   if ! inspectable_git_worktree "$WT"; then
     echo "REFUSED: Orca ship task $ID has no inspectable git worktree at ${WT:-<missing>}." >&2
@@ -3774,7 +3841,7 @@ fi
 # kind=secondmate: a secondmate home's own runtime lifecycle is owned by the
 # dedicated process-event and firstmate-home removal machinery further below,
 # not by task-worktree cleanup.
-if [ "$KIND" != secondmate ] && teardown_owns_worktree; then
+if [ "$KIND" != secondmate ] && teardown_owns_worktree && [ "$TEARDOWN_COPY_BROKEN" != 1 ]; then
   conclude_task_no_mistakes_run "$WT"
 fi
 
@@ -3951,7 +4018,8 @@ else
   fi
 fi
 
-if [ "$KIND" = ship ] && teardown_owns_worktree && [ -e "$CONFIG/pipeline-spend" ]; then
+if [ "$KIND" = ship ] && teardown_owns_worktree && [ "$TEARDOWN_COPY_BROKEN" != 1 ] \
+  && [ -e "$CONFIG/pipeline-spend" ]; then
   FM_HOME="$FM_HOME" FM_STATE_OVERRIDE="$STATE" FM_DATA_OVERRIDE="$DATA" FM_CONFIG_OVERRIDE="$CONFIG" \
     "$SCRIPT_DIR/fm-pipeline-spend.sh" record "$ID" >/dev/null \
     || echo "warning: could not record $ID's no-mistakes pipeline spend; cleanup continues" >&2
@@ -4006,7 +4074,7 @@ if [ "$BACKEND" = orca ] && [ "$KIND" != secondmate ]; then
     require_orca_worktree_path_match_if_present "$ORCA_WORKTREE_ID" "$WT" || exit 1
     ORCA_PATH_MATCH_VERIFIED=1
   fi
-  if [ -d "$WT" ]; then
+  if [ -d "$WT" ] && [ "$TEARDOWN_COPY_BROKEN" != 1 ]; then
     branch=$(git -C "$WT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo HEAD)
     if [ "$branch" != "HEAD" ]; then
       if git -C "$WT" checkout --detach -q 2>/dev/null; then
@@ -4025,6 +4093,8 @@ if [ "$BACKEND" = orca ] && [ "$KIND" != secondmate ]; then
   fm_backend_remove_worktree "$BACKEND" "$ORCA_WORKTREE_ID"
 elif [ "$KIND" != secondmate ] && ! teardown_owns_worktree; then
   :
+elif [ "$TEARDOWN_COPY_BROKEN" = 1 ]; then
+  teardown_note_broken_copy "$WT"
 elif [ -d "$WT" ] && [ "$KIND" != secondmate ]; then
   branch=$(git -C "$WT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo HEAD)
   if [ "$branch" != "HEAD" ]; then
@@ -4232,7 +4302,11 @@ if [ -d "$STATE" ]; then
   "$SCRIPT_DIR/fm-home-summary-refresh.sh" --best-effort || true
 fi
 if [ "$TEARDOWN_POOL_SLOT_LOST" = 1 ]; then
-  echo "teardown $ID finished its cleanup and removed its task record, but a returned pool slot did not come back clean (see the warning above); clear those paths so the pool can reuse the slot" >&2
+  if [ "$TEARDOWN_COPY_BROKEN" = 1 ]; then
+    echo "teardown $ID finished its cleanup and removed its task record, but its pool slot holds a copy with a broken git link (see the warning above); remove that slot so the pool can replace it" >&2
+  else
+    echo "teardown $ID finished its cleanup and removed its task record, but a returned pool slot did not come back clean (see the warning above); clear those paths so the pool can reuse the slot" >&2
+  fi
 elif [ "$TEARDOWN_LEGACY_ACCEPTED" = 1 ]; then
   echo "teardown $ID complete (window ${T:-none}, worktree $WT, legacy record accepted without spawn_gen: endpoint $TEARDOWN_LEGACY_ENDPOINT, incarnation $TEARDOWN_META_SPAWN_GEN)"
 elif teardown_owns_worktree; then
