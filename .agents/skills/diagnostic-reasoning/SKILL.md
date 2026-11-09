@@ -16,9 +16,9 @@ Firstmate applies it when briefing delegated investigation and evaluating the re
 ## Establish the observed behavior
 
 Start from the end user's experience rather than an internal error string or an implementation hypothesis.
-Require an end-to-end reproduction aligned with the real user path whenever it is feasible and safe.
-Its strongest form is a named command - a script path, a test invocation, a curl - already run at least once with its invocation and output shown, and red-capable, deterministic, fast, and agent-runnable; produce one whenever you can, because reading code to build a theory in place of a reproduction is the exact failure this procedure prevents.
-If a faithful reproduction is not feasible, record the exact limitation and use the closest representative path without presenting it as equivalent evidence.
+Before reading code to build a theory, have a named reproduction command aligned with the real user path: one command - a script path, a test invocation, a curl - already run at least once with its invocation and output shown, and red-capable, deterministic, fast, and agent-runnable.
+Reading code to build a theory before that command exists is the exact failure this procedure prevents.
+If a faithful reproduction is not feasible or not safe, record the exact limitation and use the closest representative path without presenting it as equivalent evidence.
 Capture the expected behavior, observed behavior, setup, inputs, and repeatability before assigning a cause.
 
 Separate these three facts explicitly:
