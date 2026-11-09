@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- A design-variants skill: firstmate proposes design directions for a UI, has workers build them as live code versions or as Paper designs, shows them on one compare board for a pick, and turns the pick into a PR.
+
 ### Fixed
 
 - Claude second mates launch with transcript saving on, even when their terminal inherits Claude's child-session marker, so a restart keeps their conversation.
