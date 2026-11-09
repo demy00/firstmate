@@ -2184,16 +2184,16 @@ Skill bodies and paths are never sent.
 **Selection and outcomes**
 
 Code selects every skill whose yes probability is at least 0.8; the model never sees the floor.
-When none reaches it, the project's own list is the fallback: the installed skills named in the `Skills` column of a "Skills to load" table in the project clone's `AGENTS.md`, read locally (the script header owns the table format).
+When none reaches it, or the selector is off or fails, the project's own list is the fallback: the installed skills named in the `Skills` column of a "Skills to load" table in the project clone's `AGENTS.md`, read locally with no network call (the script header owns the table format).
 
 | Result | Meaning |
 | --- | --- |
 | `clear` | At least one skill reached the floor; `--apply` wrote the instruction. |
-| `fallback` | No skill reached the floor; the `AGENTS.md` table supplied the skills and `--apply` wrote them. |
+| `fallback` | No skill reached the floor, or the selector was off or failed; the `AGENTS.md` table supplied the skills and `--apply` wrote them. |
 | `none` | No skill reached the floor and the `AGENTS.md` table named no installed skill; the brief is unchanged. |
-| `error` | API, network, or malformed response; the brief is unchanged. |
+| `error` | API, network, or malformed response, and the `AGENTS.md` table named no installed skill; the brief is unchanged. |
 
-Off prints one `skill-select: off (...)` line on stderr, nothing on stdout, and changes nothing.
+Off prints one `skill-select: off (...)` line on stderr; with no `AGENTS.md` fallback it prints nothing on stdout and changes nothing.
 Every outcome and off exit 0; a usage or configuration error, such as a missing flag or an unreadable brief, exits 2.
 Whenever the brief is left without the instruction, the spawn refuses it until firstmate runs `--set` or passes the spawn opt-out.
 

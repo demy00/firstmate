@@ -39,8 +39,10 @@
 #
 # Opt-in gate and never-send list: exactly bin/fm-dispatch-resolve.sh's
 #   (bin/fm-typesafe-lib.sh owns both). Off - no key, a never-send match, or
-#   no candidates - prints one "skill-select: off (...)" line on stderr,
-#   nothing on stdout, changes nothing, makes no network call, and exits 0.
+#   no candidates - prints one "skill-select: off (...)" line on stderr, makes
+#   no network call, and exits 0. Off then uses the AGENTS.md fallback below
+#   when it names a candidate; otherwise it prints nothing on stdout and
+#   changes nothing.
 #
 # What it sends when on: one POST with the project name and the brief's task
 #   text (the same sections the dispatch resolver sends) as state, and one
@@ -50,7 +52,8 @@
 #   Code then applies the confidence floor: a skill is selected only when its
 #   yes probability is at least 0.8. Jev never sees the floor.
 #
-# Fallback when no skill clears the floor: the project's own list, read from
+# Fallback when no skill clears the floor, and on the off and error outcomes:
+#   the project's own list, read from
 #   the clone's AGENTS.md with no network. It is the first table with a
 #   `Skills` header column under a heading titled "Skills to load" (any level,
 #   any case, outside code fences; the section runs to the next heading of the
@@ -73,11 +76,13 @@
 #     skills: <name>...                                             (status clear or fallback)
 #     brief: written | unchanged
 #   clear    -> at least one skill cleared the floor
-#   fallback -> none cleared the floor; the AGENTS.md table supplied the skills
+#   fallback -> none cleared the floor, or the selector was off or failed;
+#               the AGENTS.md table supplied the skills
 #   none     -> none cleared the floor and the AGENTS.md table named no
 #               candidate; no section is written, so bin/fm-spawn.sh refuses
 #               the brief until --set or its --no-skills opt-out
-#   error    -> API, network, or response failure; the brief is unchanged
+#   error    -> API, network, or response failure, and the AGENTS.md table
+#               named no candidate; the brief is unchanged
 #   Every outcome exits 0; exit 2 for a usage or configuration error (a missing
 #   flag, an unreadable brief), so a chained spawn never starts on a brief the
 #   tool could not process.
@@ -108,11 +113,13 @@ CONFIG="${FM_CONFIG_OVERRIDE:-$FM_HOME/config}"
 # shellcheck source=bin/fm-worker-account-lib.sh
 . "$SCRIPT_DIR/fm-worker-account-lib.sh"
 
+fm_ts_off() { off "$2; nothing sent"; }
+
 YES_FLOOR=0.8
 SECTION_HEADING='# Required skills'
 
 die() { printf 'error: %s\n' "$1" >&2; exit 2; }
-off() { echo "skill-select: off ($1)" >&2; exit 0; }
+off() { echo "skill-select: off ($1)" >&2; fallback_exit "$1"; exit 0; }
 usage() {
   awk '
     NR == 1 { next }
@@ -407,6 +414,21 @@ agents_md_skills() {
       reduce .[] as $n ([]; if index($n) then . else . + [$n] end)'
 }
 
+# fallback_exit <reason>: when the AGENTS.md table names a candidate, report
+# (and with --apply write) it as the fallback outcome and exit 0; else return.
+fallback_exit() {
+  local names written=unchanged
+  [ "${CANDIDATES:-[]}" != '[]' ] && [ "${WRITTEN:-unchanged}" = unchanged ] || return 0
+  names=$(agents_md_skills) && [ "$names" != '[]' ] || return 0
+  if [ "$MODE" = apply ]; then
+    write_selection "$names"
+    written=written
+  fi
+  printf 'skill-select:\n  status: fallback\n  reason: %s; using the Skills to load table in the project AGENTS.md\n  skills: %s\n  brief: %s\n' \
+    "$(printf '%s' "$1" | tr '\t\r\n' '   ')" "$(jq -r 'join(" ")' <<<"$names")" "$written"
+  exit 0
+}
+
 # ---- ask Jev ----------------------------------------------------------------------
 [ "$CANDIDATES" != '[]' ] || off "no skills available to a $HARNESS worker in $PROJECT; nothing sent"
 fm_ts_key_resolve "$FM_HOME" || off "TYPESAFE_API_KEY absent from the environment and $FM_HOME/.env"
@@ -418,6 +440,7 @@ trap 'rm -f "$RESP_FILE" "$TASK_TEXT" "$SEND_TEXT"' EXIT
 
 emit_error() {
   echo "skill-select: error ($1)" >&2
+  fallback_exit "$1"
   printf 'skill-select:\n  status: error\n  reason: %s\n  brief: unchanged\n' "$1"
   exit 0
 }

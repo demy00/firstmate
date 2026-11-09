@@ -348,6 +348,42 @@ assert_contains "$out" 'brief: unchanged' "none with no fallback writes nothing"
 cmp -s "$BASE_BRIEF" "$BRIEF" || fail "none with no fallback leaves the brief unchanged"
 pass "below the floor, the AGENTS.md Skills to load table supplies installed skills, else nothing is written"
 
+# --- off and error outcomes also use the AGENTS.md table, with no network --------
+reset
+unset TYPESAFE_API_KEY
+# shellcheck disable=SC2016 # Backticks are literal Markdown.
+printf '%s\n' '# webapp' '## Skills to load' '| Kind of work | Skills |' '| --- | --- |' '| Any fix | `tdd`, `typescript` |' > "$PROJECT_DIR/AGENTS.md"
+run code out err "${SELECT[@]}" --apply
+expect_code 0 "$code" "an off fallback exits 0"
+assert_contains "$err" 'skill-select: off (TYPESAFE_API_KEY absent from the environment and' "the off line is still printed"
+assert_contains "$out" 'status: fallback' "an absent key falls back to the AGENTS.md table"
+assert_contains "$out" 'reason: TYPESAFE_API_KEY absent from the environment and' "the off fallback names why the selector was off"
+assert_contains "$out" 'skills: tdd typescript' "the off fallback lists the table's installed skills"
+assert_contains "$out" 'brief: written' "--apply writes the off fallback"
+assert_grep "- \`tdd\`" "$BRIEF" "the off fallback writes the section"
+assert_absent "$LOG/argv" "the off fallback makes no network call"
+cp "$BASE_BRIEF" "$BRIEF"
+run code out err "${SELECT[@]}"
+assert_contains "$out" 'status: fallback' "select alone reports the off fallback"
+cmp -s "$BASE_BRIEF" "$BRIEF" || fail "select alone does not write the off fallback"
+export TYPESAFE_API_KEY=$KEY
+printf '%s\n' 'flaky login' > "$HOME_DIR/config/dispatch-never-send"
+run code out err "${SELECT[@]}" --apply
+assert_contains "$err" "skill-select: off (brief text matches $HOME_DIR/config/dispatch-never-send line 1; nothing sent)" "a never-send match is still off"
+assert_contains "$out" 'status: fallback' "a never-send match falls back to the AGENTS.md table"
+assert_absent "$LOG/argv" "a never-send fallback makes no network call"
+rm -f "$HOME_DIR/config/dispatch-never-send"
+cp "$BASE_BRIEF" "$BRIEF"
+export FAKE_CURL_HTTP=500
+run code out err "${SELECT[@]}" --apply
+expect_code 0 "$code" "an error fallback exits 0"
+assert_contains "$out" 'status: fallback' "an http error falls back to the AGENTS.md table"
+assert_contains "$out" 'reason: http 500' "the error fallback names the error"
+assert_contains "$out" 'brief: written' "--apply writes the error fallback"
+assert_grep "- \`typescript\`" "$BRIEF" "the error fallback writes the section"
+unset FAKE_CURL_HTTP
+pass "off and error outcomes fall back to the AGENTS.md table locally"
+
 # --- never-send list stops the request ------------------------------------------
 reset
 printf '%s\n' '# private' 'FLAKY   LOGIN' > "$HOME_DIR/config/dispatch-never-send"
