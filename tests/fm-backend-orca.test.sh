@@ -24,6 +24,9 @@ Exercise Orca dispatch.
 
 ## Firstmate spec
 Verify the Orca lifecycle behavior under test.
+
+# Required skills
+- tdd
 EOF
 }
 

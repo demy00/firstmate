@@ -102,6 +102,9 @@ Exercise settled-worktree detection for $id.
 
 ## Firstmate spec
 Record only the pane's stable worktree.
+
+# Required skills
+- tdd
 EOF
   touch "$home/state/.last-watcher-beat"
   printf '%s\n' "$case_dir|$home|$proj|$wt|$stale|$fakebin|$countfile|$stale_reads"

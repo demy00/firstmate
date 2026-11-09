@@ -211,6 +211,9 @@ Exercise relaunch behavior for $id.
 
 ## Firstmate spec
 Preserve the task while replacing its agent process.
+
+# Required skills
+- tdd
 EOF
   {
     echo "window=$ses:fm-$id"
@@ -2790,6 +2793,9 @@ Exercise a herdr reclaim safely.
 
 ## Firstmate spec
 Keep the recorded endpoint when it outlives its server.
+
+# Required skills
+- tdd
 EOF
   {
     echo "window=$ses:%7"

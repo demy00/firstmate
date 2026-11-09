@@ -14,8 +14,8 @@
 # cases that are meant to get past them, so no window or worktree is ever created.
 set -u
 
-# shellcheck source=tests/lib.sh
-. "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+# shellcheck source=tests/fixtures.sh
+. "$(dirname "${BASH_SOURCE[0]}")/fixtures.sh"
 
 SPAWN="$ROOT/bin/fm-spawn.sh"
 BRIEF="$ROOT/bin/fm-brief.sh"
@@ -44,21 +44,30 @@ make_home() {  # <name> [<registry-line>...]
   printf '%s\n' "$home|$projects/proj|$fakebin"
 }
 
-write_brief() {  # <home> <id> [<recorded-mode>]
-  local home=$1 id=$2 mode=${3:-}
+write_brief() {  # <home> <id> [<recorded-mode>] [no-skills]
+  local home=$1 id=$2 mode=${3:-} skills=${4:-}
   mkdir -p "$home/data/$id"
   {
-    printf 'You are a crewmate.\n\n# Task\n## Captain'\''s intent\nExercise the delivery contract.\n\n## Firstmate spec\nVerify the selected delivery behavior.\n\n# Definition of done\n'
+    printf 'You are a crewmate.\n\n# Task\n## Captain'\''s intent\nExercise the delivery contract.\n\n## Firstmate spec\nVerify the selected delivery behavior.\n\n'
+    # shellcheck disable=SC2016 # Backticks are literal Markdown.
+    [ "$skills" = no-skills ] || printf '# Required skills\n- `tdd`\n\n'
+    printf '# Definition of done\n'
     [ -z "$mode" ] || printf 'Delivery contract: mode=%s\n' "$mode"
   } > "$home/data/$id/brief.md"
 }
 
-fill_brief_subsections() {  # <file> <intent> <spec>
+add_skills_section() {  # <brief>: what bin/fm-skill-select.sh --set leaves behind
+  # shellcheck disable=SC2016 # Backticks are literal Markdown.
+  printf '\n# Required skills\n- `tdd`\n' >> "$1"
+}
+
+fill_brief_subsections() {  # <file> <intent> <spec>: also names a skill, as intake does
   local file=$1 intent=$2 spec=$3 content
   content=$(cat "$file")
   content=${content//'{TASK}'/$intent}
   content=${content//'{FIRSTMATE_SPEC}'/$spec}
   printf '%s\n' "$content" > "$file"
+  add_skills_section "$file"
 }
 
 run_spawn() {  # <home> <fakebin> <spawn-args...>
@@ -801,6 +810,96 @@ STUB
   pass "fm-promote: a promoted no-mistakes worker receives the registered pr=manual contract "
 }
 
+# A worker loads the skills its brief names, so a fresh ship or scout spawn
+# refuses a brief with no # Required skills section unless --no-skills records
+# why, and refuses every contradictory or misplaced use of that opt-out.
+test_spawn_requires_a_skills_decision() {
+  local rec home proj fakebin out status id label expect args
+  rec=$(make_home skills-gate)
+  IFS='|' read -r home proj fakebin <<EOF
+$rec
+EOF
+  id='skills-gate-ship'
+  write_brief "$home" "$id" no-mistakes no-skills
+  out=$(run_spawn "$home" "$fakebin" "$id" "$proj" claude --mode no-mistakes --yolo off)
+  status=$?
+  [ "$status" -ne 0 ] || fail "a ship brief naming no skills should be refused"
+  assert_contains "$out" "has no # Required skills section; run bin/fm-skill-select.sh --apply (or --set) on it, or pass --no-skills" \
+    "the refusal did not name the remedies"
+  assert_absent "$home/state/$id.meta" "a refused skills gate wrote task metadata"
+  assert_absent "$home/data/$id/launch-brief.md" "a refused skills gate rendered a launch brief"
+
+  id='skills-gate-scout'
+  write_brief "$home" "$id" "" no-skills
+  out=$(run_spawn "$home" "$fakebin" "$id" "$proj" claude --scout)
+  status=$?
+  [ "$status" -ne 0 ] || fail "a scout brief naming no skills should be refused"
+  assert_contains "$out" "has no # Required skills section" "the scout refusal did not explain the gate"
+
+  # shellcheck disable=SC2016 # Backticks are literal Markdown.
+  printf '# Task\n## Captain'\''s intent\nx\n\n## Firstmate spec\ny\n\n```\n# Required skills\n- `tdd`\n```\n' > "$home/data/$id/brief.md"
+  out=$(run_spawn "$home" "$fakebin" "$id" "$proj" claude --scout)
+  assert_contains "$out" "has no # Required skills section" "a fenced example heading satisfied the gate"
+  printf '# Task\n## Captain'\''s intent\nx\n\n## Firstmate spec\ny\n\n# Required skills\n\n# Setup\n' > "$home/data/$id/brief.md"
+  out=$(run_spawn "$home" "$fakebin" "$id" "$proj" claude --scout)
+  assert_contains "$out" "has no # Required skills section" "an empty section satisfied the gate"
+
+  write_brief "$home" "$id" "" no-skills
+  out=$(run_spawn "$home" "$fakebin" "$id" "$proj" claude --scout --no-skills "docs-only report")
+  assert_not_contains "$out" "Required skills" "--no-skills did not let a scout brief past the gate"
+  assert_present "$home/data/$id/launch-brief.md" "an opted-out scout did not reach launch rendering"
+
+  id='skills-gate-named'
+  write_brief "$home" "$id" no-mistakes
+  out=$(run_spawn "$home" "$fakebin" "$id" "$proj" claude --mode no-mistakes --yolo off)
+  assert_not_contains "$out" "Required skills" "a brief naming skills was refused by the gate"
+  assert_present "$home/data/$id/launch-brief.md" "a brief naming skills did not reach launch rendering"
+  out=$(run_spawn "$home" "$fakebin" "$id" "$proj" claude --mode no-mistakes --yolo off --no-skills "not needed")
+  status=$?
+  [ "$status" -ne 0 ] || fail "--no-skills alongside named skills should be refused"
+  assert_contains "$out" "names required skills, so --no-skills contradicts it" "the contradiction was not explained"
+
+  while IFS='|' read -r label expect args; do
+    [ -n "$label" ] || continue
+    # shellcheck disable=SC2086  # args is an intentional word-split arg list
+    out=$(run_spawn "$home" "$fakebin" $args)
+    status=$?
+    [ "$status" -ne 0 ] || fail "$label: expected a non-zero exit"
+    assert_contains "$out" "$expect" "$label: refusal did not explain itself"
+  done <<ROWS
+empty reason|--no-skills requires a non-empty reason|skills-gate-ship $proj claude --mode no-mistakes --yolo off --no-skills=
+missing reason|--no-skills requires a value|skills-gate-ship $proj claude --mode no-mistakes --yolo off --no-skills
+secondmate|--no-skills applies only to ship and scout spawns|skills-gate-sm $home --secondmate --no-skills=charter
+relaunch|--no-skills cannot override it|skills-gate-ship --relaunch --no-skills=again
+batch|--no-skills is a per-task decision|skills-gate-ship=$proj skills-gate-scout=$proj claude --scout --no-skills=batch
+ROWS
+  out=$(run_spawn "$home" "$fakebin" skills-gate-ship "$proj" claude --mode no-mistakes --yolo off --no-skills $' \t\n')
+  assert_contains "$out" "--no-skills requires a non-empty reason" "a whitespace-only reason was accepted"
+  assert_absent "$home/state/skills-gate-ship.meta" "a refused opt-out wrote task metadata"
+  pass "fm-spawn: a fresh ship or scout brief must name skills or record an explicit --no-skills reason"
+}
+
+# The opt-out is the durable answer to "why does this worker load no skills",
+# so it lands in the task record on one line.
+test_spawn_records_the_no_skills_reason() {
+  local case_dir home proj wt fakebin out rc
+  case_dir="$TMP_ROOT/skills-record"
+  home="$case_dir/home"
+  proj="$case_dir/project"
+  wt="$case_dir/wt"
+  fakebin=$(fm_test_make_spawn_fakebin "$case_dir/fake")
+  fm_test_spawn_home "$home" claude
+  fm_git_worktree "$proj" "$wt" wt-skills-record
+  write_brief "$home" skills-record-off no-mistakes no-skills
+  out=$(fm_test_run_spawn "$home" "$wt" "$fakebin" skills-record-off "$proj" --mode no-mistakes --yolo off \
+    --no-skills $'docs-only\nchange')
+  rc=$?
+  expect_code 0 "$rc" "an opted-out ship spawn should launch: $out"
+  assert_equals 'no_skills=docs-only change' "$(grep '^no_skills=' "$home/state/skills-record-off.meta")" \
+    "the task record did not carry the one-line --no-skills reason"
+  pass "fm-spawn: --no-skills records its one-line reason in the task record"
+}
+
 # Spawn and promotion refuse leftover Task-subsection placeholders through the
 # public brief/spawn/promote path. Filling both subsections lets the spawn
 # delivery checks proceed (the fake tmux still fails later).
@@ -896,6 +995,7 @@ Example specification
 # Definition of done
 Delivery contract: mode=direct-PR
 EOF
+  add_skills_section "$home/data/$id/brief.md"
   out=$(run_spawn "$home" "$fakebin" "$id" "$proj" claude --mode direct-PR --yolo off)
   assert_not_contains "$out" "must contain nonempty" \
     "fenced example headings made a filled legacy Task fail validation"
@@ -913,6 +1013,7 @@ Do not copy this Firstmate-authored constraint into intent.
 Delivery contract: mode=no-mistakes
 Pass the entire Task as --intent.
 EOF
+  add_skills_section "$home/data/$id/brief.md"
   out=$(run_spawn "$home" "$fakebin" "$id" "$proj" claude --mode no-mistakes --yolo off)
   assert_not_contains "$out" "has no provenance-marked captain words" \
     "legacy no-mistakes spawn rejected explicitly marked captain words"
@@ -944,6 +1045,7 @@ Preserve the existing compatibility path.
 Delivery contract: mode=no-mistakes
 Pass the entire Task and every Firstmate requirement as --intent.
 EOF
+  add_skills_section "$home/data/$id/brief.md"
   out=$(run_spawn "$home" "$fakebin" "$id" "$proj" claude --mode no-mistakes --yolo off)
   assert_present "$home/data/$id/launch-brief.md" \
     "migrated subsection brief did not receive the current launch contract"
@@ -978,6 +1080,7 @@ Unrelated notes must not become task intent.
 ## Firstmate spec
 Unrelated notes must not satisfy task validation.
 EOF
+  add_skills_section "$home/data/$id/brief.md"
   out=$(run_spawn "$home" "$fakebin" "$id" "$proj" claude --mode no-mistakes --yolo off)
   status=$?
   [ "$status" -ne 0 ] || fail "unmarked legacy no-mistakes spawn should require provenance"
@@ -1051,6 +1154,7 @@ Unrelated notes are not the original ask.
 ## Firstmate spec
 Unrelated notes are not the task specification.
 EOF
+  add_skills_section "$home/data/$id/brief.md"
   out=$(FM_HOME="$home" FM_STATE_OVERRIDE="$home/state" "$PROMOTE" "$id" --mode direct-PR --yolo off 2>&1)
   status=$?
   [ "$status" -ne 0 ] || fail "promotion without provenance-marked captain intent should fail"
@@ -1109,6 +1213,7 @@ Keep this closing requirement.
 # Setup
 This scout-only setup must not become the spec.
 EOF
+  add_skills_section "$home/data/$id/brief.md"
   out=$(FM_HOME="$home" FM_STATE_OVERRIDE="$home/state" "$PROMOTE" "$id" --mode direct-PR --yolo off 2>&1)
   status=$?
   expect_code 0 "$status" "promotion with nested and fenced spec content should succeed"
@@ -1141,6 +1246,7 @@ Ship the narrow session-floor fix with a regression test.
 # Setup
 This is a SCOUT task: the deliverable is a written report, not a PR.
 EOF
+  add_skills_section "$home/data/$id/brief.md"
   out=$(FM_HOME="$home" FM_STATE_OVERRIDE="$home/state" "$PROMOTE" "$id" --mode direct-PR --yolo on 2>&1)
   status=$?
   expect_code 0 "$status" "promotion of a pre-subsection scout brief should succeed"
@@ -1190,6 +1296,7 @@ EOF
     "Stop composing Captain:, Captain's words:, Captain's ask:, and Captain's intent: into PR bodies.")
   write_brief "$home" intent-literal no-mistakes
   printf '# Task\n## Captain'"'"'s intent\n%s\n\n## Firstmate spec\nDo not paraphrase.\n\n# Definition of done\nDelivery contract: mode=no-mistakes\n' "$words" > "$home/data/intent-literal/brief.md"
+  add_skills_section "$home/data/intent-literal/brief.md"
   out=$(run_spawn "$home" "$fakebin" intent-literal "$proj" claude --mode no-mistakes --yolo off)
   assert_not_contains "$out" "operator-address line" "labels mentioned mid-line were refused as address"
   authorized=$(awk '$0 == "## Captain intent authorized for --intent" { emit=1; next } emit { print }' "$home/data/intent-literal/launch-brief.md")
@@ -1234,6 +1341,7 @@ EOF
     write_brief "$home" "$id" no-mistakes
     printf '# Task\n%s %s\nDo not include this build constraint.\n%s %s\n\n# Definition of done\nDelivery contract: mode=no-mistakes\n' \
       "$marker" 'Keep the original request intact.' "$marker" 'Preserve its provenance.' > "$home/data/$id/brief.md"
+    add_skills_section "$home/data/$id/brief.md"
     out=$(run_spawn "$home" "$fakebin" "$id" "$proj" claude --mode no-mistakes --yolo off)
     assert_present "$home/data/$id/launch-brief.md" "$marker: provenance was not accepted"
     authorized=$(awk '$0 == "## Captain intent authorized for --intent" { emit=1; next } emit { print }' "$home/data/$id/launch-brief.md")
@@ -2030,5 +2138,7 @@ test_pr_manual_is_refused_where_it_cannot_apply
 test_spawn_requires_the_brief_to_carry_the_registered_pr_text
 test_promotion_carries_the_pr_text_binding
 test_spawn_and_promote_require_filled_task_subsections
+test_spawn_requires_a_skills_decision
+test_spawn_records_the_no_skills_reason
 test_project_mode_resolves_branch_prefix
 echo "# all fm-task-delivery tests passed"

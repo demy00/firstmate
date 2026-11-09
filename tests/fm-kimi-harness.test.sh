@@ -277,6 +277,9 @@ Exercise Kimi dispatch.
 
 ## Firstmate spec
 Verify launch and delivery behavior.
+
+# Required skills
+- tdd
 EOF
   printf 'kimi\n' > "$home/config/crew-harness"
   fm_git_worktree "$proj" "$wt" "wt-$name"

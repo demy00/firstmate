@@ -89,6 +89,9 @@ Exercise Herdr lifecycle control safely.
 
 ## Firstmate spec
 Keep the isolated endpoint and worktree intact.
+
+# Required skills
+- tdd
 EOF
 
 # A real git worktree so the control plane's checkpoint has a real local copy.

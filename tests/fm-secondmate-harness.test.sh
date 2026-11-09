@@ -1288,6 +1288,9 @@ Exercise an ordinary crew launch.
 
 ## Firstmate spec
 Verify secondmate harness settings do not affect it.
+
+# Required skills
+- tdd
 EOF
   : > "$launchlog"
   PATH="$fakebin:$BASE_PATH" TMUX="fake,1,0" CLAUDECODE=1 \

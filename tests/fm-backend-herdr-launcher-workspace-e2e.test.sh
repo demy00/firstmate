@@ -195,6 +195,9 @@ Exercise Herdr launcher placement for $2.
 
 ## Firstmate spec
 Verify the worker is placed in the correct workspace.
+
+# Required skills
+- tdd
 EOF
 }
 

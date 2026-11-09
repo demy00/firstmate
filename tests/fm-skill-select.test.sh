@@ -122,7 +122,7 @@ reset() {
   rm -rf "$LOG"
   mkdir -p "$LOG"
   cp "$BASE_BRIEF" "$BRIEF"
-  rm -f "$HOME_DIR/config/dispatch-never-send" "$HOME_DIR/config/claude-account" "$HOME_DIR/.env"
+  rm -f "$HOME_DIR/config/dispatch-never-send" "$HOME_DIR/config/claude-account" "$HOME_DIR/.env" "$PROJECT_DIR/AGENTS.md"
   unset FAKE_CURL_RESPONSE FAKE_CURL_HTTP FAKE_CURL_FAIL FAKE_P
 }
 
@@ -289,6 +289,65 @@ unset FAKE_CURL_RESPONSE
 cmp -s "$TMP_ROOT/with-section.md" "$BRIEF" || fail "error outcomes leave the brief unchanged"
 pass "none and error outcomes exit 0 and never touch the brief"
 
+# --- below the floor, the project AGENTS.md table is the fallback --------------
+reset
+export FAKE_P='{"tdd": 0.5}'
+cat > "$PROJECT_DIR/AGENTS.md" <<'MD'
+# webapp
+
+```markdown
+## Skills to load
+| Kind of work | Files | Skills |
+| --- | --- | --- |
+| Fenced example | | `shared` |
+```
+
+## Skills to load
+
+Load the skills for your kind of work before you start, by their exact names.
+
+| Kind of work | Files | Skills |
+| --- | --- | --- |
+| UI code | `src/**/*.tsx` | `typescript`, `ui-design` |
+| Any fix or behaviour change | | `od:tdd`, `tdd`, `typescript` |
+| End-to-end tests | `e2e/**` | `playwright-e2e` |
+| Docs only | `shared` | none |
+
+Mentioning `shared` after the table selects nothing.
+
+## Testing
+| Skills |
+| --- |
+| `shared` |
+MD
+run code out err "${SELECT[@]}" --apply
+expect_code 0 "$code" "a fallback exits 0"
+assert_contains "$out" 'status: fallback' "the AGENTS.md table is used below the floor"
+assert_contains "$out" 'reason: no skill reached the 0.8 floor; using the Skills to load table in the project AGENTS.md' "the fallback names its source"
+assert_contains "$out" 'skills: typescript tdd playwright-e2e' "installed Skills-column names, in table order, deduplicated"
+assert_contains "$out" 'brief: written' "--apply writes the fallback"
+assert_grep "- \`typescript\` (\`$USER_HOME/.claude/skills/typescript/SKILL.md\`)" "$BRIEF" "a fallback skill is written with its SKILL.md path"
+assert_no_grep "ui-design" "$BRIEF" "a listed skill that is not installed is dropped"
+assert_no_grep "od:tdd" "$BRIEF" "a plugin skill name with no installed candidate is dropped"
+assert_no_grep "- \`shared\`" "$BRIEF" "names in a fence, another column, after the table, or another section are ignored"
+cp "$BASE_BRIEF" "$BRIEF"
+run code out err "${SELECT[@]}"
+assert_contains "$out" 'status: fallback' "select alone reports the fallback"
+cmp -s "$BASE_BRIEF" "$BRIEF" || fail "select alone does not write the fallback"
+# shellcheck disable=SC2016 # Backticks are literal Markdown.
+printf '%s\n' '# webapp' '### SKILLS TO LOAD ###' '| Skills | Kind |' '|---|---|' '| `tdd` | any |' > "$PROJECT_DIR/AGENTS.md"
+run code out err "${SELECT[@]}" --apply
+assert_contains "$out" 'skills: tdd' "the heading level, case, closing hashes, and column position do not matter"
+cp "$BASE_BRIEF" "$BRIEF"
+# shellcheck disable=SC2016 # Backticks are literal Markdown.
+printf '%s\n' '# webapp' '## Skills to load' '| Kind of work | Skills |' '| --- | --- |' '| Docs only | none |' '| UI | `ui-design` |' '' 'Skills to load: `tdd`.' > "$PROJECT_DIR/AGENTS.md"
+run code out err "${SELECT[@]}" --apply
+assert_contains "$out" 'status: none' "a table naming no installed skill is no fallback"
+assert_contains "$out" 'reason: no skill reached the 0.8 floor, and the project AGENTS.md has no Skills to load table naming an installed skill; no section written' "none says no section was written"
+assert_contains "$out" 'brief: unchanged' "none with no fallback writes nothing"
+cmp -s "$BASE_BRIEF" "$BRIEF" || fail "none with no fallback leaves the brief unchanged"
+pass "below the floor, the AGENTS.md Skills to load table supplies installed skills, else nothing is written"
+
 # --- never-send list stops the request ------------------------------------------
 reset
 printf '%s\n' '# private' 'FLAKY   LOGIN' > "$HOME_DIR/config/dispatch-never-send"
@@ -335,6 +394,12 @@ run code out err "${SELECT[@]}" --apply --clear
 expect_code 2 "$code" "exclusive modes exit 2"
 run code out err "$BRIEF" --project webapp
 expect_code 2 "$code" "a missing --harness exits 2"
+run code out err "$BRIEF" --harness claude --apply
+expect_code 2 "$code" "a missing --project exits 2"
+assert_contains "$err" 'error: --project or --project-dir required' "the missing flag is named"
+run code out err "$TMP_ROOT/absent-brief.md" --project webapp --harness claude --apply
+expect_code 2 "$code" "an unreadable brief exits 2"
+cmp -s "$BASE_BRIEF" "$BRIEF" || fail "usage errors leave the brief unchanged"
 assert_absent "$LOG/argv" "usage errors never call curl"
 pass "usage errors exit 2 before any network call"
 

@@ -436,6 +436,9 @@ $description
 
 ## Firstmate spec
 Verify projected workspace behavior for $id.
+
+# Required skills
+- tdd
 EOF
 }
 

@@ -36,6 +36,9 @@ Run the project's heavy suite for $2.
 ## Firstmate spec
 Exercise project capacity admission.
 
+# Required skills
+- tdd
+
 # Definition of done
 Delivery contract: mode=no-mistakes
 EOF

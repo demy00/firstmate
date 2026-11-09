@@ -273,7 +273,7 @@ spawn_brief() {  # <id> <needs-line>...
   shift
   mkdir -p "$SPAWN_HOME/data/$id"
   {
-    printf 'You are a crewmate.\n\n# Task\n## Captain'\''s intent\nShip it.\n\n## Firstmate spec\nBuild it.\n\n'
+    printf 'You are a crewmate.\n\n# Task\n## Captain'\''s intent\nShip it.\n\n## Firstmate spec\nBuild it.\n\n# Required skills\n- tdd\n\n'
     if [ "$#" -gt 0 ]; then
       printf '# Needs\n'
       printf '%s\n' "$@"

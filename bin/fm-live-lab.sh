@@ -469,7 +469,7 @@ open(path, "w", encoding="utf-8").write(text)
 PY
   (cd "$LAB" && lab_run FM_HOME="$LAB" "$LAB/bin/fm-tasks-axi.sh" add "$WORKER_ID" "lab gated worker" --kind ship --repo notes) >/dev/null || return 1
   (cd "$LAB" && lab_run FM_HOME="$LAB" "$LAB/bin/fm-spawn.sh" "$WORKER_ID" "$LAB/projects/notes" \
-    --mode local-only --yolo on --harness claude --model sonnet --effort low)
+    --mode local-only --yolo on --no-skills "synthetic live-lab worker" --harness claude --model sonnet --effort low)
 }
 
 spawn_mate() {

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Spawn a direct report: a crewmate in a treehouse or Orca worktree, or a
 # secondmate in its isolated firstmate home.
-# Usage: fm-spawn.sh <task-id> <project-dir> --mode <no-mistakes|direct-PR|local-only> --yolo <on|off> [--branch-prefix <prefix>] [--base-branch <branch>] [--harness <name>|harness|launch-command] [--model <name>] [--effort <level>] [--hermes-profile <name>] [--account <entry>] [--backend <name>] [--herdr-resume-lock-wait]
-#        fm-spawn.sh <task-id> <project-dir> --scout [--base-branch <branch>] [--harness <name>|harness|launch-command] [--model <name>] [--effort <level>] [--hermes-profile <name>] [--account <entry>] [--backend <name>] [--herdr-resume-lock-wait]
+# Usage: fm-spawn.sh <task-id> <project-dir> --mode <no-mistakes|direct-PR|local-only> --yolo <on|off> [--branch-prefix <prefix>] [--base-branch <branch>] [--no-skills <reason>] [--harness <name>|harness|launch-command] [--model <name>] [--effort <level>] [--hermes-profile <name>] [--account <entry>] [--backend <name>] [--herdr-resume-lock-wait]
+#        fm-spawn.sh <task-id> <project-dir> --scout [--base-branch <branch>] [--no-skills <reason>] [--harness <name>|harness|launch-command] [--model <name>] [--effort <level>] [--hermes-profile <name>] [--account <entry>] [--backend <name>] [--herdr-resume-lock-wait]
 #        fm-spawn.sh <task-id> [<firstmate-home>] [--harness <name>|harness|launch-command] [--model <name>] [--effort <level>] [--backend <name>] --secondmate
 #   --mode and --yolo are this task's delivery contract, REQUIRED for every ship
 #   spawn and refused on --scout and --secondmate spawns. Firstmate resolves both
@@ -37,6 +37,15 @@
 #   bin/fm-herdr-lab.sh or a listed Herdr session/server lifecycle command must
 #   carry the Herdr isolation contract emitted by bin/fm-brief.sh --herdr-lab;
 #   the refusal names the first such match.
+#   A fresh ship or scout spawn also refuses a brief with no nonempty
+#   `# Required skills` section (bin/fm-skill-select.sh writes it), because a
+#   worker loads the skills its brief names and few others. --no-skills <reason>
+#   is the explicit per-task opt-out: it launches without the section and
+#   records the one-line reason as no_skills= in the task record. It is refused
+#   alongside a brief that does name skills, on --secondmate (a charter is not
+#   gated), on --relaunch (the task record already carries the original
+#   decision, and a relaunch is never gated), and in a batch, where each
+#   opt-out stays a separate per-task spawn.
 #   Every ship or scout spawn renders `launch-brief.md`; for a no-mistakes ship
 #   it also carries the current `--intent` contract and the extracted captain
 #   intent. A legacy mixed Task is accepted there only under bin/fm-dod-lib.sh's
@@ -997,6 +1006,8 @@ MODE=
 YOLO=
 BRANCH_PREFIX=$FM_TASK_BRANCH_DEFAULT_PREFIX
 TRACEPARENT_ARG=
+NO_SKILLS_REASON=
+NO_SKILLS_SET=0
 HARNESS_SET=0
 MODEL_SET=0
 EFFORT_SET=0
@@ -1076,6 +1087,10 @@ for a in "$@"; do
       ACCOUNT_ARG=$a
       ACCOUNT_SET=1
       ;;
+    no-skills)
+      NO_SKILLS_REASON=$a
+      NO_SKILLS_SET=1
+      ;;
     *)
       echo "error: internal parser state for --$want_value" >&2
       exit 1
@@ -1143,6 +1158,11 @@ for a in "$@"; do
     UPSTREAM_CONSENT_SET=1
     ;;
   --traceparent) want_value=traceparent ;;
+  --no-skills) want_value="no-skills" ;;
+  --no-skills=*)
+    NO_SKILLS_REASON=${a#--no-skills=}
+    NO_SKILLS_SET=1
+    ;;
   --traceparent=*)
     TRACEPARENT_ARG=${a#--traceparent=}
     TRACEPARENT_SET=1
@@ -1209,6 +1229,16 @@ fi
   echo "error: --account applies to ships and scouts; secondmate ${POS[0]:-} launches on its own config/secondmate-accounts/<id>/claude-account pin" >&2
   exit 1
 }
+# The reason lands on one task-record line, so line breaks and tabs become spaces.
+NO_SKILLS_REASON=$(printf '%s' "$NO_SKILLS_REASON" | tr '\r\n\t' '   ')
+[ "$NO_SKILLS_SET" -eq 0 ] || [ -n "$(printf '%s' "$NO_SKILLS_REASON" | tr -d '[:space:]')" ] || {
+  echo "error: --no-skills requires a non-empty reason" >&2
+  exit 1
+}
+[ "$NO_SKILLS_SET" -eq 0 ] || [ "$KIND" != secondmate ] || {
+  echo "error: --no-skills applies only to ship and scout spawns; a secondmate charter is not skill-gated" >&2
+  exit 1
+}
 # A parent-delivered carrier replaces this home's own resolution, so it is
 # refused unless it is a secondmate spawn carrying a strictly valid W3C value.
 # Nothing else may reach the pane's TRACEPARENT export.
@@ -1261,6 +1291,10 @@ if [ "$RELAUNCH" -eq 1 ]; then
   }
   [ "$UPSTREAM_CONSENT_SET" -eq 0 ] || {
     echo "error: --relaunch reuses the task's recorded upstream consent; --upstream-consent cannot override it" >&2
+    exit 1
+  }
+  [ "$NO_SKILLS_SET" -eq 0 ] || {
+    echo "error: --relaunch reuses the task's recorded skills decision; --no-skills cannot override it" >&2
     exit 1
   }
 else
@@ -2147,6 +2181,10 @@ if [ "${#POS[@]}" -gt 0 ] && [ "${POS[0]}" != "$idpart" ] && case "$idpart" in *
     echo "error: config/crew-dispatch.json is active - pass an explicit harness resolved from the dispatch rules (the consultation backstop, so the rules are never silently skipped)." >&2
     exit 1
   fi
+  [ "$NO_SKILLS_SET" -eq 0 ] || {
+    echo "error: --no-skills is a per-task decision; spawn each task that needs it on its own" >&2
+    exit 1
+  }
   rc=0
   shared_args=()
   [ -z "$HARNESS_ARG" ] || shared_args+=(--harness "$HARNESS_ARG")
@@ -4337,6 +4375,17 @@ if [ "$KIND" = ship ] || [ "$KIND" = scout ]; then
   elif fm_brief_base_branches "$BRIEF" >/dev/null; then
     echo "error: $BRIEF records a Base branch line but the spawn has no --base-branch; pass the brief's base with --base-branch or re-scaffold the brief without one" >&2
     exit 1
+  fi
+  if [ "$RELAUNCH" -eq 0 ]; then
+    if [ -n "$(fm_brief_heading_body "$BRIEF" "# Required skills" | tr -d '[:space:]')" ]; then
+      [ "$NO_SKILLS_SET" -eq 0 ] || {
+        echo "error: $BRIEF names required skills, so --no-skills contradicts it; drop the flag, or remove the section with bin/fm-skill-select.sh --clear" >&2
+        exit 1
+      }
+    elif [ "$NO_SKILLS_SET" -eq 0 ]; then
+      echo "error: $BRIEF has no # Required skills section; run bin/fm-skill-select.sh --apply (or --set) on it, or pass --no-skills \"<reason>\" to record why this worker needs none" >&2
+      exit 1
+    fi
   fi
   # Use the existing launch-brief overlay for every worker kind, including
   # pre-scope briefs and relaunches. Charters never enter this worker path.
@@ -7328,6 +7377,9 @@ preserve_relaunch_meta() {
   # task record stays byte-identical.
   [ -z "$OMP_PROFILE_PIN" ] || echo "omp_profile=$OMP_PROFILE_PIN"
   [ "$HARNESS" != hermes ] || { echo "hermes_profile=$HERMES_PROFILE"; echo "hermes_home=$HERMES_PROFILE_HOME"; }
+  # The explicit skills opt-out, only when given; a relaunch keeps the original
+  # line through preserve_relaunch_meta.
+  [ -z "$NO_SKILLS_REASON" ] || echo "no_skills=$NO_SKILLS_REASON"
   [ -z "${BUSY_GEN:-}" ] || echo "busy_gen=$BUSY_GEN"
   echo "spawn_gen=$SPAWN_GEN"
   # Default-off writes no traceparent= line.

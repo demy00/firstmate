@@ -98,6 +98,9 @@ Exercise primary-home Herdr placement.
 
 ## Firstmate spec
 Verify the crewmate uses its primary home's workspace.
+
+# Required skills
+- tdd
 EOF
 
 SM_HOME="$TMP_ROOT/secondmate-home"
@@ -115,6 +118,9 @@ Exercise secondmate-owned Herdr placement.
 
 ## Firstmate spec
 Verify the crewmate uses its secondmate home's workspace.
+
+# Required skills
+- tdd
 EOF
 
 make_scratch_project() {  # <dir>

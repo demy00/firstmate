@@ -445,6 +445,7 @@ fm_test_spawn_home() {
 }
 
 # fm_test_spawn_brief <home> <id> [captain-intent]
+# The brief names a skill, as a fresh ship or scout spawn requires.
 fm_test_spawn_brief() {
   local home=$1 id=$2 intent=${3:-brief for $2}
   mkdir -p "$home/data/$id"
@@ -455,6 +456,9 @@ $intent
 
 ## Firstmate spec
 Exercise the spawn behavior under test.
+
+# Required skills
+- \`tdd\`
 EOF
 }
 
