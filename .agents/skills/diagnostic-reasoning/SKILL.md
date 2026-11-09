@@ -17,6 +17,7 @@ Firstmate applies it when briefing delegated investigation and evaluating the re
 
 Start from the end user's experience rather than an internal error string or an implementation hypothesis.
 Require an end-to-end reproduction aligned with the real user path whenever it is feasible and safe.
+Its strongest form is a named command - a script path, a test invocation, a curl - already run at least once with its invocation and output shown, and red-capable, deterministic, fast, and agent-runnable; produce one whenever you can, because reading code to build a theory in place of a reproduction is the exact failure this procedure prevents.
 If a faithful reproduction is not feasible, record the exact limitation and use the closest representative path without presenting it as equivalent evidence.
 Capture the expected behavior, observed behavior, setup, inputs, and repeatability before assigning a cause.
 
@@ -44,6 +45,7 @@ Compare the final explanation against the proven path and show why the proposed 
 ## Scope and act on the result
 
 A diagnosis brief should ask for the reproduction, trigger/mask/symptom separation, divergent and proven path comparison, relevant history, smallest counterfactual, and disconfirming evidence in the report.
+It should also require the investigation to tag every debug log it adds with a unique prefix such as `[DEBUG-a4f2]` and to grep that prefix to delete all of them before reporting, so cleanup is a single pass and pre-existing untagged logging survives it.
 A diagnostic report should distinguish observed facts from hypotheses and state any unresolved uncertainty that could change the recommended scope.
 Before acting on the report, verify that its claimed cause explains the end-user reproduction and the proven path without relying on an untested masking condition.
 If a load-bearing element is missing, route a focused follow-up investigation instead of treating confidence or implementation detail as proof.
