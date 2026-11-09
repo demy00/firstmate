@@ -1,0 +1,12 @@
+1..10
+ok - a real session-limit stop declares a usage-limit wait that clears at the published reset
+ok - all 23 recorded real limit texts declare a usage-limit wait that resets inside the window they name
+ok - small-hours, midnight, and dated weekly resets resolve to the right UTC instant
+ok - a reset minute that has just begun is declared as due, not rolled a day or a year forward
+ok - the 6 recorded non-limit API errors declare nothing
+ok - a spawned Claude worker declares its own usage-limit stop and still closes its busy turn
+ok - a new turn after a usage-limit stop closes the wait the stop declared, and nothing else
+ok - resume refuses before the reset, and after it steers the worker on and closes its declared wait
+ok - resume --due steers every worker whose limit has reset in one call, and leaves the rest waiting
+ok - resume keeps a limit the steered turn hits declared, and an undelivered steer leaves the wait declared
+FM_TEST_COMPLETE
