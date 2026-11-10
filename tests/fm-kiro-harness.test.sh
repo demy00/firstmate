@@ -437,6 +437,9 @@ Exercise Kiro dispatch.
 
 ## Firstmate spec
 Verify launch and hook wiring.
+
+# Required skills
+- tdd
 EOF
   printf 'kiro\n' > "$home/config/crew-harness"
   fm_git_worktree "$proj" "$wt" "wt-$name"

@@ -2167,6 +2167,7 @@ bin/fm-skill-select.sh data/<id>/brief.md --project <name> --harness <h> --apply
 Firstmate runs it with `--apply` after the brief is written and the worker's harness is resolved, before spawn, and reads the printed selection.
 To override, `--set <skill>[,<skill>...]` writes exactly the named skills and `--clear` removes the instruction; neither needs the key or the network.
 `--candidates` lists the skills the worker can load.
+A fresh ship or scout spawn refuses a brief without the instruction, so a worker never starts on a brief that names no skills by accident; `bin/fm-spawn.sh --no-skills "<reason>"` is the explicit per-task opt-out and records the reason in the task record.
 
 **Candidates**
 
@@ -2183,15 +2184,18 @@ Skill bodies and paths are never sent.
 **Selection and outcomes**
 
 Code selects every skill whose yes probability is at least 0.8; the model never sees the floor.
+When none reaches it, or the selector is off or fails, the project's own list is the fallback: the installed skills named in the `Skills` column of a "Skills to load" table in the project clone's `AGENTS.md`, read locally with no network call (the script header owns the table format).
 
 | Result | Meaning |
 | --- | --- |
 | `clear` | At least one skill reached the floor; `--apply` wrote the instruction. |
-| `none` | No skill reached the floor; the brief is unchanged. |
-| `error` | API, network, or malformed response; the brief is unchanged. |
+| `fallback` | No skill reached the floor, or the selector was off or failed; the `AGENTS.md` table supplied the skills and `--apply` wrote them. |
+| `none` | No skill reached the floor and the `AGENTS.md` table named no installed skill; the brief is unchanged. |
+| `error` | API, network, or malformed response, and the `AGENTS.md` table named no installed skill; the brief is unchanged. |
 
-Off prints one `skill-select: off (...)` line on stderr, nothing on stdout, and changes nothing.
-Every outcome and off exit 0, so dispatch continues exactly as without the tool; only a usage or configuration error exits 2.
+Off prints one `skill-select: off (...)` line on stderr; with no `AGENTS.md` fallback it prints nothing on stdout and changes nothing.
+Every outcome and off exit 0; a usage or configuration error, such as a missing flag or an unreadable brief, exits 2.
+Whenever the brief is left without the instruction, the spawn refuses it until firstmate runs `--set` or passes the spawn opt-out.
 
 **The instruction in the brief**
 

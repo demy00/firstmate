@@ -46,6 +46,9 @@ Ship a change through the review tool.
 ## Firstmate spec
 Exercise the external review spawn path.
 
+# Required skills
+- tdd
+
 # Definition of done
 Delivery contract: mode=direct-PR forge=external
 Ship branch: feature/$id

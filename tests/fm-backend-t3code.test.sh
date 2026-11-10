@@ -157,6 +157,9 @@ Exercise T3 dispatch.
 
 ## Firstmate spec
 Verify the T3 lifecycle behavior under test.
+
+# Required skills
+- tdd
 EOF
 }
 

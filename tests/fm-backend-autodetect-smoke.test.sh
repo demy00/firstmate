@@ -103,6 +103,9 @@ Exercise Herdr backend auto-detection.
 
 ## Firstmate spec
 Verify the real spawn path selects Herdr.
+
+# Required skills
+- tdd
 EOF
 
 PROJ="$TMP_ROOT/scratch-project"

@@ -160,6 +160,9 @@ Exercise Rovo dispatch.
 
 ## Firstmate spec
 Verify launch and delivery behavior.
+
+# Required skills
+- tdd
 EOF
   printf 'rovo\n' > "$home/config/crew-harness"
   fm_git_worktree "$proj" "$wt" "wt-$name"

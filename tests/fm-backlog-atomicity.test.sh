@@ -91,6 +91,9 @@ Verify the atomic backlog transition.
 
 # Definition of done
 Delivery contract: mode=no-mistakes
+
+# Required skills
+- tdd
 EOF
   done
 

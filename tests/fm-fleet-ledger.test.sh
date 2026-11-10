@@ -61,6 +61,9 @@ Exercise the fleet ledger for $TASK.
 
 ## Firstmate spec
 Nothing to build.
+
+# Required skills
+- tdd
 EOF
   FAKEBIN=$(make_fakebin "$dir")
 }

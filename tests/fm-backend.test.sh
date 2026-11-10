@@ -63,6 +63,9 @@ Exercise backend dispatch for $2.
 
 ## Firstmate spec
 Verify backend selection without changing task intent.
+
+# Required skills
+- tdd
 EOF
 }
 

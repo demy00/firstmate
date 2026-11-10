@@ -39,8 +39,10 @@
 #
 # Opt-in gate and never-send list: exactly bin/fm-dispatch-resolve.sh's
 #   (bin/fm-typesafe-lib.sh owns both). Off - no key, a never-send match, or
-#   no candidates - prints one "skill-select: off (...)" line on stderr,
-#   nothing on stdout, changes nothing, makes no network call, and exits 0.
+#   no candidates - prints one "skill-select: off (...)" line on stderr, makes
+#   no network call, and exits 0. Off then uses the AGENTS.md fallback below
+#   when it names a candidate; otherwise it prints nothing on stdout and
+#   changes nothing.
 #
 # What it sends when on: one POST with the project name and the brief's task
 #   text (the same sections the dispatch resolver sends) as state, and one
@@ -50,19 +52,40 @@
 #   Code then applies the confidence floor: a skill is selected only when its
 #   yes probability is at least 0.8. Jev never sees the floor.
 #
+# Fallback when no skill clears the floor, and on the off and error outcomes:
+#   the project's own list, read from
+#   the clone's AGENTS.md with no network. It is the first table with a
+#   `Skills` header column under a heading titled "Skills to load" (any level,
+#   any case, outside code fences; the section runs to the next heading of the
+#   same or a higher level):
+#     | Kind of work | Files | Skills |
+#     | --- | --- | --- |
+#     | Any fix or behaviour change | | `tdd` |
+#     | Docs only | `**/*.md` | none |
+#   Every backtick-quoted name in a Skills cell that is a candidate is
+#   selected, in table order; `none`, other columns, and names that are not
+#   installed for the harness (plugin skills such as `od:tdd` included) are
+#   ignored.
+#
 # Output (stdout, TOON-style block):
 #   skill-select:
-#     status: clear | none | error
+#     status: clear | fallback | none | error
 #     model/latency_ms/tokens
 #     skill: <name> p=<yes probability> -> selected | below floor   (one per candidate, most probable first)
 #     reason: <why the status is not clear>
-#     skills: <name>...                                             (status clear only)
+#     skills: <name>...                                             (status clear or fallback)
 #     brief: written | unchanged
-#   clear -> at least one skill cleared the floor
-#   none  -> no skill cleared the floor; dispatch as today
-#   error -> API, network, or response failure; dispatch as today
-#   Every outcome exits 0 so an intake is never blocked by this tool; exit 2
-#   only for a usage or configuration error, which is actionable.
+#   clear    -> at least one skill cleared the floor
+#   fallback -> none cleared the floor, or the selector was off or failed;
+#               the AGENTS.md table supplied the skills
+#   none     -> none cleared the floor and the AGENTS.md table named no
+#               candidate; no section is written, so bin/fm-spawn.sh refuses
+#               the brief until --set or its --no-skills opt-out
+#   error    -> API, network, or response failure, and the AGENTS.md table
+#               named no candidate; the brief is unchanged
+#   Every outcome exits 0; exit 2 for a usage or configuration error (a missing
+#   flag, an unreadable brief), so a chained spawn never starts on a brief the
+#   tool could not process.
 #
 # The `# Required skills` section: this script is the single owner of its text
 #   and position. It sits directly after the brief's `# Task` section, so it is
@@ -90,11 +113,13 @@ CONFIG="${FM_CONFIG_OVERRIDE:-$FM_HOME/config}"
 # shellcheck source=bin/fm-worker-account-lib.sh
 . "$SCRIPT_DIR/fm-worker-account-lib.sh"
 
+fm_ts_off() { off "$2; nothing sent"; }
+
 YES_FLOOR=0.8
 SECTION_HEADING='# Required skills'
 
 die() { printf 'error: %s\n' "$1" >&2; exit 2; }
-off() { echo "skill-select: off ($1)" >&2; exit 0; }
+off() { echo "skill-select: off ($1)" >&2; fallback_exit "$1"; exit 0; }
 usage() {
   awk '
     NR == 1 { next }
@@ -332,6 +357,78 @@ if [ "$MODE" = set ]; then
   exit 0
 fi
 
+# agents_md_skills: JSON array of the candidates the project AGENTS.md
+# "Skills to load" table names (see the header), in table order; [] when none.
+agents_md_skills() {
+  local agents_md="$PROJECT_DIR/AGENTS.md"
+  [ -f "$agents_md" ] && [ -r "$agents_md" ] || { printf '[]\n'; return 0; }
+  # shellcheck disable=SC2016 # Backticks are literal Markdown, not expansions.
+  awk '
+    function cells(row, out,   n) {
+      sub(/^[ \t]*\|/, "", row); sub(/\|[ \t]*$/, "", row)
+      n = split(row, out, "|")
+      return n
+    }
+    function trim(v) { gsub(/^[ \t]+|[ \t]+$/, "", v); return v }
+    {
+      line = $0
+      scan = line
+      spaces = 0
+      while (spaces < 3 && substr(scan, 1, 1) == " ") { scan = substr(scan, 2); spaces++ }
+      marker = substr(scan, 1, 1)
+      marker_len = 0
+      if (marker == "`" || marker == "~") while (substr(scan, marker_len + 1, 1) == marker) marker_len++
+      is_fence = marker_len >= 3
+      was_fenced = fenced
+      if (is_fence) {
+        rest = substr(scan, marker_len + 1)
+        if (!fenced) { fenced = 1; fence_marker = marker; fence_len = marker_len }
+        else if (marker == fence_marker && marker_len >= fence_len && rest ~ /^[[:space:]]*$/) fenced = 0
+      }
+      if (is_fence || was_fenced) { if (column) exit; next }
+      level = 0
+      while (substr(scan, level + 1, 1) == "#") level++
+      if (level > 0 && substr(scan, level + 1, 1) !~ /^[[:space:]]?$/) level = 0
+      if (level > 0) {
+        title = tolower(trim(substr(scan, level + 1)))
+        sub(/[ \t]+#+$/, "", title)
+        if (in_section && level <= section_level) exit
+        if (!in_section && title == "skills to load") { in_section = 1; section_level = level }
+        next
+      }
+      if (!in_section) next
+      if (scan !~ /^\|/) { if (column) exit; header = 0; next }
+      if (column) {
+        if (delimiter) { delimiter = 0; next }
+        cells(scan, cell)
+        print cell[column]
+        next
+      }
+      n = cells(scan, cell)
+      for (i = 1; i <= n; i++) if (tolower(trim(cell[i])) == "skills") { column = i; delimiter = 1; break }
+    }
+  ' "$agents_md" | grep -o '`[^`]*`' | tr -d '`' |
+    jq -Rsc --argjson candidates "$CANDIDATES" '
+      [$candidates[].name] as $have |
+      split("\n") | map(select(. as $n | $have | index($n))) |
+      reduce .[] as $n ([]; if index($n) then . else . + [$n] end)'
+}
+
+# fallback_exit <reason>: when the AGENTS.md table names a candidate, report
+# (and with --apply write) it as the fallback outcome and exit 0; else return.
+fallback_exit() {
+  local names written=unchanged
+  [ "${CANDIDATES:-[]}" != '[]' ] && [ "${WRITTEN:-unchanged}" = unchanged ] || return 0
+  names=$(agents_md_skills) && [ "$names" != '[]' ] || return 0
+  if [ "$MODE" = apply ]; then
+    write_selection "$names"
+    written=written
+  fi
+  printf 'skill-select:\n  status: fallback\n  reason: %s; using the Skills to load table in the project AGENTS.md\n  skills: %s\n  brief: %s\n' \
+    "$(printf '%s' "$1" | tr '\t\r\n' '   ')" "$(jq -r 'join(" ")' <<<"$names")" "$written"
+  exit 0
+}
+
 # ---- ask Jev ----------------------------------------------------------------------
 [ "$CANDIDATES" != '[]' ] || off "no skills available to a $HARNESS worker in $PROJECT; nothing sent"
 fm_ts_key_resolve "$FM_HOME" || off "TYPESAFE_API_KEY absent from the environment and $FM_HOME/.env"
@@ -343,6 +440,7 @@ trap 'rm -f "$RESP_FILE" "$TASK_TEXT" "$SEND_TEXT"' EXIT
 
 emit_error() {
   echo "skill-select: error ($1)" >&2
+  fallback_exit "$1"
   printf 'skill-select:\n  status: error\n  reason: %s\n  brief: unchanged\n' "$1"
   exit 0
 }
@@ -387,8 +485,19 @@ RESULT=$(jq -c --argjson candidates "$CANDIDATES" --arg floor "$YES_FLOOR" --arg
          else {status: "none", reason: "no skill reached the \($floor) floor"} end)
 ' "$RESP_FILE") || emit_error "selection failed"
 
+if [ "$(jq -r '.status' <<<"$RESULT")" = none ]; then
+  FALLBACK=$(agents_md_skills) || emit_error "could not read the project AGENTS.md"
+  if [ "$FALLBACK" != '[]' ]; then
+    RESULT=$(jq -c --argjson names "$FALLBACK" \
+      '. + {status: "fallback", names: $names, reason: (.reason + "; using the Skills to load table in the project AGENTS.md")}' <<<"$RESULT")
+  else
+    RESULT=$(jq -c \
+      '. + {reason: (.reason + ", and the project AGENTS.md has no Skills to load table naming an installed skill; no section written")}' <<<"$RESULT")
+  fi
+fi
+
 WRITTEN=unchanged
-if [ "$MODE" = apply ] && [ "$(jq -r '.status' <<<"$RESULT")" = clear ]; then
+if [ "$MODE" = apply ] && case "$(jq -r '.status' <<<"$RESULT")" in clear | fallback) true ;; *) false ;; esac then
   write_selection "$(jq -c '.names' <<<"$RESULT")"
   WRITTEN=written
 fi
@@ -401,7 +510,7 @@ jq -r --arg written "$WRITTEN" '
   "  model: \(show(.model))   latency_ms: \(show(.latency_ms))   tokens: \(show(.tokens.input_tokens))/\(show(.tokens.output_tokens))",
   (.scored[] | "  skill: \(.name | flat) p=\(.p) -> \(if .selected then "selected" else "below floor" end)"),
   (if .reason then "  reason: \(.reason)" else empty end),
-  (if .status == "clear" then "  skills: \(.names | map(flat) | join(" "))" else empty end),
+  (if .status == "clear" or .status == "fallback" then "  skills: \(.names | map(flat) | join(" "))" else empty end),
   "  brief: \($written)"
 ' <<<"$RESULT" || emit_error "output rendering failed"
 exit 0

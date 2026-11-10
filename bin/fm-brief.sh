@@ -138,8 +138,9 @@
 # additions of missing knowledge. A correction edits only the wrong text and
 # never runs fm-ensure-agents-md.sh, whose inserted sections and created
 # pointer file are themselves additions.
-# The optional `# Required skills` section after `# Task` is written and owned
-# by bin/fm-skill-select.sh, never by this scaffold.
+# The `# Required skills` section after `# Task` is written and owned by
+# bin/fm-skill-select.sh, never by this scaffold; fm-spawn.sh refuses a fresh
+# ship or scout brief without it unless --no-skills records why.
 # The optional `# Needs` section, declaring the shared machine resources a
 # task needs, is added by Firstmate after scaffolding and is owned by
 # bin/fm-spawn-preflight.sh, which fm-spawn.sh runs before any launch.

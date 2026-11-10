@@ -37,7 +37,7 @@ The shared no-mistakes gate lifecycle boundary is summarized in [architecture.md
 | [`fm-dod-lib.sh`](../bin/fm-dod-lib.sh) | Own ship/scout worker role scope, ship definitions of done, the named-head reachability gate on ship `done:` acceptance, and the no-mistakes `--intent` contract |
 | `fm-brief-heading-lib.sh` | Single owner of reading a brief's sections, shared by the `--intent` contract, spawn and promotion validation, and the brief text `fm-typesafe-lib.sh` sends |
 | `fm-typesafe-lib.sh`     | Shared typesafe.ai request plumbing (key gate, brief text, never-send check, POST) for the opt-in brief classifiers |
-| `fm-skill-select.sh`     | Opt-in: choose the installed skills a worker must load and write them into its brief |
+| `fm-skill-select.sh`     | Choose the installed skills a worker must load and write them into its brief, which a fresh spawn requires |
 | `fm-skill-usage.sh`      | Print the weekly skill-usage table (skills worker tasks loaded, by repo) for the Monday report |
 | `fm-skill-usage.py`      | The transcript parser behind `fm-skill-usage.sh` |
 | `fm-spawn-preflight.sh`  | Refuse a spawn whose brief's `# Needs` names a missing tool, credential, app, or Docker resource |

@@ -163,6 +163,9 @@ Exercise an Orca-backed spawn for $id.
 
 ## Firstmate spec
 Confirm the launch enters the worktree Orca created for it.
+
+# Required skills
+- tdd
 EOF
   fb=$(make_orca_fakebin "$case_dir")
 
@@ -201,6 +204,9 @@ Exercise a relaunch attempt against a recorded Orca task.
 
 ## Firstmate spec
 Confirm the relaunch is refused before any worktree re-entry logic runs.
+
+# Required skills
+- tdd
 EOF
   {
     echo "window=fm-$id"
@@ -259,6 +265,9 @@ Verify the controlled Orca environment source.
 
 ## Firstmate spec
 Execute read-only environment checks.
+
+# Required skills
+- tdd
 EOF
     cat > "$case_dir/probe.sh" <<'EOF'
 #!/bin/sh
@@ -401,6 +410,9 @@ Exercise a failed Orca spawn after launch delivery.
 
 ## Firstmate spec
 Confirm a slow pane still receives the staged launch file before the spawn fails later.
+
+# Required skills
+- tdd
 EOF
   fb=$(make_orca_fakebin "$case_dir")
   printf '#!/bin/sh\necho "GH_TOKEN=synthetic-token"\n' > "$fb/tmux"
@@ -449,6 +461,9 @@ Exercise an Orca pane that never runs the launch command.
 
 ## Firstmate spec
 Confirm the staged credential file is reclaimed.
+
+# Required skills
+- tdd
 EOF
   fb=$(make_orca_fakebin "$case_dir")
   printf '#!/bin/sh\necho "GH_TOKEN=synthetic-token"\n' > "$fb/tmux"
@@ -491,6 +506,9 @@ Exercise an Orca pane that unlinks the launch file at the reclaim deadline.
 
 ## Firstmate spec
 Confirm the spawn treats the launch as consumed.
+
+# Required skills
+- tdd
 EOF
   fb=$(make_orca_fakebin "$case_dir")
   real_rm=$(command -v rm)
@@ -542,6 +560,9 @@ Exercise an Orca pane that cannot remove the launch file.
 
 ## Firstmate spec
 Confirm the worker is refused and the terminal stays open.
+
+# Required skills
+- tdd
 EOF
   fb=$(make_orca_fakebin "$case_dir")
   printf '#!/bin/sh\necho "GH_TOKEN=synthetic-token"\n' > "$fb/tmux"
@@ -590,6 +611,9 @@ Exercise an interrupted Orca spawn after launch delivery.
 
 ## Firstmate spec
 Confirm the staged credential file is reclaimed.
+
+# Required skills
+- tdd
 EOF
       fb=$(make_orca_fakebin "$case_dir")
       printf '#!/bin/sh\necho "GH_TOKEN=synthetic-interrupt-token"\n' > "$fb/tmux"
@@ -675,6 +699,9 @@ Exercise an Orca spawn interrupted before launch delivery.
 
 ## Firstmate spec
 Confirm the staged credential file is removed.
+
+# Required skills
+- tdd
 EOF
     fb=$(make_orca_fakebin "$case_dir")
     printf '#!/bin/sh\necho "GH_TOKEN=synthetic-interrupt-token"\n' > "$fb/tmux"
@@ -773,6 +800,9 @@ Exercise an Orca allowlist without a configured source.
 
 ## Firstmate spec
 Confirm the spawn reports where allowlisted values come from.
+
+# Required skills
+- tdd
 EOF
     fb=$(make_orca_fakebin "$case_dir")
     out=$(FM_ROOT_OVERRIDE='' FM_HOME="$home" HOME="$case_dir/user-home" \
