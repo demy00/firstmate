@@ -2392,7 +2392,7 @@ When none reaches it, or the selector is off or fails, the project's own list is
 | `error` | API, network, or malformed response, and the `AGENTS.md` table named no installed skill; the brief is unchanged. |
 
 Off prints one `skill-select: off (...)` line on stderr; with no `AGENTS.md` fallback it prints nothing on stdout and changes nothing.
-Every outcome and off exit 0; a usage or configuration error, such as a missing flag or an unreadable brief, exits 2.
+Every outcome and off exit 0; a usage or configuration error, such as a missing flag, an unreadable brief, or an invalid `TYPESAFE_BASE` when it would ask Jev, exits 2.
 Whenever the brief is left without the instruction, the spawn refuses it until firstmate runs `--set` or passes the spawn opt-out.
 
 **The instruction in the brief**
