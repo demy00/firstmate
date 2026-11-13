@@ -25,6 +25,7 @@ RESPONSE_OVERRIDE="$TMP_ROOT/response-override.json"
 BASE_PATH=$PATH
 KEY='test-key-5a1b-never-on-argv'
 mkdir -p "$HOME_DIR/config" "$LOG" "$USER_HOME"
+unset TYPESAFE_BASE
 
 skill() {  # <skills-dir> <dir-name> <frontmatter...>: last arg is the body
   local dir="$1/$2"
@@ -404,6 +405,32 @@ run code out err "${SELECT[@]}"
 assert_contains "$out" 'status: none' "a .env key turns the tool on"
 assert_equals "Authorization: Bearer $KEY" "$(cat "$LOG/header")" "the .env key is sent as the header"
 pass "the home .env key turns the tool on"
+
+# --- TYPESAFE_BASE selects the endpoint, environment over .env -----------------
+reset
+export TYPESAFE_API_KEY=$KEY
+printf '%s\n' 'TYPESAFE_BASE=https://dotenv.example/typesafe/' > "$HOME_DIR/.env"
+run code out err "${SELECT[@]}" --apply
+expect_code 0 "$code" "a .env base exits 0"
+assert_grep 'https://dotenv.example/typesafe/v1/systemone' "$LOG/argv" "the .env base is the endpoint, trailing slash removed"
+assert_no_grep 'api.typesafe.ai' "$LOG/argv" "a configured base never posts to the default host"
+reset
+printf '%s\n' 'TYPESAFE_BASE=https://dotenv.example/typesafe' > "$HOME_DIR/.env"
+TYPESAFE_BASE=https://gateway.example/ts// run code out err "${SELECT[@]}" --apply
+assert_grep 'https://gateway.example/ts/v1/systemone' "$LOG/argv" "the environment base wins over .env"
+reset
+printf '%s\n' 'gateway.example' > "$HOME_DIR/config/dispatch-never-send"
+TYPESAFE_BASE=https://gateway.example run code out err "${SELECT[@]}" --apply
+assert_contains "$err" 'skill-select: off (brief text matches' "the never-send list covers the configured endpoint"
+assert_absent "$LOG/argv" "a never-send endpoint match never calls curl"
+reset
+TYPESAFE_BASE='https://user:secret-pw@gateway.example' run code out err "${SELECT[@]}" --apply
+expect_code 2 "$code" "an invalid base exits 2"
+assert_contains "$err" 'error: TYPESAFE_BASE must be an http(s) URL' "an invalid base names the setting"
+assert_not_contains "$err" 'secret-pw' "a rejected base is never echoed"
+assert_absent "$LOG/argv" "an invalid base never calls curl"
+cmp -s "$BASE_BRIEF" "$BRIEF" || fail "an invalid base leaves the brief unchanged"
+pass "TYPESAFE_BASE selects the skill-select endpoint like the dispatch resolver"
 
 # --- --set and --clear: firstmate's override, no key, no network ---------------
 reset

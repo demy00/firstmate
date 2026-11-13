@@ -5,9 +5,10 @@
 # Usage: . bin/fm-typesafe-lib.sh
 #
 # This file is the single owner of what those tools have in common: the brief
-# text they send and the never-send check. It also holds the typesafe key gate
-# and POST that bin/fm-skill-select.sh uses; bin/fm-dispatch-resolve.sh selects
-# its provider, key, and endpoint itself because it supports more than typesafe.
+# text they send, the never-send check, and the TYPESAFE_BASE selection. It also
+# holds the typesafe key gate and POST that bin/fm-skill-select.sh uses;
+# bin/fm-dispatch-resolve.sh selects its provider, key, and endpoint itself
+# because it supports more than typesafe.
 # docs/configuration.md "Typed dispatch resolution" owns the operator contract.
 #
 # Key handling: each caller copies TYPESAFE_API_KEY into the unexported shell
@@ -41,6 +42,44 @@ fm_ts_key_resolve() {
     TYPESAFE_API_KEY_PRIVATE=$(fmx_env_get TYPESAFE_API_KEY "$1/.env")
   fi
   [ -n "$TYPESAFE_API_KEY_PRIVATE" ]
+}
+
+# fm_ts_base_select <home>: set FM_TS_BASE from TYPESAFE_BASE in the
+# environment, else <home>/.env, when either is non-empty. An invalid value is
+# a configuration error: one stderr line and exit 2. Never echo a rejected
+# value: a misconfigured URL may contain credentials.
+fm_ts_base_select() {
+  local base=${TYPESAFE_BASE:-}
+  [ -n "$base" ] || base=$(fmx_env_get TYPESAFE_BASE "$1/.env")
+  [ -n "$base" ] || return 0
+  command -v jq >/dev/null 2>&1 || { echo "error: jq required" >&2; exit 2; }
+  jq -en --arg base "$base" '
+    def ipv4:
+      split(".") | length == 4 and all(.[];
+        test("\\A(0|[1-9][0-9]{0,2})\\z") and (tonumber <= 255));
+    def ipv6:
+      # An IPv4 tail occupies two of the eight IPv6 groups.
+      (if contains(".") then
+        split(":") | if (.[-1] | ipv4) then .[-1] = "0:0" | join(":") else "!" end
+       else . end) |
+      split("::") as $sides |
+      if ($sides | length) == 1 then
+        test("\\A[0-9A-Fa-f]{1,4}(:[0-9A-Fa-f]{1,4}){7}\\z")
+      elif ($sides | length) == 2 then
+        all($sides[]; test("\\A([0-9A-Fa-f]{1,4}(:[0-9A-Fa-f]{1,4})*)?\\z")) and
+        (split(":") | map(select(length > 0)) | length < 8)
+      else false end;
+    $base | capture("\\Ahttps?://(?<host>\\[[0-9A-Fa-f:.]+\\]|[A-Za-z0-9._-]+)(:(?<port>[0-9]+))?(?<path>/[^?#[:space:]\\\\]*)?\\z"; "i") |
+    ((.path // "") | (contains("[") or contains("]")) | not) and
+    (if .host | startswith("[") then .host[1:-1] | ipv6
+     else true end) and
+    (.port == null or (.port | tonumber | . >= 1 and . <= 65535))
+  ' >/dev/null 2>&1 || {
+    echo 'error: TYPESAFE_BASE must be an http(s) URL with a host and no userinfo, query, fragment, whitespace, or brackets in its path' >&2
+    exit 2
+  }
+  while [ "${base%/}" != "$base" ]; do base=${base%/}; done
+  FM_TS_BASE=$base
 }
 
 # fm_ts_task_text <brief> <out>: write the text Jev receives for a brief.

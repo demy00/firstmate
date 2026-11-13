@@ -157,7 +157,6 @@ CONFIG="${FM_CONFIG_OVERRIDE:-$FM_HOME/config}"
 
 CONFIDENCE_FLOOR=0.6
 TS_MODEL=$FM_TS_MODEL
-TS_BASE=$FM_TS_BASE
 TS_TIMEOUT=$FM_TS_TIMEOUT
 OR_BASE=https://openrouter.ai/api
 OR_TIMEOUT=10
@@ -275,39 +274,6 @@ select_key() {
   fi
 }
 
-# Select and validate the same optional base for implicit and explicit TypeSafe.
-# Never echo a rejected value: a misconfigured URL may contain credentials.
-select_typesafe_base() {
-  local base=${TYPESAFE_BASE:-}
-  [ -n "$base" ] || base=$(fmx_env_get TYPESAFE_BASE "$FM_HOME/.env")
-  [ -n "$base" ] || return 0
-  command -v jq >/dev/null 2>&1 || die "jq required"
-  jq -en --arg base "$base" '
-    def ipv4:
-      split(".") | length == 4 and all(.[];
-        test("\\A(0|[1-9][0-9]{0,2})\\z") and (tonumber <= 255));
-    def ipv6:
-      # An IPv4 tail occupies two of the eight IPv6 groups.
-      (if contains(".") then
-        split(":") | if (.[-1] | ipv4) then .[-1] = "0:0" | join(":") else "!" end
-       else . end) |
-      split("::") as $sides |
-      if ($sides | length) == 1 then
-        test("\\A[0-9A-Fa-f]{1,4}(:[0-9A-Fa-f]{1,4}){7}\\z")
-      elif ($sides | length) == 2 then
-        all($sides[]; test("\\A([0-9A-Fa-f]{1,4}(:[0-9A-Fa-f]{1,4})*)?\\z")) and
-        (split(":") | map(select(length > 0)) | length < 8)
-      else false end;
-    $base | capture("\\Ahttps?://(?<host>\\[[0-9A-Fa-f:.]+\\]|[A-Za-z0-9._-]+)(:(?<port>[0-9]+))?(?<path>/[^?#[:space:]\\\\]*)?\\z"; "i") |
-    ((.path // "") | (contains("[") or contains("]")) | not) and
-    (if .host | startswith("[") then .host[1:-1] | ipv6
-     else true end) and
-    (.port == null or (.port | tonumber | . >= 1 and . <= 65535))
-  ' >/dev/null 2>&1 || die "TYPESAFE_BASE must be an http(s) URL with a host and no userinfo, query, fragment, whitespace, or brackets in its path"
-  while [ "${base%/}" != "$base" ]; do base=${base%/}; done
-  TS_BASE=$base
-}
-
 DISPATCH_PROVIDER=${FM_DISPATCH_PROVIDER:-}
 [ -n "$DISPATCH_PROVIDER" ] || DISPATCH_PROVIDER=$(fmx_env_get FM_DISPATCH_PROVIDER "$FM_HOME/.env")
 DISPATCH_MODEL=${FM_DISPATCH_MODEL:-}
@@ -316,12 +282,12 @@ case "$DISPATCH_PROVIDER" in
   '')
     DISPATCH_PROVIDER=typesafe
     DISPATCH_MODEL=$TS_MODEL
-    select_typesafe_base
+    fm_ts_base_select "$FM_HOME"
     select_key typesafe TYPESAFE_API_KEY TYPESAFE_API_KEY_PRIVATE
     ;;
   typesafe)
     [ -n "$DISPATCH_MODEL" ] || DISPATCH_MODEL=$TS_MODEL
-    select_typesafe_base
+    fm_ts_base_select "$FM_HOME"
     select_key typesafe TYPESAFE_API_KEY TYPESAFE_API_KEY_PRIVATE
     ;;
   openrouter)
@@ -351,7 +317,7 @@ case "$DISPATCH_PROVIDER" in
   *) die "unknown FM_DISPATCH_PROVIDER: $DISPATCH_PROVIDER (expected typesafe, openrouter, systemone, or openai)" ;;
 esac
 case "$DISPATCH_PROVIDER" in
-  typesafe) ENDPOINT=$TS_BASE/v1/systemone TIMEOUT=$TS_TIMEOUT KEY_PRIVATE=$TYPESAFE_API_KEY_PRIVATE ;;
+  typesafe) ENDPOINT=$FM_TS_BASE/v1/systemone TIMEOUT=$TS_TIMEOUT KEY_PRIVATE=$TYPESAFE_API_KEY_PRIVATE ;;
   openrouter) ENDPOINT=$OR_BASE/alpha/decisions TIMEOUT=$OR_TIMEOUT KEY_PRIVATE=$OPENROUTER_API_KEY_PRIVATE ;;
   systemone) ENDPOINT=$DISPATCH_BASE_URL/v1/systemone TIMEOUT=$SO_TIMEOUT KEY_PRIVATE=$DISPATCH_API_KEY_PRIVATE ;;
   openai) ENDPOINT=$OA_BASE/v1/decisions TIMEOUT=$OA_TIMEOUT KEY_PRIVATE=$OPENAI_API_KEY_PRIVATE ;;

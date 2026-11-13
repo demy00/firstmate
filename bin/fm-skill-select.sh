@@ -431,6 +431,7 @@ fallback_exit() {
 
 # ---- ask Jev ----------------------------------------------------------------------
 [ "$CANDIDATES" != '[]' ] || off "no skills available to a $HARNESS worker in $PROJECT; nothing sent"
+fm_ts_base_select "$FM_HOME"
 fm_ts_key_resolve "$FM_HOME" || off "TYPESAFE_API_KEY absent from the environment and $FM_HOME/.env"
 
 RESP_FILE=$(mktemp) || die "mktemp failed"

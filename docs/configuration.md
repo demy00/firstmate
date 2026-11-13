@@ -2353,7 +2353,7 @@ The live rule-match evidence is recorded in [`verification/dispatch-resolve.md`]
 ## Typed skill selection (.env TYPESAFE_API_KEY)
 
 Workers do not load installed skills unprompted, so `bin/fm-skill-select.sh` asks the same System One model (Jev) which installed skills fit a written brief and writes the confident picks into the brief as an explicit instruction to load them.
-It shares the resolver's never-send list, task text, and key handling above through `bin/fm-typesafe-lib.sh`, but keeps its own key gate: it reads `TYPESAFE_API_KEY` from the environment or `.env` only and ignores `FM_DISPATCH_PROVIDER` and the declared credential source, so it is off without that key even when the resolver is on.
+It shares the resolver's never-send list, task text, `TYPESAFE_BASE` selection, and key handling above through `bin/fm-typesafe-lib.sh`, but keeps its own key gate: it reads `TYPESAFE_API_KEY` from the environment or `.env` only and ignores `FM_DISPATCH_PROVIDER` and the declared credential source, so it is off without that key even when the resolver is on.
 This section is the single owner of the tool's operator contract; the script header owns its exact flags, per-harness directory list, and output lines.
 
 ```sh
@@ -3680,7 +3680,7 @@ FM_DISPATCH_MODEL=      # explicit model for the selected provider; required for
 FM_DISPATCH_BASE_URL=   # http(s) base of a System One-compatible host; required for systemone
 FM_DISPATCH_API_KEY=    # optional systemone key; absent sends no Authorization header
 TYPESAFE_API_KEY=       # typesafe dispatch key, from the environment, .env, or the declared credential source ("Typed dispatch resolution"); bin/fm-skill-select.sh reads it from the environment or .env only and is off without it
-TYPESAFE_BASE=          # optional TypeSafe base for bin/fm-dispatch-resolve.sh; see "Typed dispatch resolution"; bin/fm-skill-select.sh always posts to the default base
+TYPESAFE_BASE=          # optional TypeSafe base honored by both bin/fm-dispatch-resolve.sh and bin/fm-skill-select.sh; see "Typed dispatch resolution"
 OPENROUTER_API_KEY=     # OpenRouter dispatch key, from the environment, .env, or the declared credential source
 OPENAI_API_KEY=         # OpenAI dispatch key, from the environment or .env
 FMX_DISCORD_REPLY_MAX_CHARS=1900   # Discord reply per-message split budget; values below 50 clamp to 50, values above 2000 reset to 1900
