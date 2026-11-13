@@ -1,0 +1,22 @@
+$ cat $FM_HOME/.env  (key redacted)
+TYPESAFE_BASE=http://127.0.0.1:18777/private-gw/
+TYPESAFE_API_KEY=<redacted>
+$ bin/fm-skill-select.sh brief.md --project webapp --harness claude --apply
+skill-select:
+  status: clear
+  model: jev-1.13.0   latency_ms: 0   tokens: 1/1
+  skill: tdd p=0.95 -> selected
+  skill: typescript p=0.1 -> below floor
+  skills: tdd
+  brief: written
+exit=0
+--- request received by local private gateway stub:
+{"path":"/private-gw/v1/systemone","host":"127.0.0.1:18777","auth_present":true,"state_has_brief":true,"questions":2}
+--- brief diff:
+3a4,9
+> # Required skills
+> Load each of these skills before any other task work (after the Setup isolation check), with your tool's skill mechanism or by reading the SKILL.md at the path shown, and follow it throughout this task:
+> - `tdd` (`.claude/skills/tdd/SKILL.md`)
+> If one of them cannot be loaded, append `blocked [at=<epoch>]: required skill <name> cannot be loaded` and stop.
+> List the skills you loaded in your final report or PR description.
+> 

@@ -1,0 +1,89 @@
+### S1: skill-select --apply with TYPESAFE_BASE=http://127.0.0.1:52736/gw/ (env), real curl
+skill-select:
+  status: clear
+  model: jev-local   latency_ms: 0   tokens: 1/1
+  skill: tdd p=0.95 -> selected
+  skill: playwright-e2e p=0.05 -> below floor
+  skills: tdd
+  brief: written
+exit=0
+--- gateway received:
+{"path":"/gw/v1/systemone","auth":"Bearer live-test-key","questions":2,"state_has_task":true}
+--- brief Required skills section:
+# Required skills
+Load each of these skills before any other task work (after the Setup isolation check), with your tool's skill mechanism or by reading the SKILL.md at the path shown, and follow it throughout this task:
+- `tdd` (`/var/folders/y9/b8qt1d396lv9cfh42ft2gt7r0000gn/T//fm-ts-live.N5iU1r/user/.claude/skills/tdd/SKILL.md`)
+If one of them cannot be loaded, append `blocked [at=<epoch>]: required skill <name> cannot be loaded` and stop.
+List the skills you loaded in your final report or PR description.
+
+# Rules
+1. Rule text.
+
+### S2: TYPESAFE_BASE from $FM_HOME/.env (no env var)
+env: -u: No such file or directory
+exit=127
+--- gateway received:
+
+### S3: fm-dispatch-resolve with the same TYPESAFE_BASE (shared lib refactor)
+dispatch-resolve:
+  status: escalate
+  reason: no rules to match
+(eval):55: PIPESTATUS[0]: parameter not set
+### S2: skill-select, TYPESAFE_BASE and key from $FM_HOME/.env only
+skill-select:
+  status: clear
+  model: jev-local   latency_ms: 0   tokens: 1/1
+  skill: tdd p=0.95 -> selected
+  skill: playwright-e2e p=0.05 -> below floor
+  skills: tdd
+  brief: unchanged
+exit=0
+--- gateway received 1 request(s):
+{"path":"/dotenv/v1/systemone","auth":"Bearer live-test-key"}
+
+### S2b: environment TYPESAFE_BASE wins over .env
+exit=0
+--- gateway received 1 request(s):
+{"path":"/envwins/v1/systemone","auth":"Bearer live-test-key"}
+
+### S3: fm-dispatch-resolve with TYPESAFE_BASE (shared lib after refactor)
+dispatch-resolve: error (http 000 after 0 ms: )
+dispatch-resolve:
+  status: error
+  reason: http 000 after 0 ms: 
+exit=0
+--- gateway received 1 request(s):
+{"path":"/gw/v1/systemone","auth":"Bearer live-test-key"}
+
+### S4 (adversarial): base with userinfo rejected by both tools, value never echoed
+error: TYPESAFE_BASE must be an http(s) URL with a host and no userinfo, query, fragment, whitespace, or brackets in its path
+skill-select exit=2
+brief unchanged
+error: TYPESAFE_BASE must be an http(s) URL with a host and no userinfo, query, fragment, whitespace, or brackets in its path
+dispatch-resolve exit=2
+--- gateway received 0 request(s):
+
+### S5 (adversarial): never-send entry matching the gateway endpoint blocks skill-select
+skill-select: off (brief text matches /var/folders/y9/b8qt1d396lv9cfh42ft2gt7r0000gn/T//fm-ts-live.N5iU1r/home/config/dispatch-never-send line 1; nothing sent)
+exit=0
+--- gateway received 0 request(s):
+### S3 (re-driven): fm-dispatch-resolve with TYPESAFE_BASE=http://127.0.0.1:<port>/gw
+dispatch-resolve: error (quota-axi --json failed)
+dispatch-resolve:
+  status: error
+  reason: quota-axi --json failed
+exit=0
+--- gateway received:
+{"path":"/gw/v1/systemone","auth":"Bearer live-test-key","criteria":["default","rule_1"]}
+### S3 (re-driven): fm-dispatch-resolve with TYPESAFE_BASE=http://127.0.0.1:<port>/gw
+dispatch-resolve:
+  status: clear
+  model: jev-local   latency_ms: 0   tokens: 1/1
+  rule: rule_1 (Fixing a flaky end-to-end test.)   confidence: 0.9
+  probabilities: rule_1=0.9 default=0.1
+  note: rule matched
+  candidate: claude:sonnet  provider=claude  scope=all_models  remaining=80%  spendPriority=0.5  runway=through_reset  -> eligible
+  profile: --harness 'claude' --model 'sonnet' --effort 'high'
+exit=0
+--- gateway received:
+{"path":"/gw/v1/systemone","auth":"Bearer live-test-key","criteria":["default","rule_1"]}

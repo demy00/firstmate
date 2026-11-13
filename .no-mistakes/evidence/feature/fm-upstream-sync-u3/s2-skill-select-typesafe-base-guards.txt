@@ -1,0 +1,23 @@
+### A: invalid TYPESAFE_BASE with credentials in userinfo (environment)
+$ TYPESAFE_BASE=http://admin:s3cret-pw@127.0.0.1:18777 bin/fm-skill-select.sh brief.md ... --apply
+error: TYPESAFE_BASE must be an http(s) URL with a host and no userinfo, query, fragment, whitespace, or brackets in its path
+exit=2
+requests received by stub: 0
+brief unchanged
+
+### B: environment TYPESAFE_BASE overrides .env
+skill-select:
+  status: clear
+  model: jev-1.13.0   latency_ms: 0   tokens: 1/1
+  skill: tdd p=0.95 -> selected
+  skill: typescript p=0.1 -> below floor
+  skills: tdd
+  brief: unchanged
+exit=0
+/env-gw/v1/systemone
+
+### C: never-send list naming the gateway host blocks the request
+skill-select: off (brief text matches /var/folders/y9/b8qt1d396lv9cfh42ft2gt7r0000gn/T//fm-ts.VQxI9A/home/config/dispatch-never-send line 1; nothing sent)
+exit=0
+requests received by stub: 0
+brief unchanged

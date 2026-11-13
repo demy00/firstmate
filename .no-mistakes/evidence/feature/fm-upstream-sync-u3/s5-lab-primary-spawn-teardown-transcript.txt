@@ -1,0 +1,50 @@
+
+
+  Ran 1 shell command
+
+⏺ Skill(project-management)
+  ⎿  Successfully loaded skill
+
+  Ran 3 shell commands
+
+⏺ Brief scaffolded; filling it in, then skill-select and spawn.
+
+  Ran 6 shell commands
+
+⏺ Spawning the scout now (no backlog file in lab home, so no backlog item needed).
+
+  Searched for 1 pattern, ran 3 shell commands
+
+⏺ The lab-home allowance requires a canonical FM_HOME path (the given one has // and the /var symlink). Re-running with the canonical form of the same directory.
+
+  Ran 1 shell command
+
+⏺ Scout is running. Waiting for its report.
+
+  Ran 2 shell commands
+
+⏺ Captain, the lab run worked from start to finish: the scout found the bug, wrote its report, and was cleaned up. Two things needed a workaround or are worth a look, listed after the commands.
+
+  Scout's finding: add() in calc.py:2 returns a-b instead of a+b, so add(2, 3) gives -1 instead of 5.
+
+  Worth knowing:
+  - The lab-home check rejected the path as given. The first spawn was refused because I'm running inside a no-mistakes worktree, and the lab-home exception only accepts an exact real path. The
+    FM_HOME you gave has a // and goes through the /var symlink. I re-ran with the real path of the same directory (/private/var/.../T/fm-lab.MMYmo2) and it worked. A small fix would be for the check
+    to resolve the path itself instead of refusing it.
+  - The scout's copy of the project was outside FM_HOME. That's how the spawn script works, not something I chose. The copy lives in a shared folder under ~/.treehouse. After cleanup it went back to
+    that folder clean, with no changes, and it still appears in the demo repo's git worktree list.
+  - No monitoring loop was running. I skipped it to keep the run minimal, so cleanup printed a warning about it. Cleanup still finished.
+  - The cleanup message points at a file that doesn't exist. It tells you to update data/backlog.md, but it also says this home has no backlog file. Minor, but the message contradicts itself.
+
+  LAB-RESULT: register demo in data/projects.md as [local-only] (checked with bin/fm-project-mode.sh demo -> "local-only off") OK | bin/fm-brief.sh demo-scout demo --scout OK | fill brief OK |
+  bin/fm-dispatch-resolve.sh OK (off, no TYPESAFE_API_KEY) | bin/fm-skill-select.sh --apply OK on 3rd try (first two runs were missing the required --harness and --project flags; result: off) |
+  bin/fm-spawn.sh --scout --harness claude --backend tmux --no-skills FAILED at first (lab check rejected the non-canonical FM_HOME), then OK with the canonical FM_HOME | wait for report OK | read
+  report OK | bin/fm-teardown.sh demo-scout OK (stray processes stopped, scout's copy returned to the pool) | Finding: add() in calc.py:2 returns a-b (subtracts) instead of a+b.
+
+✻ Crunched for 1m 37s · done 11:23 PM
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ make the lab check canonicalize FM_HOME itself
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ➜  01M7BFE3MXE7T83N8D2XQ0KQGT git:(8969a42c) · Opus 5.5 · 7%
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← 1 agent

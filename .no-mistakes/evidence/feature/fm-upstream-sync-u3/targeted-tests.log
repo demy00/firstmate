@@ -1,0 +1,491 @@
+FM_TEST_BEGIN 2026-11-13T22:20:40Z tests/fm-pr-merge.test.sh family=pr-forge expected_gate_skip=none
+observation: visibility=updated blocker=draft waiting=pending preflight_reads=2 retry_advice=false
+observation: visibility=updated blocker=draft waiting=missing preflight_reads=2 retry_advice=false
+observation: visibility=updated blocker=closed waiting=pending preflight_reads=2 retry_advice=false
+observation: visibility=updated blocker=closed waiting=missing preflight_reads=2 retry_advice=false
+observation: visibility=updated blocker=conflict waiting=pending preflight_reads=2 retry_advice=false
+observation: visibility=updated blocker=conflict waiting=missing preflight_reads=2 retry_advice=false
+observation: visibility=updated blocker=required-source waiting=pending preflight_reads=2 retry_advice=false
+observation: visibility=updated blocker=required-source waiting=missing preflight_reads=2 retry_advice=false
+observation: visibility=delayed blocker=draft waiting=pending preflight_reads=2 retry_advice=false
+observation: visibility=delayed blocker=draft waiting=missing preflight_reads=2 retry_advice=false
+observation: visibility=delayed blocker=closed waiting=pending preflight_reads=2 retry_advice=false
+observation: visibility=delayed blocker=closed waiting=missing preflight_reads=2 retry_advice=false
+observation: visibility=delayed blocker=conflict waiting=pending preflight_reads=2 retry_advice=false
+observation: visibility=delayed blocker=conflict waiting=missing preflight_reads=2 retry_advice=false
+observation: visibility=delayed blocker=required-source waiting=pending preflight_reads=2 retry_advice=false
+observation: visibility=delayed blocker=required-source waiting=missing preflight_reads=2 retry_advice=false
+ok - fm-pr-merge immediately refuses draft, closed, conflicting, or unreadable updated heads despite pending or missing checks
+ok - fm-pr-merge refuses a concurrent source-head change before updating, with or without --expected-head
+ok - fm-pr-merge reports exact queue retry flags after a zero-exit false success
+ok - fm-pr-merge omits merge-queue retry guidance for a closed GitHub PR
+ok - fm-pr-merge aggregates agreeing merge-queue rules
+ok - fm-pr-merge reports ambiguity for conflicting merge-queue rules
+ok - fm-pr-merge records pr= and pr_head= for a verified GitHub merge
+ok - fm-pr-merge records pr= before the forge call can land the merge
+ok - fm-pr-merge propagates a real merge failure without silently succeeding
+ok - fm-pr-merge refuses a GitHub merge call that leaves the PR open and unqueued
+ok - fm-pr-merge retries a bounded number of times when mergeable is UNKNOWN and merges once it resolves
+ok - fm-pr-merge reports mergeability still pending after its bounded UNKNOWN retry is spent
+ok - fm-pr-merge refuses on the UNKNOWN re-check when a check turned red between reads
+ok - fm-pr-merge refuses a genuine mergeable conflict immediately, without retrying
+ok - fm-pr-merge keeps PR bookkeeping when it cannot read a successful merge call's outcome
+ok - fm-pr-merge refuses with the forge's own output quoted apart from its verdict
+ok - fm-pr-merge quotes the forge output when it cannot read the outcome either
+ok - fm-pr-merge does not echo back queue flags the caller already used
+ok - fm-pr-merge still names retry flags when the caller used a different method
+ok - fm-pr-merge names the queue requirement even when its method is unrecognised
+ok - fm-pr-merge distinguishes unreadable branch rules from a base with no merge queue
+ok - fm-pr-merge reads a plan-gated 403 on branch rules as no merge queue, not unreadable
+ok - fm-pr-merge says nothing about a merge queue when the base branch has no queue rule
+ok - fm-pr-merge accepts only a proved merge from the gh-axi fallback
+ok - fm-pr-merge explains an armed auto-merge that landed nothing on a queue-less base
+ok - fm-pr-merge never reports auto-merge as armed when the merge command failed
+ok - fm-pr-merge claims no acceptance for a failed merge command carrying queue flags
+ok - fm-pr-merge falls back to the gh-axi view when gh's read fails
+ok - fm-pr-merge names a landed state hiding behind a failed GitHub merge command
+ok - fm-pr-merge refuses a GitHub merge when gh is missing, before recording
+ok - fm-pr-merge refuses a GitHub merge when gh is missing rather than merging blind
+ok - fm-pr-merge verifies a genuinely merged GitHub pull request
+ok - fm-pr-merge refuses to claim a merge when poll recording fails
+ok - fm-pr-merge accepts and accurately reports a GitHub merge-queue entry
+ok - fm-pr-merge explains how to retry with the required GitHub merge queue method
+ok - fm-pr-merge refuses branch deletion unless --attended-override is passed
+ok - fm-pr-merge refuses before merging when task meta is missing
+ok - fm-pr-merge refuses malformed PR URLs before calling gh-axi
+ok - fm-pr-merge --help and -h print the header usage and exit 0
+ok - fm-pr-merge refuses unsafe PR URL segments before recording state
+ok - fm-pr-merge refuses repo override args before recording state
+ok - fm-pr-merge refuses a bundled short-option repo override and refuses -d unless attended
+ok - fm-pr-merge does not add default --squash when the caller passes an explicit merge method
+ok - fm-pr-merge respects --method=<value> as an explicit merge method
+ok - fm-pr-merge parses a GitHub PR URL into gh-axi number and --repo arguments
+ok - fm-pr-merge refuses a caller --sha on GitHub because the head comes from the live read
+ok - fm-pr-merge merges a GitLab merge request through glab instead of refusing it
+ok - fm-pr-merge takes the GitLab instance from the URL rather than assuming one
+ok - fm-pr-merge imposes no merge method on GitLab, leaving the project's own one
+ok - fm-pr-merge refuses GitLab source-branch deletion unless --attended-override is passed
+ok - fm-pr-merge propagates a real glab merge failure without silently succeeding
+ok - fm-pr-merge refuses on each GitLab pre-merge condition independently
+ok - fm-pr-merge reports every failing GitLab condition, not only the first
+ok - fm-pr-merge reports a stale recorded head and verifies the live one
+ok - fm-pr-merge refuses an unreadable GitLab merge request state rather than merging blind
+ok - fm-pr-merge refuses a GitLab head commit it cannot validate
+ok - fm-pr-merge refuses before recording anything when glab or jq is absent
+ok - fm-pr-merge merges a Forgejo pull request through tea api instead of refusing it
+ok - fm-pr-merge resolves the tea login by matching the PR's host against every registered login
+ok - fm-pr-merge refuses when zero or more than one tea login matches the pull request's host
+ok - fm-pr-merge refuses on each Forgejo pre-merge condition independently
+ok - fm-pr-merge treats an unconfigured Forgejo combined status as none, refusing rather than skipping the check
+ok - fm-pr-merge reads every Forgejo combined-status page before merging
+ok - fm-pr-merge reports a stale recorded head and binds the merge to the live one instead
+ok - fm-pr-merge refuses a Forgejo head commit it cannot validate
+ok - fm-pr-merge refuses before recording anything when tea or jq is absent
+ok - fm-pr-merge never trusts tea api's exit status alone; a rejected merge is caught by the confirm read
+ok - fm-pr-merge retries a failed Forgejo confirmation read and persists the merge authority
+ok - fm-pr-merge maps --squash/--rebase to Forgejo's Do field, defaults to the repository's default merge style, and refuses any other extra argument
+ok - fm-pr-merge refuses a GitLab head override before recording state
+ok - a merge a secondmate home performs itself is reported upward exactly once
+ok - a locally routed secondmate home reports the landed PR into its parent's own channel
+ok - a landed GitLab merge request is reported upward on the same channel
+ok - a queued GitLab merge stays silent and leaves confirmation to the armed poll
+ok - a refused or failed merge reports no outcome
+ok - a GitLab merge refused before the forge call reports no outcome
+ok - a merge a main home performs itself leaves one durable wake naming the PR
+ok - a queued GitHub merge stays silent and leaves confirmation to the armed poll
+ok - distinct merged PRs for one task retain distinct captain-facing wakes
+ok - an uncommitted marker retry preserves at least one durable outcome
+ok - a secondmate home that cannot report upward says so instead of merging in silence
+ok - fm-pr-merge proceeds when the home carries no backlog at all
+ok - fm-pr-merge refuses when the backlog exists but cannot be read
+ok - fm-pr-merge refuses when its configured backend cannot be read
+ok - fm-pr-merge refuses when its user backend configuration cannot be read
+ok - fm-pr-merge refuses when its user backend configuration directory cannot be traversed
+ok - fm-pr-merge proceeds once when its user configuration directory and backlog are genuinely absent
+ok - fm-pr-merge honors a backend override over an unreadable user configuration
+ok - fm-pr-merge updates behind branches only with explicit opt-in after all guards pass
+ok - fm-pr-merge retains --expected-head before and after a consented behind-branch update
+ok - fm-pr-merge refuses failed updated checks immediately while other checks are pending
+ok - fm-pr-merge waits for a pending updated check past every waived failure
+ok - fm-pr-merge updates a green behind branch and merges only after the new head is green
+ok - fm-pr-merge refuses red GitHub checks and waives only a named --allow-red check
+ok - fm-pr-merge refuses a draft pull request and one with no boolean draft state
+ok - fm-pr-merge merges when a failed check run was replaced by a passing re-run
+ok - fm-pr-merge never lets a check run supersede a legacy status context
+ok - fm-pr-merge still refuses when a check's current run failed after an earlier pass
+ok - fm-pr-merge uses start order when the old success finishes last
+ok - fm-pr-merge supersedes an old cancellation that finishes last
+ok - fm-pr-merge keeps a check red while its re-run is still in flight
+ok - fm-pr-merge never lets one check's pass clear another check's failure
+ok - fm-pr-merge clears a failure only on a proven later pass of the same check
+ok - fm-pr-merge keeps --allow-red scoped to its named check beside a superseded failure
+ok - fm-pr-merge rechecks away presence before an attended red merge
+ok - fm-pr-merge keeps a quiet-mode home's merges attended, the named red-check waiver included
+ok - fm-pr-merge takes each red-check waiver name as a separate argument
+ok - fm-pr-merge --allow-red repeats once per exact check name and records every waived name
+ok - while the away-posture record exists any green merge lands under away authority, yolo or not, and attended merges stay untagged
+ok - under the away-posture record the branch merges a green task, is refused on a red check with or without --allow-red, and is refused at the partition while attended
+ok - a branch merge refuses under the lock when the away record is archived during preflight
+ok - away posture permits immediate merges but refuses every asynchronous path
+ok - away merge proceeds on a plan-gated 403 because that repository cannot have a merge queue
+ok - the away record does not bypass red checks, and a recorded pr= must match the URL
+ok - an unreadable away-posture record refuses the merge instead of skipping the record
+ok - no away-record archive or replacement lands between the authority read and the merge
+ok - a record made unreadable before the merge's own authority read refuses the merge
+ok - a merge that cannot lock the away record refuses instead of merging unlocked
+ok - fm-pr-merge refuses --allow-red on GitLab
+ok - fm-pr-merge refuses when a required check from branch protection or a ruleset never reported
+ok - fm-pr-merge merges when every required check reported and is green
+ok - fm-pr-merge reports a red check and an unreported required check together with every other failure
+ok - fm-pr-merge refuses when the required checks cannot be read, and tells a plan without rules apart
+ok - fm-pr-merge --allow-missing waives only its named unreported check
+ok - fm-pr-merge --allow-missing repeats once per exact name, is attended-only, and is GitHub-only like --allow-red
+ok - recorded check waivers keep the task's PR identity readable
+ok - fm-pr-merge enforces required producer identity and named waivers
+ok - fm-pr-merge matches an app-bound required commit status by name
+ok - fm-pr-merge reports known missing checks and all independent read errors
+ok - fm-pr-merge refuses --allow-red on Forgejo
+ok - fm-pr-merge refuses --allow-missing on Forgejo
+ok - fm-pr-merge --allow-no-pipeline waives only a null GitLab head pipeline and keeps every other condition
+ok - fm-pr-merge --allow-no-pipeline is attended-only, takes no value, and applies only to GitLab
+ok - fm-pr-merge sends a matching --expected-head to each forge
+ok - fm-pr-merge refuses before any merge write when the live head differs from --expected-head
+ok - fm-pr-merge binds the forge write to the supplied head after that head moves
+ok - fm-pr-merge does not replace --expected-head when a later preflight reads a new head
+ok - fm-pr-merge refuses a malformed, abbreviated, missing, or conflicting --expected-head before any effect
+ok - fm-pr-merge keeps draft, hold, review, check, authority, and identity refusals when --expected-head matches
+ok - fm-pr-merge squash-merges with the PR title and only its What Changed section when opted in
+ok - fm-pr-merge reads the What Changed section from a CRLF PR body
+ok - fm-pr-merge keeps the repository's squash text when not opted in, the section is absent or empty, the PR text is unreadable, or the method is merge or rebase
+ok - fm-pr-merge never adds the PR summary when the caller passed its own subject or body
+ok - fm-pr-merge leaves GitLab and Forgejo merges unchanged under the squash-summary opt-in
+ok - fm-pr-merge ignores headings inside fenced code, and treats a backtick run holding a backtick as inline code, when reading the What Changed section
+FM_TEST_END 2026-11-13T22:31:37Z tests/fm-pr-merge.test.sh exit=0 duration_ms=656845 gate_skip=false
+FM_TEST_BEGIN 2026-11-13T22:31:37Z tests/fm-watch-arm.test.sh family=watcher-wake-lock expected_gate_skip=none
+ok - watch-arm: handling successor delivers fresh new inbox work after-ack (intact counter) without consuming or looping
+ok - watch-arm: handling successor delivers fresh new inbox work before-ack (intact counter) without consuming or looping
+ok - watch-arm: handling successor delivers fresh new inbox work after-ack (missing counter) without consuming or looping
+ok - watch-arm: handling successor delivers fresh new inbox work before-ack (missing counter) without consuming or looping
+ok - watch-arm: handling successor delivers fresh new inbox work after-ack (malformed counter) without consuming or looping
+ok - watch-arm: handling successor delivers fresh new inbox work before-ack (malformed counter) without consuming or looping
+not ok - re-append was not byte-identical to the inherited row
+FM_TEST_END 2026-11-13T22:32:50Z tests/fm-watch-arm.test.sh exit=1 duration_ms=72518 gate_skip=false
+FM_TEST_BEGIN 2026-11-13T22:32:50Z tests/fm-spawn-preflight.test.sh family=pure-contract-unit expected_gate_skip=none
+ok - a task that declares no needs gets no checks
+ok - tool needs refuse only for a command missing from PATH
+ok - env needs refuse for an unset or empty variable
+ok - env-file needs check the named key is assigned without printing its value
+ok - file needs refuse for a missing or empty file
+ok - app needs refuse for a process that is not running
+ok - docker-disk needs compare free space inside Docker with the declared size
+ok - docker-networks needs prove the networks can be created and leave none behind
+ok - Docker needs refuse when the engine is unreachable
+ok - every missing need is named on one blocker line
+ok - a malformed declaration exits 2 naming the line, before any check runs
+ok - fm-spawn refuses a missing or malformed need before any endpoint exists
+# all fm-spawn-preflight tests passed
+FM_TEST_END 2026-11-13T22:32:53Z tests/fm-spawn-preflight.test.sh exit=0 duration_ms=3401 gate_skip=false
+FM_TEST_BEGIN 2026-11-13T22:32:53Z tests/fm-teardown.test.sh family=pr-forge expected_gate_skip=none
+ok - teardown leaves opencode's busy plugin in the returned pool worktree as on main
+ok - hidden untracked work is refused before return while a clean control returns
+ok - content fallback distinguishes unavailable Git proof, containment, conflicts, and unlanded content
+orca/reap-refusal: teardown_exit=1 replay_exit=0 metadata_after_replay=retained backlog_after_replay=in_flight
+tmux/reap-refusal: teardown_exit=1 replay_exit=0 metadata_after_replay=retained backlog_after_replay=in_flight
+ok - post-reap proof retains late work and retry records on ordinary and Orca paths, preserving clean/force/scout behavior
+ok - status archival is opt-in and preserves the complete log
+ok - a status log archived by record hygiene survives the next status-archive teardown
+ok - config-absent teardown does not read or invoke record export
+ok - unopted teardown ignores symlinked config when record export is absent
+ok - teardown commits the record archive before deleting sources and fails closed when export cannot commit
+ok - forced secondmate teardown exports task records from the child sub-state
+ok - record export waits for endpoint quiescence and retry captures records changed after refusal
+ok - forced secondmate retirement preserves two descendant levels and refuses linked child directories
+ok - local missing-status retirement stays lock-free without creating an archive
+ok - reused task IDs never overwrite archives and retention removes only old owned logs
+ok - archive sources and directories reject symlinks; pruning never follows children links
+ok - failed archive publication preserves presentation and watcher bookkeeping
+ok - cursor retirement failure removes its archive so retry publishes one history
+ok - archive publication and cold logs never re-wake or re-present
+ok - retention failures warn without aborting unrelated teardown
+ok - a missing teardown startup source refuses before cleanup
+ok - an unreadable teardown startup source refuses before cleanup
+ok - a missing adapter sibling refuses before cleanup
+ok - a forced descendant with a missing adapter sibling refuses before cleanup
+ok - a forced secondmate with a missing own adapter sibling refuses before child cleanup
+ok - present required sources still reach the ordinary teardown refusal
+ok - local-only worktree with HEAD on a fork remote is torn down and the home summary is refreshed
+teardown: Docker is not installed; no containers to stop for task-x1
+ok - teardown closes its own backlog item before reporting success
+ok - teardown closes a landed Gerrit task with its change URL as a note and a GitHub task with --pr
+ok - teardown closes a landed GitLab task with its merge request URL as a note and GitHub and Forgejo tasks with --pr
+teardown: Docker is not installed; no containers to stop for task-x1
+ok - teardown honors config/backlog-backend=manual and still finishes cleanly
+ok - local-only worktree with truly unpushed work is refused (safety preserved)
+ok - local-only worktree with work merged into local main is torn down (no regression)
+ok - teardown leaves a merge cleanup request for the detached cleanup that owns it
+ok - work landed on another origin branch from another clone is proven after a refresh
+ok - a failed refresh refuses and names the remote it could not reach
+ok - commits on no remote branch still refuse after a successful refresh
+ok - uncommitted work refuses even when the commits have landed
+ok - a file saved during the refresh refuses teardown and survives
+ok - a project with no remote refuses as before and fetches nothing
+ok - the refresh keeps a dropped branch's tracking ref even with fetch.prune set
+ok - work the tracking refs already show adds no network call
+ok - a hung refresh is cut off at its bound and refuses
+ok - commits held only by the no-mistakes gate are not refreshed into landed
+ok - no-mistakes worktree with HEAD on origin is torn down (no regression)
+ok - no-mistakes worktree with genuinely unlanded work is refused (safety preserved)
+ok - branch pushed only to the no-mistakes mirror is refused as unlanded
+ok - local-only worktree with unpushed work is torn down under --force (escape hatch)
+ok - fm-pr-check publishes the PR-ready line on a secondmate's parent channel once
+ok - fm-pr-check withholds the PR-ready line until checks are green when config/ready-after-green is present
+ok - fm-pr-check releases the PR-ready line on a checks-green report that carries surrounding text
+ok - a secondmate home's teardown delivers the child's final line or refuses until it can
+ok - teardown completes when an exact busy-state sidecar is already absent
+ok - teardown retires a polytoken task's generated worktree wiring on pool return
+ok - teardown never deletes a tracked .polytoken hook layer
+ok - teardown never deletes a .polytoken hook layer firstmate did not generate
+ok - teardown scopes .polytoken wiring removal to polytoken tasks
+ok - herdr teardown removes pane-owned escalation dedupe state
+ok - herdr flat teardown refuses before returning the isolated copy under lock contention and the retry completes cleanly
+ok - herdr flat teardown never erases records when pane presence is unparseable
+ok - herdr flat teardown preflight refuses before every destructive change
+ok - herdr teardown refuses a foreign-owned per-account namespace (owner-shim arms need the non-Darwin stat branch; skipped on Darwin)
+ok - forced secondmate teardown preflights every Herdr child before cleanup mutation
+ok - forced secondmate teardown holds every descendant lifecycle and metadata lock
+ok - forced secondmate teardown retains Herdr child identity until exact pane disappearance
+ok - forced teardown retains a nested secondmate home and its grandchild's Herdr identity when the grandchild close is unconfirmed
+ok - herdr projection teardown retires its journal only after confirming the exact recorded pane is gone
+ok - herdr projection teardown retains every record when post-close presence is unknown
+ok - herdr projection teardown surfaces failed focus restoration without turning confirmed cleanup into a hard failure
+ok - herdr projection teardown closes its exact pane, restoring focus, before returning the copy that holds its shell
+ok - herdr projection teardown retains the task, pane shell, and leased copy after a refused close
+ok - teardown retires the task's own watcher markers and orphaned presentation journal, leaving other tasks' markers alone
+ok - teardown retains a presentation journal bound to a pane other than the closed endpoint
+ok - teardown retires a v1 presentation journal once its token workspace is confirmed gone
+ok - teardown retains a v1 presentation journal while its token workspace is still present
+ok - teardown retains a v1 presentation journal when the workspace query is ambiguous
+ok - squash-merged + deleted-branch worktree (PR merged) is torn down (the fix)
+ok - squash-merged PR accepts a local HEAD that is an ancestor of the final PR head
+ok - teardown discovers a merged PR by branch name and tears down when no pr= was ever recorded
+ok - squash-merged PR accepts replayed unpushed local patches contained in the PR head
+ok - merged PR patch matching preserves indentation, allows exact replays, and refuses unsupported Git
+ok - merged PR does not allow teardown after a later local commit
+ok - squash-merged task whose local branch followed the pipeline rebase is torn down
+ok - teardown proves a Forgejo task landed from the merged pull request when the content check is inconclusive
+ok - teardown proves a squash- or train-merged GitLab MR landed from the MR head only with an opt-in flag, and refuses an open one
+ok - squash-merged same-path different content still refuses
+ok - squash-merged rebased local still refuses a genuinely unlanded follow-up commit
+ok - squash-merged stale local still refuses when the forge is unreachable
+fm-contributions: data directory unavailable
+contributions: observation not armed; coverage is unconfirmed
+fm-contributions: data directory unavailable
+contributions: observation not armed; coverage is unconfirmed
+ok - fm-pr-check does not refresh PR head after HEAD moves
+fm-contributions: data directory unavailable
+contributions: observation not armed; coverage is unconfirmed
+ok - fm-pr-check records the remote PR head when the local worktree lags
+ok - worktree whose content already landed in the default branch is torn down (content fallback)
+ok - the content-landed fallback checks a task's recorded base branch, not the default branch
+ok - content fallback refreshes origin default before comparing trees
+ok - dirty worktree is refused even when its committed work has landed (dirty always wins)
+ok - untracked/no-mistakes: dirty refusal classifies leftovers and preserves work
+ok - untracked/local-only: dirty refusal classifies leftovers and preserves work
+ok - tracked/no-mistakes: dirty refusal classifies leftovers and preserves work
+ok - tracked/local-only: dirty refusal classifies leftovers and preserves work
+ok - mixed/no-mistakes: dirty refusal classifies leftovers and preserves work
+ok - mixed/local-only: dirty refusal classifies leftovers and preserves work
+ok - scout copy with a nested clone and a scratch file returns with no untracked entries
+ok - ship copy with a nested clone is refused and its bytes stay
+ok - a return that leaves residue names the lost slot and the remaining paths
+ok - a dirty return is reported even when a later teardown step refuses
+ok - a forced secondmate teardown returns a child scout copy with a nested clone clean
+ok - a forced secondmate teardown warns about a dirty child return and still completes
+ok - a return that leaves no readable copy reports the slot as unverified, not clean
+ok - a forced teardown closes a task whose copy has a .git link to a gone admin directory, leaving the copy alone
+ok - a forced teardown closes a task whose copy's .git names another copy, leaving both copies alone
+ok - teardown without --force refuses a copy whose .git link is gone or names another copy
+ok - a forced teardown closes a task whose copy directory was deleted
+ok - a forced Orca teardown closes a task whose copy has a broken git link without removing the copy
+ok - ignored files survive the scratch clean and plain scratch does not
+ok - gh lookup error with content not in default refuses (fail-safe)
+ok - a record predating spawn_gen refuses teardown until --legacy-record is passed
+ok - a windowless leftover with no spawn_gen and no worktree tears down without --legacy-record
+ok - a windowless leftover with no spawn_gen also tears down when --legacy-record is passed
+ok - a windowless leftover still refuses while its worktree holds unlanded work
+ok - a windowless record with a spawn_gen, a non-tmux backend or endpoint identity, no backlog validation, or ambiguous, foreign, or malformed identity still refuses
+ok - a windowless leftover retries its retained legacy stamp without --legacy-record
+teardown: Docker is not installed; no containers to stop for task-x1
+ok - a landed legacy record with a dead endpoint tears down and logs its accepted incarnation
+ok - --legacy-record never relaxes the unlanded-work refusal
+ok - an endpoint that cannot be confidently read as dead refuses --legacy-record teardown
+ok - --legacy-record teardown rolls its stamp back when the close marker write fails
+ok - a legacy stamp a failed rollback left behind still faces the endpoint gate
+ok - a corrupt spawn_gen is never accepted as a legacy record
+ok - provably-stale worktree index.lock (old, no live holder) is cleared and teardown succeeds
+ok - live-held worktree index.lock is never removed and teardown refuses
+ok - lsof errors leave worktree index.lock in place and refuse teardown
+ok - stale lock cleanup rechecks and refuses dirty worktree before return
+ok - normal repo index.lock is resolved from the worktree and cleared when stale
+ok - index-lock mtime fault injection is PATH-based; skipped on Darwin where stat is /usr/bin/stat
+ok - transient index.lock cleared after first failed return is retried successfully without force-remove
+ok - persistent index.lock exhausts retries and refuses without force-removing the lock
+ok - empty retry wait overrides use the default without aborting teardown
+ok - fractional legacy retry wait remains supported without arithmetic
+ok - teardown records the task's pipeline spend before removing its branch and record
+ok - teardown skips all pipeline-spend recording when the home has not opted in
+ok - teardown records unavailable pipeline spend for an owned ship task whose copy is gone
+ok - a task's own parked no-mistakes run is aborted, not orphaned, before the worker is removed
+ok - a parked run in a resolved workspace no-mistakes home is aborted before the worker is removed
+ok - a run that lands on passed-with-override after abort is still recognized as terminal
+ok - a run that lands on passed-with-skips after abort is still recognized as terminal
+ok - a parked run the pipeline advanced past the task copy is still concluded from the runs ledger, not orphaned
+ok - a ledger row for a different head never authorizes a parked-run abort
+ok - a malformed ledger row never authorizes a parked-run abort
+ok - an impossible ledger date never authorizes a parked-run abort
+ok - a terminal status with a stale gate never reaches ledger cleanup
+ok - an advanced head present locally aborts through the strict rule alone - the ledger fallback stays dormant
+ok - an unresolvable active row with no same-branch anchor is never concluded (conservative refusal)
+ok - an ancestor-only anchor never binds an advanced parked run to this task
+ok - a terminal unfetched-head row is stale history and never concludes a run
+ok - a terminal newest row anchored at this worktree's head never authorizes an abort
+ok - a resolvable diverged newer same-branch row makes every older row stale history; no run is concluded
+ok - consecutive unresolvable rows are ambiguous and never conclude a run
+ok - a ledger-proven continuation is still left alone while the run is autonomously active
+ok - teardown refuses before reap or removal when a task-owned run remains parked
+ok - a different run cannot confirm the targeted abort
+ok - empty post-abort status is not accepted as confirmation
+ok - the CLI's exact run-not-found signal confirms completion
+ok - a parked run on another branch is never aborted by this task's teardown (ownership is precise)
+ok - a task-owned autonomous running step is left alone rather than aborted
+ok - a leaked descendant process rooted under the task's worktree is reaped by teardown, not left surviving
+ok - a leaked descendant process rooted under the task's per-task tasktmp is reaped by teardown too
+ok - teardown stops the Docker containers started from the task's worktree and temp root, and only those
+ok - teardown finishes and reports it when Docker is unreachable
+ok - missing lsof falls back to reaping the tmux pane process group
+ok - an erroring lsof scan refuses teardown and preserves the task
+ok - a reused pid with a different start time is never force-killed
+ok - an exec change preserves birth identity and the process is reaped
+ok - a process spawned during grace is reaped on a later pass
+ok - persistent leaked processes refuse teardown after bounded retries
+ok - a process exiting during identity lookup does not block teardown
+ok - the run abort and the leaked-process reap both complete before the destructive worktree return
+FM_TEST_END 2026-11-13T22:43:32Z tests/fm-teardown.test.sh exit=0 duration_ms=639265 gate_skip=false
+FM_TEST_BEGIN 2026-11-13T22:43:32Z tests/fm-dispatch-resolve.test.sh family=standalone expected_gate_skip=none
+FM_TEST_BEGIN 2026-11-13T22:43:32Z tests/fm-skill-select.test.sh family=standalone expected_gate_skip=none
+ok - absent key is off: one stderr line, exit 0, no network call, brief unchanged
+ok - candidates follow each harness's directories, frontmatter names, and exclusions
+ok - an unresolvable Claude account root exits 2 once with no network call
+ok - unsupported harness and no candidates are off with no network call
+ok - one yes/no question per candidate, key on fd 3 only, floor 0.8 applied in code
+ok - --apply writes one scaffold-placed section and rewrites it in place
+ok - none and error outcomes exit 0 and never touch the brief
+ok - below the floor, the AGENTS.md Skills to load table supplies installed skills, else nothing is written
+ok - off and error outcomes fall back to the AGENTS.md table locally
+ok - the shared never-send list stops the request before the network
+ok - the home .env key turns the tool on
+ok - TYPESAFE_BASE selects the skill-select endpoint like the dispatch resolver
+ok - --set overrides and --clear removes the section without a key or network
+ok - usage errors exit 2 before any network call
+# all fm-skill-select tests passed
+FM_TEST_END 2026-11-13T22:43:36Z tests/fm-skill-select.test.sh exit=0 duration_ms=3817 gate_skip=false
+ok - invalid preferred_provider: null
+ok - invalid preferred_provider: false
+ok - invalid preferred_provider: 42
+ok - invalid preferred_provider: []
+ok - invalid preferred_provider: {}
+ok - invalid preferred_provider: ""
+ok - invalid preferred_provider: "Codex"
+ok - invalid preferred_provider: "codex\\n"
+ok - invalid preferred_provider: " codex"
+ok - preferred provider: astra-82-claude-26
+ok - preferred provider: work-account
+ok - preferred provider: exhausted
+ok - preferred provider: unknown
+ok - preferred provider: unknown-one-known-one
+ok - preferred provider: claude-only
+ok - preferred provider: config-override
+ok - preferred provider: prose-why
+ok - preferred provider: absent
+ok - preferred provider: approval
+ok - preferred provider: tie
+ok - preferred provider: floor
+ok - absent key is off: one stderr line, exit 0, no network call
+ok - TYPESAFE_API_KEY= in .env activates the tool; environment and config overrides work
+ok - clear: one rule Choice request, key on the fd header only, spendPriority argmax over every candidate
+ok - TypeSafe base supports environment and .env overrides and rejects unsafe URLs before sending
+ok - OpenRouter clear uses the same output contract and keeps its key out of argv and child environments
+ok - OpenRouter ambiguous, malformed, HTTP, and missing-model paths are handled
+ok - mapping: a declared macos-keychain service and optional account become the lookup, and the key rides the fd header
+ok - precedence: environment, then .env, then the declared source, which is read only when needed
+ok - provider isolation: each provider reads only its own declared service, and a declaration never selects a provider
+ok - effective-home isolation: only the effective config directory's declaration is consulted
+ok - failure distinctions: off, a configuration error, and an unavailable source each read differently and send nothing
+ok - secret containment: the declared key is on no argv, in no output, environment, or file, and only on the fd header
+ok - capability probe: supported or unsupported, with no declaration read and no credential tool run
+ok - with no provider set, other providers' settings leave the original off line unchanged
+ok - systemone posts the unchanged request to its base URL with an optional fd-3 key
+ok - systemone configuration errors, never-send base URL, partial response, and transport failure are handled
+ok - openai maps the Choice request to the Decisions API and its answer back, key on fd 3 only
+ok - the never-send check runs on the final openai request body
+ok - openai malformed, partial, refused, ambiguous, HTTP, and transport paths return to normal intake
+ok - never-send list withholds the request on a match or a bad list, and never prints the value
+ok - rules snapshots and shell quoting preserve the profile protocol
+ok - quota_scope binds an agy candidate to its declared tier row
+ok - no-rule fallback, Agy, Gemini, and documented configurations resolve
+ok - ambiguous: confidence below the fixed floor hands the decision back
+ok - task record: every exit-0 outcome records its decision for data/<id>/brief.md, and exit 2 records none
+ok - task record: the configured data root, including FM_DATA_OVERRIDE, decides where the record goes
+ok - per-rule confidence floors fall to the most probable runner-up that clears its own floor
+ok - only the brief's task sections and scout tag reach the model, with a whole-brief fallback
+ok - escalate: a rule declared approval: captain never yields a profile
+ok - rule floor: known shortfall falls through while unavailable evidence escalates
+ok - declared provider and profile floor evidence are applied in code
+ok - nonnumeric spendPriority evidence is never ranked
+ok - partial and missing quota evidence remain eligible but unranked
+ok - provider-wide and exact quota rows combine into one limiting candidate
+ok - default: no rule matched resolves among the default profiles
+ok - tie: equal spendPriority never breaks by array order
+ok - no rankable candidate: the tool escalates instead of guessing
+ok - native Codex binds to codex-home before default, independently of Pi accounts and row order
+ok - Pi native adapters bind to codex-home with existing fallbacks and schema 5 compatibility
+ok - schema 6: each candidate binds to its account row; schema 5 is unchanged
+ok - quota evidence comes from one quota-axi --json read, and its failure is an error outcome
+ok - API, transport, and response failures are error outcomes with exit 0
+ok - configuration errors exit 2 before any network call
+ok - shared-quota opt-out: no quota snapshot, deterministic declared-order pick, opt-out stated on every candidate
+ok - shared-quota bypasses an unmet rule-level floor: the rule's own profile wins with no quota call
+ok - shared-quota bypasses an unmet profile-level floor: the first declared profile wins with no quota call
+ok - shared-quota keeps preferred_provider narrowing: the preferred family wins in declared order with no quota call
+ok - shared_quota false keeps the unchanged quota-ranked behavior
+# all fm-dispatch-resolve tests passed
+FM_TEST_END 2026-11-13T22:44:14Z tests/fm-dispatch-resolve.test.sh exit=0 duration_ms=41135 gate_skip=false
+FM_TEST_BEGIN 2026-11-13T22:44:14Z tests/fm-bearings-board-render.test.sh family=snapshot-bearings expected_gate_skip=optional-binary
+ok - the complete snapshot question and options reach rendered decision text
+ok - an underway row leads with the task name and still reports its run status
+ok - an underway identifier label is not replaced by run status
+ok - charted next renders the most recently filed work first
+ok - charted rows with no filed date follow the dated rows in payload order
+ok - a warning row badges needs repair while queued work keeps waiting
+ok - the charted next count counts queued work only, and still renders warnings
+ok - a warning-only board reports nothing queued and still shows the warning
+ok - omitted warnings remain separate from omitted queued work
+ok - an omitted kind renders exactly as queued work always did
+ok - every fleet section renders a long row in full, without a blanket tooltip
+ok - a decision card carries its whole repository name, without a blanket tooltip
+ok - the dispatch bar and stack nav are withdrawn only when there is nothing to act on
+FM_TEST_END 2026-11-13T22:44:56Z tests/fm-bearings-board-render.test.sh exit=0 duration_ms=42378 gate_skip=false
+FM_TEST_SUMMARY total=7 failed=1 skipped_gate=0 duration_ms=1456256
+FM_TEST_SUMMARY_FAMILY family=pr-forge count=2 duration_ms=1296110 failed=0
+FM_TEST_SUMMARY_FAMILY family=pure-contract-unit count=1 duration_ms=3401 failed=0
+FM_TEST_SUMMARY_FAMILY family=snapshot-bearings count=1 duration_ms=42378 failed=0
+FM_TEST_SUMMARY_FAMILY family=standalone count=2 duration_ms=44952 failed=0
+FM_TEST_SUMMARY_FAMILY family=watcher-wake-lock count=1 duration_ms=72518 failed=1
+FM_TEST_SLOWEST rank=1 script=tests/fm-pr-merge.test.sh duration_ms=656845
+FM_TEST_SLOWEST rank=2 script=tests/fm-teardown.test.sh duration_ms=639265
+FM_TEST_SLOWEST rank=3 script=tests/fm-watch-arm.test.sh duration_ms=72518
+FM_TEST_SLOWEST rank=4 script=tests/fm-bearings-board-render.test.sh duration_ms=42378
+FM_TEST_SLOWEST rank=5 script=tests/fm-dispatch-resolve.test.sh duration_ms=41135
+FM_TEST_SLOWEST rank=6 script=tests/fm-skill-select.test.sh duration_ms=3817
+FM_TEST_SLOWEST rank=7 script=tests/fm-spawn-preflight.test.sh duration_ms=3401
+exit=1

@@ -1,0 +1,13 @@
+$ (same lab home, .env TYPESAFE_BASE=http://127.0.0.1:18777/private-gw/) bin/fm-dispatch-resolve.sh brief.md --project webapp
+dispatch-resolve: error (quota-axi --json failed)
+dispatch-resolve:
+  status: error
+  reason: quota-axi --json failed
+exit=0
+--- request received by local private gateway stub:
+{"path":"/private-gw/v1/systemone","host":"127.0.0.1:18777","auth_present":true,"state_has_brief":true}
+
+$ TYPESAFE_BASE=https://u:pw@gw.example bin/fm-dispatch-resolve.sh ...
+error: TYPESAFE_BASE must be an http(s) URL with a host and no userinfo, query, fragment, whitespace, or brackets in its path
+exit=2
+requests received: 0
