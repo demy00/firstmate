@@ -5,6 +5,7 @@
 // Usage: node board-render-harness.mjs <built-board.html>
 // Prints one JSON document:
 //   { stats:[{n,label}], decisions:[{title,repo,repo_tooltip,link,link_tooltip}],
+//     captains_call:[text],
 //     underway|landed|charted:[{title,title_tooltip,sub,sub_tooltip,badges,pickable}],
 //     empty, more, controls:{dispatch_hidden,stacknav_hidden}, error }
 import { readFileSync } from "node:fs";
@@ -181,5 +182,5 @@ const controls = {
 };
 
 process.stdout.write(
-  JSON.stringify({ stats, decisions, underway, landed, charted, empty, more, controls, error: errorText }) + "\n",
+  JSON.stringify({ stats, decisions, captains_call, underway, landed, charted, empty, more, controls, error: errorText }) + "\n",
 );
