@@ -83,11 +83,14 @@ SH
   ln -s "$ROOT/bin/fm-gate-refuse-lib.sh" "$fake/bin/fm-gate-refuse-lib.sh"
   # fm-pr-lib.sh: teardown uses its canonical task-ID validator for poll cleanup.
   ln -s "$ROOT/bin/fm-pr-lib.sh" "$fake/bin/fm-pr-lib.sh"
-  # fm-dod-lib.sh (and the fm-brief-heading-lib.sh and fm-external-review-lib.sh
-  # it sources from its own directory): teardown sources it for the shared
-  # bounded remote-ref refresh before its landed-work check.
+  # fm-dod-lib.sh (and the fm-brief-heading-lib.sh, fm-task-branch-lib.sh, and
+  # fm-external-review-lib.sh it sources from its own directory): teardown
+  # sources it for the shared bounded remote-ref refresh before its landed-work
+  # check.
   ln -s "$ROOT/bin/fm-dod-lib.sh" "$fake/bin/fm-dod-lib.sh"
   ln -s "$ROOT/bin/fm-brief-heading-lib.sh" "$fake/bin/fm-brief-heading-lib.sh"
+  ln -s "$ROOT/bin/fm-task-branch-lib.sh" "$fake/bin/fm-task-branch-lib.sh"
+  ln -s "$ROOT/bin/fm-supervision-engine-lib.sh" "$fake/bin/fm-supervision-engine-lib.sh"
   ln -s "$ROOT/bin/fm-external-review-lib.sh" "$fake/bin/fm-external-review-lib.sh"
   # fm-public-followup-lib.sh (and the fm-x-lib.sh and fm-env-lib.sh it
   # sources): teardown sources it for the relay-activation gate on the
@@ -196,11 +199,14 @@ SH
   ln -s "$ROOT/bin/fm-gate-refuse-lib.sh" "$fake/bin/fm-gate-refuse-lib.sh"
   # fm-pr-lib.sh: teardown uses its canonical task-ID validator for poll cleanup.
   ln -s "$ROOT/bin/fm-pr-lib.sh" "$fake/bin/fm-pr-lib.sh"
-  # fm-dod-lib.sh (and the fm-brief-heading-lib.sh and fm-external-review-lib.sh
-  # it sources from its own directory): teardown sources it for the shared
-  # bounded remote-ref refresh before its landed-work check.
+  # fm-dod-lib.sh (and the fm-brief-heading-lib.sh, fm-task-branch-lib.sh, and
+  # fm-external-review-lib.sh it sources from its own directory): teardown
+  # sources it for the shared bounded remote-ref refresh before its landed-work
+  # check.
   ln -s "$ROOT/bin/fm-dod-lib.sh" "$fake/bin/fm-dod-lib.sh"
   ln -s "$ROOT/bin/fm-brief-heading-lib.sh" "$fake/bin/fm-brief-heading-lib.sh"
+  ln -s "$ROOT/bin/fm-task-branch-lib.sh" "$fake/bin/fm-task-branch-lib.sh"
+  ln -s "$ROOT/bin/fm-supervision-engine-lib.sh" "$fake/bin/fm-supervision-engine-lib.sh"
   ln -s "$ROOT/bin/fm-external-review-lib.sh" "$fake/bin/fm-external-review-lib.sh"
   # fm-public-followup-lib.sh (and the fm-x-lib.sh and fm-env-lib.sh it
   # sources): teardown sources it for the relay-activation gate on the

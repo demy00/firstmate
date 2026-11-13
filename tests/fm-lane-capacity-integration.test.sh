@@ -67,6 +67,9 @@ Run a short task for $2.
 
 Exercise lane capacity admission.
 
+# Required skills
+- tdd
+
 Delivery contract: mode=no-mistakes
 EOF
 }

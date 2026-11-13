@@ -891,6 +891,7 @@ tests/fm-remote-doctor.test.sh 14460
 tests/fm-remote-entrypoint.test.sh 134
 tests/fm-remote-herdr-guard.test.sh 3140
 tests/fm-remote-herdr-identity.test.sh 6158
+tests/fm-remote-inherit-generation.test.sh 3436
 tests/fm-remote-job-orphan-reap.test.sh 2985
 tests/fm-remote-job-process-start.test.sh 11871
 tests/fm-remote-job.test.sh 81046
@@ -943,6 +944,7 @@ tests/fm-supervision-events.test.sh 673
 tests/fm-supervision-host-attended-live-e2e.test.sh 49
 tests/fm-supervision-host-away-live-e2e.test.sh 49
 tests/fm-supervision-host-drain.test.sh 45950
+tests/fm-supervision-host-herdr-live-e2e.test.sh 132
 tests/fm-supervision-host-hook.test.sh 403793
 tests/fm-supervision-host-live-e2e.test.sh 75
 tests/fm-supervision-host-park.test.sh 329326
