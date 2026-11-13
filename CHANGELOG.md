@@ -22,6 +22,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - The firstmate coding guidelines now cover three writing levers: the no-op test with a rule that keeps safety lines until evidence shows they are no-ops, negation as a failure mode, and completion criteria including premature completion.
 - Bug diagnosis now requires a named, already-run reproduction command before reading code to build a theory, unless a faithful reproduction is not feasible, and for tagged debug logs that are removed before reporting.
+- Merged upstream kunchenguid/firstmate main into the fork again, bringing spawns bound to the recorded dispatch decision, an `--expected-head` and `--update-branch` merge option, parked ship lanes while awaiting review, record hygiene reports, captain holds settled from PR events, and many watcher, Pi, Herdr and lock fixes; never-send stops of the shared dispatch check are now recorded as an off decision, and a failed check waived by any repeated `--allow-red` name no longer counts as failed.
 - Merged upstream kunchenguid/firstmate main into the fork, bringing the self-repository role gate, more dispatch providers and worker runtimes, and many supervision fixes (#19).
 
 ### Fixed

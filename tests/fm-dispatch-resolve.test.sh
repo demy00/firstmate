@@ -1387,6 +1387,13 @@ reset_log
 run code out err "$TASK_BRIEF" --project pager
 assert_contains "$err" 'dispatch-resolve: off (' "the keyless run is off"
 assert_equals 'off null' "$(jq -r '"\(.status) \(.profile)"' "$TASK_RECORD")" "an off run records off so fm-spawn accepts the manual intake"
+reset_log
+write_response "$RESPONSE" rule_4 0.9
+printf '%s\n' 'pager' > "$HOME_DIR/config/dispatch-never-send"
+TYPESAFE_API_KEY=$KEY run code out err "$TASK_BRIEF" --project pager
+rm -f "$HOME_DIR/config/dispatch-never-send"
+assert_contains "$err" 'nothing sent)' "the never-send run withholds the request"
+assert_equals 'off null' "$(jq -r '"\(.status) \(.profile)"' "$TASK_RECORD" 2>&1)" "a never-send stop records off like every other off outcome"
 mv "$RULES" "$RULES.keep"
 printf '{"broken":\n' > "$RULES"
 TYPESAFE_API_KEY=$KEY run code out err "$TASK_BRIEF" --project pager

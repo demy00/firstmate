@@ -3923,6 +3923,39 @@ test_github_updated_head_failure_refuses_without_waiting_for_pending() {
   pass "fm-pr-merge refuses failed updated checks immediately while other checks are pending"
 }
 
+# Every repeated --allow-red name, not only the first, keeps its failed check
+# from counting as a known failure, so the update still waits for a pending one.
+test_github_updated_head_waits_past_every_waived_failure() {
+  local case_dir old_head new_head
+  old_head=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  new_head=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  case_dir=$(make_case github-behind-waived-failures-and-pending)
+  add_gh_mocks "$case_dir" "$old_head"
+  jq '.mergeStateStatus = "BEHIND"' "$case_dir/github-view.json" > "$case_dir/view.tmp"
+  mv "$case_dir/view.tmp" "$case_dir/github-view.json"
+  jq --arg head "$new_head" '
+    .mergeStateStatus = "CLEAN" | .headRefOid = $head |
+    .statusCheckRollup = [
+      {"__typename":"CheckRun","name":"lint","status":"COMPLETED","conclusion":"FAILURE"},
+      {"__typename":"CheckRun","name":"unit","status":"COMPLETED","conclusion":"FAILURE"},
+      {"__typename":"CheckRun","name":"slow","status":"IN_PROGRESS","conclusion":null}]' \
+    "$case_dir/github-view.json" > "$case_dir/github-view-after-update.json"
+  jq '.statusCheckRollup[2].status = "COMPLETED" | .statusCheckRollup[2].conclusion = "SUCCESS"' \
+    "$case_dir/github-view-after-update.json" > "$case_dir/github-view-after-update-final.json"
+  printf '%s\n' "$new_head" > "$case_dir/github-head-after-update"
+  FM_PR_GITHUB_MERGEABLE_RETRY_DELAY=1 \
+    run_pr_merge "$case_dir" task-x1 https://github.com/example/repo/pull/6186 --update-branch \
+    --allow-red lint --allow-red unit -- --merge \
+    > "$case_dir/stdout" 2> "$case_dir/stderr" \
+    || fail "github-behind-waived-failures-and-pending: the second waived failure stopped the wait: $(cat "$case_dir/stderr")"
+  [ "$(grep -c 'statusCheckRollup' "$case_dir/gh.log")" -eq 3 ] \
+    || fail "github-behind-waived-failures-and-pending: did not wait for the pending check"
+  assert_logged_gh_merge "$case_dir" 6186 example/repo --merge
+  [ "$(grep '^merge_waived_red=' "$case_dir/state/task-x1.meta" | cut -d= -f2-)" = $'lint\nunit' ] \
+    || fail "github-behind-waived-failures-and-pending: both waived names were not recorded: $(cat "$case_dir/state/task-x1.meta")"
+  pass "fm-pr-merge waits for a pending updated check past every waived failure"
+}
+
 test_github_behind_updates_and_rechecks_before_merge() {
   local case_dir rc old_head new_head
   old_head=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
@@ -5691,6 +5724,7 @@ test_backend_override_bypasses_unreadable_user_config
 test_github_behind_update_requires_opt_in_and_passing_guards
 test_github_behind_update_keeps_expected_head_pin
 test_github_updated_head_failure_refuses_without_waiting_for_pending
+test_github_updated_head_waits_past_every_waived_failure
 test_github_behind_updates_and_rechecks_before_merge
 test_github_red_checks_refuse_and_allow_red_waives_named
 test_github_draft_or_unreadable_draft_state_refuses
