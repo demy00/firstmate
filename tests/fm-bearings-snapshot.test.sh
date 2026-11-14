@@ -2617,6 +2617,42 @@ EOF
   pass "captain-hold gates are reserved ahead of the gate bound, oldest first"
 }
 
+# A secondmate home bounds its own queued rows before bearings sees them. More
+# than that bound's worth of newer queued work must not push an old secondmate
+# captain hold out of its summary, and the rows it does cut are disclosed.
+test_secondmate_captain_hold_survives_the_secondmate_queued_bound() {
+  local home mate fakebin json i
+  home=$(make_home mate-hold-survives-queued-bound)
+  mate="$TMP_ROOT/mate-hold-survives-queued-bound-mate"
+  make_valid_secondmate_home crowded-mate "$mate"
+  : > "$home/data/secondmates.md"
+  append_secondmate_registry "$home" crowded-mate "$mate"
+  {
+    printf '## In flight\n\n## Queued\n'
+    i=1
+    while [ "$i" -le 22 ]; do
+      printf -- '- [ ] mate-work-%02d - Newer mate work %02d (repo: sample) (kind: ship) (since 2026-06-%02d)\n' \
+        "$i" "$i" "$((i + 5))"
+      i=$((i + 1))
+    done
+    printf -- '- [ ] mate-aged - Old remote call (repo: sample) (kind: captain) (since 2026-04-01) (hold: choose a remote route) (hold-kind: captain)\n'
+    printf '  Captain hold set: 2026-04-01T00:00:00Z\n'
+    printf '\n## Done\n'
+  } > "$mate/data/backlog.md"
+  printf '## In flight\n\n## Queued\n\n## Done\n' > "$home/data/backlog.md"
+  fakebin=$(make_fakebin "$home")
+  json=$(run "$home" "$fakebin" --json)
+  printf '%s' "$json" | jq -e '
+    .gates[0].id == "mate-aged"
+      and .gates[0].owner == "crowded-mate"
+      and ([.gates[1:][].id] | length) == 20
+      and .gates[1].id == "mate-work-22"
+      and (.gates | any(.id == "mate-work-01") | not)
+      and ([.omitted[].surface] | index("secondmate crowded-mate queued rows omitted by snapshot bound: 2") != null)
+  ' >/dev/null || fail "the secondmate queued bound hid an old captain hold or its cut went undisclosed: $json"
+  pass "secondmate captain holds survive the secondmate queued bound, and its cut is disclosed"
+}
+
 # A captain scanning Underway must be able to tell WHICH task a row is, and the
 # board orders Charted Next by the durable filed date, so both facts have to come
 # out of fleet state rather than being invented at render time.
@@ -3575,6 +3611,7 @@ fm_test_run \
   test_nameless_legacy_summary_uses_its_durable_identifier \
   test_newest_filed_gates_are_selected_before_snapshot_bounds \
   test_captain_hold_gates_are_never_cut_by_the_gate_bound \
+  test_secondmate_captain_hold_survives_the_secondmate_queued_bound \
   test_underway_and_gate_rows_carry_the_durable_name_and_filed_date \
   test_mixed_secondmate_roles_partial_state_and_captain_readiness \
   test_main_captain_readiness_matches_secondmate_projection \
