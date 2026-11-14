@@ -1,0 +1,1 @@
+gates=61 first15_holds=15 next=work-25 last=never-done

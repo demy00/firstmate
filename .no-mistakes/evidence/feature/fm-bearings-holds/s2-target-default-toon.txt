@@ -1,0 +1,87 @@
+schema: fm-bearings.v1
+home: fm-lab-work.Sss8Xb/lab
+generated: "2026-11-14T15:13:24Z"
+prs: "not_requested (run: /bearings include PRs)"
+contributions: 
+  scope: owned contributions per home
+  known: 0
+  checked: 0
+  counts: 
+    captain: 0
+    fleet: 0
+    maintainer: 0
+    nobody: 0
+  complete: true
+  proven_clear: true
+  unmeasured_homes: 0
+  unreadable_records: 0
+  unmeasured: 0
+  stale_verdicts: 0
+  missing_verdicts: 0
+  captain_omitted: 0
+  captain: []
+in_flight: []
+secondmates[1]{id,state,doing,provenance,freshness,age_seconds,contradiction,reason}:
+  lab-mate,externally_held,"mate-aged-old: remote route; mate-aged-new: remote route 2",structured-home,fresh,15,false,"-"
+secondmate_reconcile[1]{id,spawn_gen,host,kind,ids}:
+  lab-mate,null,null,null,"[]"
+decisions_open[10]{id,key,verb,summary,question,owner}:
+  live-01,live-01,captain-hold,"Live call 01: pick A or B","Live call 01: pick A or B",(main)
+  live-02,live-02,captain-hold,"Live call 02: pick A or B","Live call 02: pick A or B",(main)
+  live-03,live-03,captain-hold,"Live call 03: pick A or B","Live call 03: pick A or B",(main)
+  live-04,live-04,captain-hold,"Live call 04: pick A or B","Live call 04: pick A or B",(main)
+  live-05,live-05,captain-hold,"Live call 05: pick A or B","Live call 05: pick A or B",(main)
+  live-06,live-06,captain-hold,"Live call 06: pick A or B","Live call 06: pick A or B",(main)
+  live-07,live-07,captain-hold,"Live call 07: pick A or B","Live call 07: pick A or B",(main)
+  live-08,live-08,captain-hold,"Live call 08: pick A or B","Live call 08: pick A or B",(main)
+  live-09,live-09,captain-hold,"Live call 09: pick A or B","Live call 09: pick A or B",(main)
+  live-10,live-10,captain-hold,"Live call 10: pick A or B","Live call 10: pick A or B",(main)
+landed: []
+gates[35]{id,title,blocked_by,reason,owner,filed}:
+  mate-aged-old,Mate oldest call,"-","held 308d: remote route",lab-mate,2026-01-10
+  aged-1,Aged call filed 2026-01,"-","held 303d: choose a route",(main),2026-01-15
+  aged-2,Aged call filed 2026-02,"-","held 272d: choose a route",(main),2026-02-15
+  blocked-a,Blocked call,never-done,"blocked-by never-done: parked",(main),2026-02-20
+  dated-a,Dated call,"-","until 2027-01-01: parked",(main),2026-03-02
+  aged-3,Aged call filed 2026-03,"-","held 244d: choose a route",(main),2026-03-15
+  aged-4,Aged call filed 2026-04,"-","held 213d: choose a route",(main),2026-04-15
+  aged-5,Aged call filed 2026-05,"-","held 183d: choose a route",(main),2026-05-15
+  aged-6,Aged call filed 2026-06,"-","held 152d: choose a route",(main),2026-06-15
+  dated-b,Dated call b,"-","until 2027-02-01: parked",(main),2026-07-02
+  aged-7,Aged call filed 2026-07,"-","held 122d: choose a route",(main),2026-07-15
+  mate-aged-new,Mate newer aged call,"-","held 96d: remote route 2",lab-mate,2026-08-10
+  aged-8,Aged call filed 2026-08,"-","held 91d: choose a route",(main),2026-08-15
+  aged-9,Aged call filed 2026-09,"-","held 60d: choose a route",(main),2026-09-15
+  blocked-b,Blocked call b,never-done,"blocked-by never-done: parked",(main),2026-10-20
+  work-25,Newer queued work 25,"-","-",(main),2026-10-25
+  mate-work-25,Mate work 25,"-","-",lab-mate,2026-10-25
+  work-24,Newer queued work 24,"-","-",(main),2026-10-24
+  mate-work-24,Mate work 24,"-","-",lab-mate,2026-10-24
+  work-23,Newer queued work 23,"-","-",(main),2026-10-23
+  mate-work-23,Mate work 23,"-","-",lab-mate,2026-10-23
+  work-22,Newer queued work 22,"-","-",(main),2026-10-22
+  mate-work-22,Mate work 22,"-","-",lab-mate,2026-10-22
+  work-21,Newer queued work 21,"-","-",(main),2026-10-21
+  mate-work-21,Mate work 21,"-","-",lab-mate,2026-10-21
+  work-20,Newer queued work 20,"-","-",(main),2026-10-20
+  mate-work-20,Mate work 20,"-","-",lab-mate,2026-10-20
+  work-19,Newer queued work 19,"-","-",(main),2026-10-19
+  mate-work-19,Mate work 19,"-","-",lab-mate,2026-10-19
+  work-18,Newer queued work 18,"-","-",(main),2026-10-18
+  mate-work-18,Mate work 18,"-","-",lab-mate,2026-10-18
+  work-17,Newer queued work 17,"-","-",(main),2026-10-17
+  mate-work-17,Mate work 17,"-","-",lab-mate,2026-10-17
+  work-16,Newer queued work 16,"-","-",(main),2026-10-16
+  mate-work-16,Mate work 16,"-","-",lab-mate,2026-10-16
+reports: []
+recorded_prs: []
+omitted[9]{surface,reveal}:
+  backlog item bodies,"--fields bodies"
+  task paths,"--fields paths"
+  watch/steer actions,"--fields actions"
+  healthy endpoint detail,"--fields endpoints"
+  full scout-report inventory,"--all-reports"
+  "secondmate lab-mate queued rows omitted by snapshot bound: 5",raise FM_SNAPSHOT_SECONDMATE_QUEUED
+  "captain holds bucketed blocked, dated, or aged: 15","--all-decisions"
+  queued gates showing 20 of 46,"--all-queued"
+  live PR discovery + checks,"--include-prs"

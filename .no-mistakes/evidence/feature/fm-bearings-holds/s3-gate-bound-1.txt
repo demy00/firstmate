@@ -1,0 +1,3 @@
+gates=16 holds=15 ids=mate-aged-old,aged-1,aged-2,blocked-a,dated-a,aged-3,aged-4,aged-5,aged-6,dated-b,aged-7,mate-aged-new,aged-8,aged-9,blocked-b,work-25
+captain holds bucketed blocked, dated, or aged: 15
+queued gates showing 1 of 46

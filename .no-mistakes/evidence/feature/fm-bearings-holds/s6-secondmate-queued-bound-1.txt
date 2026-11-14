@@ -1,0 +1,3 @@
+mate gates: mate-aged-old,mate-aged-new,mate-work-25
+secondmate lab-mate queued rows omitted by snapshot bound: 24 -> raise FM_SNAPSHOT_SECONDMATE_QUEUED
+captain holds bucketed blocked, dated, or aged: 15 -> --all-decisions

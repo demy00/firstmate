@@ -1,0 +1,80 @@
+== base
+decisions_open: live-01,live-02,live-03,live-04,live-05,live-06,live-07,live-08,live-09,live-10
+gates (20):
+  work-25  owner=(main) filed=2026-10-25 reason=-
+  mate-work-25  owner=lab-mate filed=2026-10-25 reason=-
+  work-24  owner=(main) filed=2026-10-24 reason=-
+  mate-work-24  owner=lab-mate filed=2026-10-24 reason=-
+  work-23  owner=(main) filed=2026-10-23 reason=-
+  mate-work-23  owner=lab-mate filed=2026-10-23 reason=-
+  work-22  owner=(main) filed=2026-10-22 reason=-
+  mate-work-22  owner=lab-mate filed=2026-10-22 reason=-
+  work-21  owner=(main) filed=2026-10-21 reason=-
+  mate-work-21  owner=lab-mate filed=2026-10-21 reason=-
+  blocked-b  owner=(main) filed=2026-10-20 reason=blocked-by never-done: parked
+  work-20  owner=(main) filed=2026-10-20 reason=-
+  mate-work-20  owner=lab-mate filed=2026-10-20 reason=-
+  work-19  owner=(main) filed=2026-10-19 reason=-
+  mate-work-19  owner=lab-mate filed=2026-10-19 reason=-
+  work-18  owner=(main) filed=2026-10-18 reason=-
+  mate-work-18  owner=lab-mate filed=2026-10-18 reason=-
+  work-17  owner=(main) filed=2026-10-17 reason=-
+  mate-work-17  owner=lab-mate filed=2026-10-17 reason=-
+  work-16  owner=(main) filed=2026-10-16 reason=-
+omitted:
+  backlog item bodies -> --fields bodies
+  task paths -> --fields paths
+  watch/steer actions -> --fields actions
+  healthy endpoint detail -> --fields endpoints
+  full scout-report inventory -> --all-reports
+  captain holds bucketed blocked, dated, or aged: 13 -> --all-decisions
+  gates showing 20 of 59 -> --all-queued
+  live PR discovery + checks -> --include-prs
+== target
+decisions_open: live-01,live-02,live-03,live-04,live-05,live-06,live-07,live-08,live-09,live-10
+gates (35):
+  mate-aged-old  owner=lab-mate filed=2026-01-10 reason=held 308d: remote route
+  aged-1  owner=(main) filed=2026-01-15 reason=held 303d: choose a route
+  aged-2  owner=(main) filed=2026-02-15 reason=held 272d: choose a route
+  blocked-a  owner=(main) filed=2026-02-20 reason=blocked-by never-done: parked
+  dated-a  owner=(main) filed=2026-03-02 reason=until 2027-01-01: parked
+  aged-3  owner=(main) filed=2026-03-15 reason=held 244d: choose a route
+  aged-4  owner=(main) filed=2026-04-15 reason=held 213d: choose a route
+  aged-5  owner=(main) filed=2026-05-15 reason=held 183d: choose a route
+  aged-6  owner=(main) filed=2026-06-15 reason=held 152d: choose a route
+  dated-b  owner=(main) filed=2026-07-02 reason=until 2027-02-01: parked
+  aged-7  owner=(main) filed=2026-07-15 reason=held 122d: choose a route
+  mate-aged-new  owner=lab-mate filed=2026-08-10 reason=held 96d: remote route 2
+  aged-8  owner=(main) filed=2026-08-15 reason=held 91d: choose a route
+  aged-9  owner=(main) filed=2026-09-15 reason=held 60d: choose a route
+  blocked-b  owner=(main) filed=2026-10-20 reason=blocked-by never-done: parked
+  work-25  owner=(main) filed=2026-10-25 reason=-
+  mate-work-25  owner=lab-mate filed=2026-10-25 reason=-
+  work-24  owner=(main) filed=2026-10-24 reason=-
+  mate-work-24  owner=lab-mate filed=2026-10-24 reason=-
+  work-23  owner=(main) filed=2026-10-23 reason=-
+  mate-work-23  owner=lab-mate filed=2026-10-23 reason=-
+  work-22  owner=(main) filed=2026-10-22 reason=-
+  mate-work-22  owner=lab-mate filed=2026-10-22 reason=-
+  work-21  owner=(main) filed=2026-10-21 reason=-
+  mate-work-21  owner=lab-mate filed=2026-10-21 reason=-
+  work-20  owner=(main) filed=2026-10-20 reason=-
+  mate-work-20  owner=lab-mate filed=2026-10-20 reason=-
+  work-19  owner=(main) filed=2026-10-19 reason=-
+  mate-work-19  owner=lab-mate filed=2026-10-19 reason=-
+  work-18  owner=(main) filed=2026-10-18 reason=-
+  mate-work-18  owner=lab-mate filed=2026-10-18 reason=-
+  work-17  owner=(main) filed=2026-10-17 reason=-
+  mate-work-17  owner=lab-mate filed=2026-10-17 reason=-
+  work-16  owner=(main) filed=2026-10-16 reason=-
+  mate-work-16  owner=lab-mate filed=2026-10-16 reason=-
+omitted:
+  backlog item bodies -> --fields bodies
+  task paths -> --fields paths
+  watch/steer actions -> --fields actions
+  healthy endpoint detail -> --fields endpoints
+  full scout-report inventory -> --all-reports
+  secondmate lab-mate queued rows omitted by snapshot bound: 5 -> raise FM_SNAPSHOT_SECONDMATE_QUEUED
+  captain holds bucketed blocked, dated, or aged: 15 -> --all-decisions
+  queued gates showing 20 of 46 -> --all-queued
+  live PR discovery + checks -> --include-prs

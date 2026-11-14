@@ -1,0 +1,453 @@
+{
+  "schema": "fm-bearings.v1",
+  "home": "fm-lab-work.Sss8Xb/lab",
+  "generated": "2026-11-14T15:13:09Z",
+  "prs": "not_requested (run: /bearings include PRs)",
+  "contributions": {
+    "scope": "owned contributions per home",
+    "known": 0,
+    "checked": 0,
+    "counts": {
+      "captain": 0,
+      "fleet": 0,
+      "maintainer": 0,
+      "nobody": 0
+    },
+    "complete": true,
+    "proven_clear": true,
+    "unmeasured_homes": 0,
+    "unreadable_records": 0,
+    "unmeasured": 0,
+    "stale_verdicts": 0,
+    "missing_verdicts": 0,
+    "captain_omitted": 0,
+    "captain": []
+  },
+  "in_flight": [],
+  "secondmates": [
+    {
+      "id": "lab-mate",
+      "state": "externally_held",
+      "doing": "mate-aged-old: remote route; mate-aged-new: remote route 2",
+      "provenance": "structured-home",
+      "freshness": "fresh",
+      "age_seconds": 0,
+      "contradiction": false,
+      "reason": "-"
+    }
+  ],
+  "secondmate_reconcile": [
+    {
+      "id": "lab-mate",
+      "spawn_gen": null,
+      "host": null,
+      "kind": null,
+      "ids": []
+    }
+  ],
+  "decisions_open": [
+    {
+      "id": "live-01",
+      "key": "live-01",
+      "verb": "captain-hold",
+      "summary": "Live call 01: pick A or B",
+      "question": "Live call 01: pick A or B",
+      "owner": "(main)"
+    },
+    {
+      "id": "live-02",
+      "key": "live-02",
+      "verb": "captain-hold",
+      "summary": "Live call 02: pick A or B",
+      "question": "Live call 02: pick A or B",
+      "owner": "(main)"
+    },
+    {
+      "id": "live-03",
+      "key": "live-03",
+      "verb": "captain-hold",
+      "summary": "Live call 03: pick A or B",
+      "question": "Live call 03: pick A or B",
+      "owner": "(main)"
+    },
+    {
+      "id": "live-04",
+      "key": "live-04",
+      "verb": "captain-hold",
+      "summary": "Live call 04: pick A or B",
+      "question": "Live call 04: pick A or B",
+      "owner": "(main)"
+    },
+    {
+      "id": "live-05",
+      "key": "live-05",
+      "verb": "captain-hold",
+      "summary": "Live call 05: pick A or B",
+      "question": "Live call 05: pick A or B",
+      "owner": "(main)"
+    },
+    {
+      "id": "live-06",
+      "key": "live-06",
+      "verb": "captain-hold",
+      "summary": "Live call 06: pick A or B",
+      "question": "Live call 06: pick A or B",
+      "owner": "(main)"
+    },
+    {
+      "id": "live-07",
+      "key": "live-07",
+      "verb": "captain-hold",
+      "summary": "Live call 07: pick A or B",
+      "question": "Live call 07: pick A or B",
+      "owner": "(main)"
+    },
+    {
+      "id": "live-08",
+      "key": "live-08",
+      "verb": "captain-hold",
+      "summary": "Live call 08: pick A or B",
+      "question": "Live call 08: pick A or B",
+      "owner": "(main)"
+    },
+    {
+      "id": "live-09",
+      "key": "live-09",
+      "verb": "captain-hold",
+      "summary": "Live call 09: pick A or B",
+      "question": "Live call 09: pick A or B",
+      "owner": "(main)"
+    },
+    {
+      "id": "live-10",
+      "key": "live-10",
+      "verb": "captain-hold",
+      "summary": "Live call 10: pick A or B",
+      "question": "Live call 10: pick A or B",
+      "owner": "(main)"
+    }
+  ],
+  "landed": [],
+  "gates": [
+    {
+      "id": "mate-aged-old",
+      "title": "Mate oldest call",
+      "blocked_by": "-",
+      "reason": "held 308d: remote route",
+      "owner": "lab-mate",
+      "filed": "2026-01-10"
+    },
+    {
+      "id": "aged-1",
+      "title": "Aged call filed 2026-01",
+      "blocked_by": "-",
+      "reason": "held 303d: choose a route",
+      "owner": "(main)",
+      "filed": "2026-01-15"
+    },
+    {
+      "id": "aged-2",
+      "title": "Aged call filed 2026-02",
+      "blocked_by": "-",
+      "reason": "held 272d: choose a route",
+      "owner": "(main)",
+      "filed": "2026-02-15"
+    },
+    {
+      "id": "blocked-a",
+      "title": "Blocked call",
+      "blocked_by": "never-done",
+      "reason": "blocked-by never-done: parked",
+      "owner": "(main)",
+      "filed": "2026-02-20"
+    },
+    {
+      "id": "dated-a",
+      "title": "Dated call",
+      "blocked_by": "-",
+      "reason": "until 2027-01-01: parked",
+      "owner": "(main)",
+      "filed": "2026-03-02"
+    },
+    {
+      "id": "aged-3",
+      "title": "Aged call filed 2026-03",
+      "blocked_by": "-",
+      "reason": "held 244d: choose a route",
+      "owner": "(main)",
+      "filed": "2026-03-15"
+    },
+    {
+      "id": "aged-4",
+      "title": "Aged call filed 2026-04",
+      "blocked_by": "-",
+      "reason": "held 213d: choose a route",
+      "owner": "(main)",
+      "filed": "2026-04-15"
+    },
+    {
+      "id": "aged-5",
+      "title": "Aged call filed 2026-05",
+      "blocked_by": "-",
+      "reason": "held 183d: choose a route",
+      "owner": "(main)",
+      "filed": "2026-05-15"
+    },
+    {
+      "id": "aged-6",
+      "title": "Aged call filed 2026-06",
+      "blocked_by": "-",
+      "reason": "held 152d: choose a route",
+      "owner": "(main)",
+      "filed": "2026-06-15"
+    },
+    {
+      "id": "dated-b",
+      "title": "Dated call b",
+      "blocked_by": "-",
+      "reason": "until 2027-02-01: parked",
+      "owner": "(main)",
+      "filed": "2026-07-02"
+    },
+    {
+      "id": "aged-7",
+      "title": "Aged call filed 2026-07",
+      "blocked_by": "-",
+      "reason": "held 122d: choose a route",
+      "owner": "(main)",
+      "filed": "2026-07-15"
+    },
+    {
+      "id": "mate-aged-new",
+      "title": "Mate newer aged call",
+      "blocked_by": "-",
+      "reason": "held 96d: remote route 2",
+      "owner": "lab-mate",
+      "filed": "2026-08-10"
+    },
+    {
+      "id": "aged-8",
+      "title": "Aged call filed 2026-08",
+      "blocked_by": "-",
+      "reason": "held 91d: choose a route",
+      "owner": "(main)",
+      "filed": "2026-08-15"
+    },
+    {
+      "id": "aged-9",
+      "title": "Aged call filed 2026-09",
+      "blocked_by": "-",
+      "reason": "held 60d: choose a route",
+      "owner": "(main)",
+      "filed": "2026-09-15"
+    },
+    {
+      "id": "blocked-b",
+      "title": "Blocked call b",
+      "blocked_by": "never-done",
+      "reason": "blocked-by never-done: parked",
+      "owner": "(main)",
+      "filed": "2026-10-20"
+    },
+    {
+      "id": "work-25",
+      "title": "Newer queued work 25",
+      "blocked_by": "-",
+      "reason": "-",
+      "owner": "(main)",
+      "filed": "2026-10-25"
+    },
+    {
+      "id": "mate-work-25",
+      "title": "Mate work 25",
+      "blocked_by": "-",
+      "reason": "-",
+      "owner": "lab-mate",
+      "filed": "2026-10-25"
+    },
+    {
+      "id": "work-24",
+      "title": "Newer queued work 24",
+      "blocked_by": "-",
+      "reason": "-",
+      "owner": "(main)",
+      "filed": "2026-10-24"
+    },
+    {
+      "id": "mate-work-24",
+      "title": "Mate work 24",
+      "blocked_by": "-",
+      "reason": "-",
+      "owner": "lab-mate",
+      "filed": "2026-10-24"
+    },
+    {
+      "id": "work-23",
+      "title": "Newer queued work 23",
+      "blocked_by": "-",
+      "reason": "-",
+      "owner": "(main)",
+      "filed": "2026-10-23"
+    },
+    {
+      "id": "mate-work-23",
+      "title": "Mate work 23",
+      "blocked_by": "-",
+      "reason": "-",
+      "owner": "lab-mate",
+      "filed": "2026-10-23"
+    },
+    {
+      "id": "work-22",
+      "title": "Newer queued work 22",
+      "blocked_by": "-",
+      "reason": "-",
+      "owner": "(main)",
+      "filed": "2026-10-22"
+    },
+    {
+      "id": "mate-work-22",
+      "title": "Mate work 22",
+      "blocked_by": "-",
+      "reason": "-",
+      "owner": "lab-mate",
+      "filed": "2026-10-22"
+    },
+    {
+      "id": "work-21",
+      "title": "Newer queued work 21",
+      "blocked_by": "-",
+      "reason": "-",
+      "owner": "(main)",
+      "filed": "2026-10-21"
+    },
+    {
+      "id": "mate-work-21",
+      "title": "Mate work 21",
+      "blocked_by": "-",
+      "reason": "-",
+      "owner": "lab-mate",
+      "filed": "2026-10-21"
+    },
+    {
+      "id": "work-20",
+      "title": "Newer queued work 20",
+      "blocked_by": "-",
+      "reason": "-",
+      "owner": "(main)",
+      "filed": "2026-10-20"
+    },
+    {
+      "id": "mate-work-20",
+      "title": "Mate work 20",
+      "blocked_by": "-",
+      "reason": "-",
+      "owner": "lab-mate",
+      "filed": "2026-10-20"
+    },
+    {
+      "id": "work-19",
+      "title": "Newer queued work 19",
+      "blocked_by": "-",
+      "reason": "-",
+      "owner": "(main)",
+      "filed": "2026-10-19"
+    },
+    {
+      "id": "mate-work-19",
+      "title": "Mate work 19",
+      "blocked_by": "-",
+      "reason": "-",
+      "owner": "lab-mate",
+      "filed": "2026-10-19"
+    },
+    {
+      "id": "work-18",
+      "title": "Newer queued work 18",
+      "blocked_by": "-",
+      "reason": "-",
+      "owner": "(main)",
+      "filed": "2026-10-18"
+    },
+    {
+      "id": "mate-work-18",
+      "title": "Mate work 18",
+      "blocked_by": "-",
+      "reason": "-",
+      "owner": "lab-mate",
+      "filed": "2026-10-18"
+    },
+    {
+      "id": "work-17",
+      "title": "Newer queued work 17",
+      "blocked_by": "-",
+      "reason": "-",
+      "owner": "(main)",
+      "filed": "2026-10-17"
+    },
+    {
+      "id": "mate-work-17",
+      "title": "Mate work 17",
+      "blocked_by": "-",
+      "reason": "-",
+      "owner": "lab-mate",
+      "filed": "2026-10-17"
+    },
+    {
+      "id": "work-16",
+      "title": "Newer queued work 16",
+      "blocked_by": "-",
+      "reason": "-",
+      "owner": "(main)",
+      "filed": "2026-10-16"
+    },
+    {
+      "id": "mate-work-16",
+      "title": "Mate work 16",
+      "blocked_by": "-",
+      "reason": "-",
+      "owner": "lab-mate",
+      "filed": "2026-10-16"
+    }
+  ],
+  "reports": [],
+  "recorded_prs": [],
+  "omitted": [
+    {
+      "surface": "backlog item bodies",
+      "reveal": "--fields bodies"
+    },
+    {
+      "surface": "task paths",
+      "reveal": "--fields paths"
+    },
+    {
+      "surface": "watch/steer actions",
+      "reveal": "--fields actions"
+    },
+    {
+      "surface": "healthy endpoint detail",
+      "reveal": "--fields endpoints"
+    },
+    {
+      "surface": "full scout-report inventory",
+      "reveal": "--all-reports"
+    },
+    {
+      "surface": "secondmate lab-mate queued rows omitted by snapshot bound: 5",
+      "reveal": "raise FM_SNAPSHOT_SECONDMATE_QUEUED"
+    },
+    {
+      "surface": "captain holds bucketed blocked, dated, or aged: 15",
+      "reveal": "--all-decisions"
+    },
+    {
+      "surface": "queued gates showing 20 of 46",
+      "reveal": "--all-queued"
+    },
+    {
+      "surface": "live PR discovery + checks",
+      "reveal": "--include-prs"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+1..6
+ok - captain-hold gates are reserved ahead of the gate bound, oldest first
+ok - secondmate captain holds survive the secondmate queued bound, and its cut is disclosed
+ok - newest filed gates are selected before snapshot bounds
+ok - repeated snapshots keep the same current landed baseline and ignore prior reports
+ok - repeated snapshots keep the same current landed baseline and ignore prior reports
+ok - repeated snapshots keep the same current landed baseline and ignore prior reports
+FM_TEST_COMPLETE
