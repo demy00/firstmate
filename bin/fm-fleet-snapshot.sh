@@ -95,10 +95,13 @@
 #     Generated captain-hold rows in decisions_open and queued carry the full
 #     question for presentation; their overview summary, reason, title, and
 #     hold_reason fields stay bounded.
-#     Before that queued bound is applied, non-captain-actionable rows are selected
-#     ahead of captain-actionable rows so separately projected live decisions cannot
-#     crowd Charted-Next-eligible work out of the summary. Each group is ordered by
-#     filed date newest first, with undated rows stable at the end.
+#     Deferred (blocked, dated, or aged) captain holds lead queued, oldest filed
+#     first, and are exempt from that bound so no parked decision is dropped.
+#     Before the bound is applied to the remaining rows, non-captain-actionable rows
+#     are selected ahead of captain-actionable rows so separately projected live
+#     decisions cannot crowd Charted-Next-eligible work out of the summary. Each
+#     group is ordered by filed date (deferred holds oldest first, the rest newest
+#     first), with undated rows stable at the end.
 #     Structured-home input must declare the current home-summary and hold-classifier
 #     schemas; a live ledger or cached copy missing either declaration or declaring
 #     an unsupported version is unavailable even when it contains no captain holds.
