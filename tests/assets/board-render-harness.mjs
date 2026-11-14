@@ -5,6 +5,7 @@
 // Usage: node board-render-harness.mjs <built-board.html>
 // Prints one JSON document:
 //   { stats:[{n,label}], decisions:[{title,repo,repo_tooltip,link,link_tooltip}],
+//     captains_call:[text],
 //     underway|landed|charted:[{title,title_tooltip,sub,sub_tooltip,badges,pickable}],
 //     empty, more, controls:{dispatch_hidden,stacknav_hidden}, error }
 import { readFileSync } from "node:fs";
@@ -166,6 +167,11 @@ const decisions = (byId.get("bb-call") || new Node("div")).children
       link_tooltip: link?.title ?? "",
     };
   });
+// The whole text of each card, so a test can check no part of a decision's
+// question or options was lost on the way to the page.
+const captains_call = (byId.get("bb-call") || new Node("div")).children
+  .filter((n) => n.className.split(/\s+/).includes("bb-decision"))
+  .map((n) => n.textContent);
 
 const empty = ch.children.filter((c) => c.className.includes("bb-empty")).map((c) => c.textContent);
 const more = ch.children.filter((c) => c.className.includes("bb-morechip")).map((c) => c.textContent);
@@ -181,5 +187,5 @@ const controls = {
 };
 
 process.stdout.write(
-  JSON.stringify({ stats, decisions, underway, landed, charted, empty, more, controls, error: errorText }) + "\n",
+  JSON.stringify({ stats, decisions, captains_call, underway, landed, charted, empty, more, controls, error: errorText }) + "\n",
 );
