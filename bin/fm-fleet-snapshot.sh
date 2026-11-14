@@ -257,6 +257,8 @@ queued with hold_reason, hold_kind, hold_until,
 hold_bucket, hold_age_days, and plural blocker fields for downstream
 projections. A captain hold is actionable only when every blocker is Done, any
 hold-until date has arrived, and an undated hold remains below the aging threshold.
+Deferred (blocked, dated, or aged) captain holds in queued are listed oldest
+filed first and are never cut by FM_SNAPSHOT_SECONDMATE_QUEUED.
 Cross-home collection uses FM_SNAPSHOT_SECONDMATES (default 20, 0 lifts the
 count bound) and FM_SNAPSHOT_SECONDMATE_MAX_BYTES.
 Every sampled remote home's state/home-summary.json is fetched concurrently
