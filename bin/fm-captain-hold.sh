@@ -212,7 +212,9 @@
 # --identity` prints. tasks-axi stops reporting such a task as held once its
 # date passes, so `due` reads every open row rather than only held ones.
 # Undated, future-dated, answered, released, and closed holds are never listed.
-# A home with no backlog file lists nothing; a backlog it cannot read exits 2.
+# A home with no backlog file lists nothing; a backlog it cannot read, or a
+# listed candidate whose own record cannot be read, exits 2. A candidate removed
+# between the listing and its read is simply not listed.
 # bin/fm-watch.sh's captain_hold_due_tick turns each newly listed line into
 # one wake.
 #
@@ -2409,7 +2411,12 @@ command_due() {  # [--today YYYY-MM-DD]
     }
   ' | while IFS= read -r id; do
     [ -n "$id" ] || continue
-    task_show "$id" || continue
+    task_show "$id" || {
+      ! printf '%s\n' "$TASK_SHOW_OUTPUT" | grep -q '^code: NOT_FOUND$' || continue
+      printf 'fm-captain-hold: captain call %s could not be read: %s\n' \
+        "$id" "${TASK_SHOW_OUTPUT%%$'\n'*}" >&2
+      exit 2
+    }
     show=$TASK_SHOW_OUTPUT
     [ "$(show_field "$show" state)" != "done" ] || continue
     [ "$(show_field_value "$show" hold_kind)" = captain ] || continue

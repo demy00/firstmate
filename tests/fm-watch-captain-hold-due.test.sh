@@ -181,6 +181,34 @@ test_unreadable_backlog_stays_silent() {
   pass "an unreadable backlog wakes nothing and records nothing, so the hold wakes once readable"
 }
 
+test_unreadable_record_keeps_ledger() {
+  local shim="$TMP_ROOT/shim" real ledger_before
+  reset_case
+  real=$(command -v tasks-axi)
+  mkdir -p "$shim"
+  cat > "$shim/tasks-axi" <<EOF
+#!/bin/sh
+if [ "\$1" = show ] && [ -e "$shim/fail-show" ]; then
+  echo "error: transient backend failure" >&2
+  exit 1
+fi
+exec "$real" "\$@"
+EOF
+  chmod +x "$shim/tasks-axi"
+  hold flaky-q --until 2026-11-10
+  captain_hold_due_tick 2026-11-10 || fail "first tick failed"
+  [ "$(count_wakes)" = 1 ] || fail "the due hold did not wake"
+  ledger_before=$(cat "$STATE/.captain-hold-due")
+  touch "$shim/fail-show"
+  PATH="$shim:$PATH" captain_hold_due_tick 2026-11-11 || fail "a failed record read failed the tick"
+  rm -f -- "$shim/fail-show"
+  [ "$(cat "$STATE/.captain-hold-due")" = "$ledger_before" ] \
+    || fail "a failed record read rewrote the ledger: $(cat "$STATE/.captain-hold-due")"
+  captain_hold_due_tick 2026-11-12 || fail "tick failed once readable again"
+  [ "$(count_wakes)" = 1 ] || fail "the same hold and date woke again after a failed read: $(cat "$FM_WAKE_QUEUE")"
+  pass "a candidate whose record cannot be read leaves the ledger alone, so it never wakes twice"
+}
+
 test_watcher_loop() {
   local dir="$TMP_ROOT/watcher-loop" pid i=0 today
   today=$(date -u +%Y-%m-%d)
@@ -214,4 +242,5 @@ fm_test_run test_due_today_wakes_once test_past_date_wakes_once \
   test_redate_back_to_announced_date_wakes \
   test_answered_and_released_never_wake test_answered_after_wake_stays_silent \
   test_new_hold_lifecycle_same_date_wakes test_several_due_holds_each_queue \
-  test_unreadable_backlog_stays_silent test_watcher_loop
+  test_unreadable_backlog_stays_silent test_unreadable_record_keeps_ledger \
+  test_watcher_loop

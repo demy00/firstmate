@@ -426,7 +426,7 @@ On each check sweep, `bin/fm-watch.sh`'s `captain_hold_due_tick` queues one `che
 Its private ledger keys an announcement on the task, the date, and the call's lifecycle identity, and keeps only the currently listed calls.
 So a call wakes once per date, while a new date, a re-dating back to an earlier date, or a new hold on the same task after release wakes again.
 Undated, future-dated, answered, released, and closed holds never wake.
-A backlog that cannot be read wakes nothing and records nothing, so the call wakes once the backlog is readable again.
+A backlog, or a listed call's own record, that cannot be read wakes nothing and records nothing, so the call wakes once the read succeeds again and an already announced call never wakes twice.
 The wake only re-presents the call; the [lifecycle policy](../.agents/skills/captain-hold-lifecycle/SKILL.md#policy) owns what firstmate does with it.
 
 ### Bearings placement
@@ -597,7 +597,7 @@ The suite does not test the accepted merge-to-cleanup re-hold window or asynchro
 - Hold-set stamping precedes visible hold state, preserves an active lifecycle's timestamp, and resets after release.
 - Interrupted answer closure retains the stamp until close and restores resolution-first ordering on retry.
 - Deferral through `--until` leaves `captain_actionable` false until due.
-- `tests/fm-watch-captain-hold-due.test.sh` exercises the [due-date wake](#due-date-wake-due) through the real hold command, a real tasks-axi backlog, and the watcher's queue: one wake on and after the date, silence before it and for undated holds, a new wake for a new date, a date re-held back to, and a new hold lifecycle, none for answered, released, or closed holds, none from an unreadable backlog, and the running watcher waking on a due hold.
+- `tests/fm-watch-captain-hold-due.test.sh` exercises the [due-date wake](#due-date-wake-due) through the real hold command, a real tasks-axi backlog, and the watcher's queue: one wake on and after the date, silence before it and for undated holds, a new wake for a new date, a date re-held back to, and a new hold lifecycle, none for answered, released, or closed holds, none from an unreadable backlog, no repeat wake after an unreadable record, and the running watcher waking on a due hold.
 
 ### Legacy paths
 
