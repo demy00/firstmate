@@ -129,6 +129,10 @@
 #                          opt-in config/open-decision-reminders record-age
 #                          backstop, independent of pane and branch state;
 #                          open_decision_reminder_tick owns its bounded repeats
+#   check: captain hold <task> recheck due <YYYY-MM-DD>
+#                          a captain hold's --until date arrived; one wake per
+#                          hold and date on the check sweep's cadence, several
+#                          joined with `; ` (captain_hold_due_tick)
 #   check: process-event result captured: <keys>
 #                          a durably captured process-to-event result is queued
 #                          and has not been surfaced yet; reported once per

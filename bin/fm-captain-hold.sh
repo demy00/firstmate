@@ -33,6 +33,7 @@
 #   fm-captain-hold.sh complete <origin-id> (--none | <task-id>...)
 #   fm-captain-hold.sh verify <origin-id>
 #   fm-captain-hold.sh open <task-id> [--identity] [--distinguish-absent]
+#   fm-captain-hold.sh due [--today YYYY-MM-DD]
 #   fm-captain-hold.sh diverged
 #   fm-captain-hold.sh reconcile list
 #   fm-captain-hold.sh reconcile close <task-id> --evidence-file <path>
@@ -57,7 +58,7 @@
 # readers decode them (bin/fm-hold-reason-lib.sh owns the encoding).
 # `--until` records the captain's own deferral date through `tasks-axi hold
 # --until`, so a "revisit later" answer is stored as a date instead of a live
-# card.
+# card, and `due` below reports it again once that date arrives.
 #
 # `answer` records the captain's exact words and resolves the call in the same
 # act. It requires a non-empty captain decision file of at most 8192 bytes and
@@ -203,6 +204,17 @@
 # crew task reaches a due stale alarm - its open backlog hold need not appear in
 # the task's last status line - and on a 0 bounds repeated alarms from new pane
 # hashes for the decision.
+#
+# `due` is the read-only list of open captain calls whose `--until` date has
+# arrived: one `<task-id>\t<until>\t<identity>` line per call that is not Done,
+# carries hold kind captain, and has a well-formed until date on or before
+# today (UTC, or `--today`), where <identity> is the lifecycle identity `open
+# --identity` prints. tasks-axi stops reporting such a task as held once its
+# date passes, so `due` reads every open row rather than only held ones.
+# Undated, future-dated, answered, released, and closed holds are never listed.
+# A home with no backlog file lists nothing; a backlog it cannot read exits 2.
+# bin/fm-watch.sh's captain_hold_due_tick turns each newly listed line into
+# one wake.
 #
 # `diverged` is the read-only guard over the seam between the two records of
 # one captain call. See "record divergence" beside command_diverged below.
@@ -2399,7 +2411,7 @@ command_due() {  # [--today YYYY-MM-DD]
     [ -n "$id" ] || continue
     task_show "$id" || continue
     show=$TASK_SHOW_OUTPUT
-    [ "$(show_field "$show" state)" != done ] || continue
+    [ "$(show_field "$show" state)" != "done" ] || continue
     [ "$(show_field_value "$show" hold_kind)" = captain ] || continue
     until=$(show_field_value "$show" hold_until)
     case "$until" in

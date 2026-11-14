@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- A captain decision deferred to a date now wakes firstmate once when that date arrives, so it is re-checked and put back in front of the captain instead of waiting for someone to run Bearings; a new date wakes again, and answered or closed decisions never do.
 - A Claude worker stopped by an account usage limit now declares the wait itself, with the time the limit resets, instead of going silent; the next turn closes it, and `bin/fm-claude-usage.sh resume --due` brings back every worker the reset left idle in one step (#23).
 - A design-variants skill: firstmate proposes design directions for a UI, has workers build them as live code versions or as Paper designs, shows them on one compare board for a pick, and turns the pick into a PR.
 - A fresh worker spawn refuses instructions that name no required skills, unless `--no-skills "<reason>"` records why in the task record.

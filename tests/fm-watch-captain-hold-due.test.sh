@@ -101,6 +101,25 @@ test_rehold_new_date_wakes_again() {
   pass "re-holding with a new date wakes again on the new date, once"
 }
 
+# Dates far ahead of the real clock keep the hold active, so every re-hold
+# preserves its lifecycle stamp and only the date distinguishes the deferrals.
+test_redate_back_to_announced_date_wakes() {
+  local first second
+  reset_case
+  hold back-q --until 2099-01-10
+  first=$("$HOLD" open back-q --identity)
+  captain_hold_due_tick 2099-01-10 || fail "first tick failed"
+  hold back-q --until 2099-02-01
+  captain_hold_due_tick 2099-01-12 || fail "tick while deferred failed"
+  [ "$(count_wakes)" = 1 ] || fail "the deferred hold woke while its new date was ahead"
+  hold back-q --until 2099-01-10
+  second=$("$HOLD" open back-q --identity)
+  [ "$first" = "$second" ] || fail "the re-holds started a new lifecycle, so this case tests nothing"
+  captain_hold_due_tick 2099-01-12 || fail "tick after re-dating back failed"
+  [ "$(count_wakes)" = 2 ] || fail "re-dating back to an announced date was swallowed as already announced"
+  pass "re-dating back to a date already announced is a new deferral and wakes again"
+}
+
 test_answered_and_released_never_wake() {
   reset_case
   hold closed-q --until 2026-11-01
@@ -108,7 +127,7 @@ test_answered_and_released_never_wake() {
   hold released-q --until 2026-11-01
   answer released-q --release
   hold done-q --until 2026-11-01
-  (cd "$FM_HOME" && tasks-axi done done-q --file "$DATA/backlog.md" >/dev/null) \
+  (cd "$FM_HOME" && tasks-axi "done" done-q --file "$DATA/backlog.md" >/dev/null) \
     || fail "could not close done-q outside the hold owner"
   captain_hold_due_tick 2026-11-14 || fail "tick failed over settled holds"
   [ "$(count_wakes)" = 0 ] || fail "an answered, released, or closed hold woke: $(cat "$FM_WAKE_QUEUE")"
@@ -192,6 +211,7 @@ test_watcher_loop() {
 
 fm_test_run test_due_today_wakes_once test_past_date_wakes_once \
   test_future_and_undated_silent test_rehold_new_date_wakes_again \
+  test_redate_back_to_announced_date_wakes \
   test_answered_and_released_never_wake test_answered_after_wake_stays_silent \
   test_new_hold_lifecycle_same_date_wakes test_several_due_holds_each_queue \
   test_unreadable_backlog_stays_silent test_watcher_loop

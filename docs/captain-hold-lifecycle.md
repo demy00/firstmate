@@ -43,6 +43,7 @@ It never reads report bodies, review artifacts, terminal output, or chat.
 | `reconcile-requests` | Internal intake that records a reconcile request from a board selection. | [Reconcile](#reconcile-re-check-reality-never-a-blind-close) |
 | `reconcile close`, `reconcile note`, `reconcile list` | Retire or list pending reconcile requests. | [Verifying and retiring a request](#verifying-and-retiring-a-request) |
 | `diverged` | Read-only report of a call whose two records disagree. | [Record divergence](#record-divergence) |
+| `due` | Read-only list of open calls whose `--until` date has arrived. | [Due-date wake](#due-date-wake-due) |
 | `pr-policy`, `settle-pr` | Declare and apply opt-in forge settlement. | [PR settlement](#pr-settlement) |
 
 ### Creating a hold (`hold`)
@@ -64,7 +65,7 @@ Repeat and edge cases:
 - Retries of an active hold preserve its hold-set timestamp.
 - Re-holding released work starts a new timestamped lifecycle.
 - A closed task is refused rather than reopened.
-- `--until` stores the captain's own deferral date through tasks-axi's date gate.
+- `--until` stores the captain's own deferral date through tasks-axi's date gate, and the [due-date wake](#due-date-wake-due) re-presents the call when that date arrives.
 - `--origin` resolves the backend origin identity before writing the hold-set stamp.
   The association lives on its own `Captain hold origin:` body line; [completion inventory checks](#recording-a-reviewed-inventory-complete) own how it is verified.
   The ordering above prevents an interrupted or refused backend hold from publishing the new association, even when an old captain hold is still active or date-expired.
@@ -416,6 +417,18 @@ The durable deferral remains re-holding with `--until`.
 The fleet snapshot's secondmate-home summary classifies an actionable captain hold as `captain_decision`.
 It preserves every captain hold in the bounded queued inventory of the owning home.
 
+### Due-date wake (`due`)
+
+A dated hold leaves the `dated` bucket on its date, but a bucket change wakes nobody, so the watcher also wakes firstmate for it.
+`due` lists every open captain call whose well-formed `hold_until` is on or before today (UTC), reading each candidate's own record.
+It reads every open row rather than only held ones, because tasks-axi stops reporting a hold as held once its date passes.
+On each check sweep, `bin/fm-watch.sh`'s `captain_hold_due_tick` queues one `check: captain hold <task> recheck due <date>` wake for each listed call it has not announced yet.
+Its private ledger keys an announcement on the task, the date, and the call's lifecycle identity, and keeps only the currently listed calls.
+So a call wakes once per date, while a new date, a re-dating back to an earlier date, or a new hold on the same task after release wakes again.
+Undated, future-dated, answered, released, and closed holds never wake.
+A backlog that cannot be read wakes nothing and records nothing, so the call wakes once the backlog is readable again.
+The wake only re-presents the call; the [lifecycle policy](../.agents/skills/captain-hold-lifecycle/SKILL.md#policy) owns what firstmate does with it.
+
 ### Bearings placement
 
 `bin/fm-bearings-snapshot.sh` places each captain hold by its `hold_bucket` and inspects no prose of its own.
@@ -584,6 +597,7 @@ The suite does not test the accepted merge-to-cleanup re-hold window or asynchro
 - Hold-set stamping precedes visible hold state, preserves an active lifecycle's timestamp, and resets after release.
 - Interrupted answer closure retains the stamp until close and restores resolution-first ordering on retry.
 - Deferral through `--until` leaves `captain_actionable` false until due.
+- `tests/fm-watch-captain-hold-due.test.sh` exercises the [due-date wake](#due-date-wake-due) through the real hold command, a real tasks-axi backlog, and the watcher's queue: one wake on and after the date, silence before it and for undated holds, a new wake for a new date, a date re-held back to, and a new hold lifecycle, none for answered, released, or closed holds, none from an unreadable backlog, and the running watcher waking on a due hold.
 
 ### Legacy paths
 
@@ -710,7 +724,7 @@ The exact commands and their summarized outputs are recorded in the shipping PR'
 To refresh this record, run:
 
 - The four suites above: `tests/fm-captain-hold-lifecycle.test.sh`, `tests/fm-classify-decision-key.test.sh`, `tests/fm-fleet-snapshot-view.test.sh`, and `tests/fm-bearings-snapshot.test.sh`.
-- `tests/fm-send-resolve-key.test.sh`, `tests/fm-bearings-board.test.sh`, `tests/fm-bearings-board-render.test.sh`, and `tests/fm-procevent.test.sh`.
+- `tests/fm-send-resolve-key.test.sh`, `tests/fm-bearings-board.test.sh`, `tests/fm-bearings-board-render.test.sh`, `tests/fm-procevent.test.sh`, and `tests/fm-watch-captain-hold-due.test.sh`.
 - `bin/fm-lint.sh`.
 
 After a lavish-axi upgrade, run `FM_BEARINGS_LAVISH_LIVE=1 tests/fm-bearings-board-lavish-live-e2e.test.sh`.
