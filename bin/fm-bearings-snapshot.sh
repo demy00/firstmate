@@ -594,12 +594,13 @@ MODEL=$(printf '%s' "$SNAP" | jq \
          filed:null}]
      else [] end) as $return_catchup_gate
   | ((if (.main_inventory.valid == false) then
-        [{id:"(main-inventory)",
-          title:((.main_inventory.reason // "main inventory invalid") | trunc(60)),
-          blocked_by:"-",
-          reason:"main inventory",
-          owner:"(main)",
-          filed:null}]
+        [{hold:false,
+          gate:{id:"(main-inventory)",
+                title:((.main_inventory.reason // "main inventory invalid") | trunc(60)),
+                blocked_by:"-",
+                reason:"main inventory",
+                owner:"(main)",
+                filed:null}}]
       else [] end)
      + [ .backlog.records[]
          | . as $record
