@@ -1,0 +1,97 @@
+# disposable lab home (bin/fm-lab-home.sh create); today(UTC)=2026-11-14
+## S1 setup: holds due today, overdue, future, undated
+$ bin/fm-captain-hold.sh hold due-q --reason pick a DB --title Pick DB --repo x --until 2026-11-14
+due-q
+[exit 0]
+$ bin/fm-captain-hold.sh hold past-q --reason pick a name --title Pick name --repo x --until 2026-11-01
+past-q
+[exit 0]
+$ bin/fm-captain-hold.sh hold future-q --reason later --title Later --repo x --until 2026-12-31
+future-q
+[exit 0]
+$ bin/fm-captain-hold.sh hold undated-q --reason open q --title Open --repo x
+undated-q
+[exit 0]
+$ bin/fm-captain-hold.sh due
+due-q	2026-11-14	2026-11-14T22:42:29Z#0
+past-q	2026-11-01	2026-11-14T22:42:30Z#0
+[exit 0]
+## S1 watcher run 1: expect one wake naming due-q and past-q only
+$ bin/fm-watch.sh   (alarm 30s => exit 142 means it stayed asleep)
+check: captain hold due-q recheck due 2026-11-14; check: captain hold past-q recheck due 2026-11-01
+[exit 0]
+--- ledger STATE/.captain-hold-due ---
+due-q	2026-11-14	2026-11-14T22:42:29Z#0
+past-q	2026-11-01	2026-11-14T22:42:30Z#0
+$ bin/fm-wake-drain.sh
+1794696155	1	check	captain-hold-due:due-q:2026-11-14	check: captain hold due-q recheck due 2026-11-14
+1794696155	2	check	captain-hold-due:past-q:2026-11-01	check: captain hold past-q recheck due 2026-11-01
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 2 --recovery-generation 80620.1794696155.ewUsBF
+$ bin/fm-wake-drain.sh --ack-through 2 --recovery-generation 80620.1794696155.ewUsBF
+[exit 0]
+## S2 watcher run 2, same holds and dates: expect NO captain-hold wake (watcher sleeps until alarm)
+$ bin/fm-watch.sh   (alarm 20s => exit 142 means it stayed asleep)
+/tmp/fmdrv.gFaX15/drive.sh: line 7: 82288 Alarm clock: 14         env -u NO_MISTAKES_GATE -u FM_ROOT_OVERRIDE -u FM_STATE_OVERRIDE -u FM_DATA_OVERRIDE -u FM_CONFIG_OVERRIDE -u FM_PROJECTS_OVERRIDE FM_HOME="$LAB" "$@"
+[exit 142]
+--- captain-hold rows ever queued: ---
+0
+0 (queue drained)
+$ bin/fm-wake-drain.sh
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 0 --recovery-generation 82288.1794696176.cNJbX7
+$ bin/fm-wake-drain.sh --ack-through 0 --recovery-generation 82288.1794696176.cNJbX7
+[exit 0]
+## S3 re-hold past-q with a new date 2026-11-05 (already arrived): expect one new wake for that date
+$ bin/fm-captain-hold.sh hold past-q --reason pick a name --title Pick name --repo x --until 2026-11-05
+past-q
+[exit 0]
+$ bin/fm-watch.sh   (alarm 30s => exit 142 means it stayed asleep)
+check: captain hold past-q recheck due 2026-11-05
+[exit 0]
+$ bin/fm-wake-drain.sh
+1794696180	3	check	captain-hold-due:past-q:2026-11-05	check: captain hold past-q recheck due 2026-11-05
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 3 --recovery-generation 88250.1794696180.TwUfUN
+$ bin/fm-wake-drain.sh --ack-through 3 --recovery-generation 88250.1794696180.TwUfUN
+[exit 0]
+## S4 answer due-q and release none; due list and watcher stay silent for it
+$ bin/fm-captain-hold.sh answer due-q --decision-file /var/folders/y9/b8qt1d396lv9cfh42ft2gt7r0000gn/T//fm-lab.xLtsLd/dec
+answered: due-q
+[exit 0]
+$ bin/fm-captain-hold.sh due
+past-q	2026-11-05	2026-11-14T22:42:57Z#0
+[exit 0]
+$ bin/fm-watch.sh   (alarm 20s => exit 142 means it stayed asleep)
+/tmp/fmdrv.gFaX15/drive.sh: line 7: 90319 Alarm clock: 14         env -u NO_MISTAKES_GATE -u FM_ROOT_OVERRIDE -u FM_STATE_OVERRIDE -u FM_DATA_OVERRIDE -u FM_CONFIG_OVERRIDE -u FM_PROJECTS_OVERRIDE FM_HOME="$LAB" "$@"
+[exit 142]
+$ bin/fm-wake-drain.sh
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 0 --recovery-generation 90319.1794696202.uGJfrv
+$ bin/fm-wake-drain.sh --ack-through 0 --recovery-generation 90319.1794696202.uGJfrv
+[exit 0]
+## S5 adversarial: malformed --today refused
+$ bin/fm-captain-hold.sh due --today 2026/11/14
+fm-captain-hold: --today must be YYYY-MM-DD: 2026/11/14
+[exit 2]
+## S6 adversarial: unreadable backlog -> due exits 2, watcher wakes nothing, ledger untouched
+$ bin/fm-captain-hold.sh hold late-q --reason late --title Late --repo x --until 2026-11-02
+late-q
+[exit 0]
+$ bin/fm-captain-hold.sh due
+fm-captain-hold: backlog listing failed: error: "Unsupported backend \"nonesuch\" — P1 ships the markdown backend only"
+[exit 2]
+$ bin/fm-watch.sh   (alarm 20s => exit 142 means it stayed asleep)
+/tmp/fmdrv.gFaX15/drive.sh: line 7: 96080 Alarm clock: 14         env -u NO_MISTAKES_GATE -u FM_ROOT_OVERRIDE -u FM_STATE_OVERRIDE -u FM_DATA_OVERRIDE -u FM_CONFIG_OVERRIDE -u FM_PROJECTS_OVERRIDE FM_HOME="$LAB" "$@"
+[exit 142]
+ledger unchanged: yes
+$ bin/fm-wake-drain.sh
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 0 --recovery-generation 96080.1794696224.saHIGz
+$ bin/fm-wake-drain.sh --ack-through 0 --recovery-generation 96080.1794696224.saHIGz
+[exit 0]
+## S6b backlog readable again: late-q wakes once
+$ bin/fm-watch.sh   (alarm 30s => exit 142 means it stayed asleep)
+check: captain hold late-q recheck due 2026-11-02
+[exit 0]
+$ bin/fm-wake-drain.sh
+1794696226	4	check	captain-hold-due:late-q:2026-11-02	check: captain hold late-q recheck due 2026-11-02
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 4 --recovery-generation 3956.1794696226.w8dbQw
+$ bin/fm-wake-drain.sh --ack-through 4 --recovery-generation 3956.1794696226.w8dbQw
+[exit 0]
+# lab removed

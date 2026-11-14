@@ -1,0 +1,14 @@
+1..12
+ok - a hold due today wakes exactly once, and never again for that date
+ok - a hold whose date passed while nobody looked wakes once on the next tick
+ok - future-dated holds stay silent until their date and undated holds never wake
+ok - re-holding with a new date wakes again on the new date, once
+ok - re-dating back to a date already announced is a new deferral and wakes again
+ok - answered, released, and closed holds never wake on their old date
+ok - a hold answered after its due wake stays silent
+ok - a released then re-held call is a new hold and wakes on its own
+ok - several holds due together each queue their own wake
+ok - an unreadable backlog wakes nothing and records nothing, so the hold wakes once readable
+ok - a candidate whose record cannot be read leaves the ledger alone, so it never wakes twice
+ok - the actual watcher wakes and exits on a captain hold whose date arrived
+FM_TEST_COMPLETE
