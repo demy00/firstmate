@@ -159,8 +159,10 @@ Default fields: schema, home, generated, prs, in_flight{id,kind,state,repo,name,
   decisions_open{id,key,verb,summary,question,owner}, landed{id,what,artifact,owner},
   gates{id,title,blocked_by,reason,owner,filed}, reports{id,path}, recorded_prs{id,url},
   unhealthy_endpoints{...} (only when non-empty), omitted{surface,reveal}.
-Default gates are selected newest filed first before their bound; undated gates
-  retain input order after dated gates.
+Captain-hold gates (aged, dated, blocked) are listed first, oldest filed first,
+  and are never cut by the gate bound. Ordinary queued gates follow, selected
+  newest filed first before their bound; undated gates retain input order after
+  dated gates.
 Decision presentation uses question, the full title and hold reason; summary
   remains a bounded overview and must not substitute for the question/options.
 landed merges this home's Done with registered secondmate homes' Done, bounded by
