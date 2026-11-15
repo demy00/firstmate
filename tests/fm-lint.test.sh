@@ -179,13 +179,14 @@ test_list_files_reports_the_shell_inventory() {
 }
 
 test_canonical_partitions_preserve_full_lint() {
-  local tmp fakebin all part selected log flags mode rc option invocation_count root_count
+  local tmp fakebin all part selected log flags mode rc option invocation_count root_count index
   tmp=$(fm_test_tmproot fm-lint-partitions)
   fakebin="$tmp/bin"
   mkdir -p "$fakebin"
   all=$(CI=true "$LINT" --list-files | LC_ALL=C sort)
   : > "$tmp/union"
-  for part in 1of2 2of2; do
+  for index in 1 2 3 4 5; do
+    part="${index}of5"
     selected=$(CI=false GITHUB_ACTIONS=false "$LINT" --partition "$part" --list-files) \
       || fail "partition $part must select full canonical roots even on a local branch"
     [ -n "$selected" ] || fail "empty lint partition $part"
@@ -214,18 +215,47 @@ test_canonical_partitions_preserve_full_lint() {
       || fail "partition $part did not stream an end record per root"
   done
   [ "$(LC_ALL=C sort "$tmp/union")" = "$all" ] || fail "lint partitions lose or duplicate canonical roots"
-  for option in 0of2 3of2 1of3; do
+  for option in 0of5 6of5 1of0 01of5 1of05 of5 1of aof5 1of2of3 1000of1000; do
     rc=0
     "$LINT" --partition "$option" --list-files > "$tmp/refused" 2>&1 || rc=$?
     [ "$rc" = 2 ] || fail "invalid partition $option was not refused"
   done
   rc=0
-  "$LINT" --partition 1of2 --fast > "$tmp/refused" 2>&1 || rc=$?
+  "$LINT" --partition 1of5 --fast > "$tmp/refused" 2>&1 || rc=$?
   [ "$rc" = 2 ] || fail "partition accepted --fast"
   rc=0
-  "$LINT" --partition 1of2 bin/fm-lint.sh > "$tmp/refused" 2>&1 || rc=$?
+  "$LINT" --partition 1of5 bin/fm-lint.sh > "$tmp/refused" 2>&1 || rc=$?
   [ "$rc" = 2 ] || fail "partition accepted an explicit subset"
-  pass "two canonical lint partitions preserve complete source-aware coverage and reject weakened modes"
+  pass "five canonical lint partitions preserve complete source-aware coverage and reject weakened or empty partitions"
+}
+
+# Partition balance follows each root's source graph, not its own size: two
+# tiny roots that both source one large library are the two heaviest roots,
+# so they must land in different partitions instead of being packed together
+# as the two smallest files.
+test_partitions_balance_by_source_graph_weight() {
+  local tmp test_root lint first second
+  tmp=$(fm_test_tmproot fm-lint-partition-weights)
+  test_root="$tmp/repo"
+  mkdir -p "$test_root/bin/backends" "$test_root/tests"
+  lint="$test_root/bin/fm-lint.sh"
+  cp "$LINT" "$lint"
+  awk 'BEGIN { print "#!/usr/bin/env bash"; for (i = 0; i < 8000; i++) print "lib_value_" i "=" i }' \
+    > "$test_root/bin/big-lib.sh"
+  for name in importer-a importer-b; do
+    printf '#!/usr/bin/env bash\n# shellcheck source=bin/big-lib.sh\n. bin/big-lib.sh\n' \
+      > "$test_root/tests/$name.test.sh"
+  done
+  first=$(CI=true "$lint" --partition 1of2 --list-files) || fail "partition 1of2 failed in the weight fixture"
+  second=$(CI=true "$lint" --partition 2of2 --list-files) || fail "partition 2of2 failed in the weight fixture"
+  if printf '%s\n' "$first" | grep -qx 'tests/importer-a.test.sh'; then
+    printf '%s\n' "$second" | grep -qx 'tests/importer-b.test.sh' \
+      || fail "roots sharing a large source graph were packed into one partition"$'\n'"1of2: $first"$'\n'"2of2: $second"
+  else
+    printf '%s\n' "$first" | grep -qx 'tests/importer-b.test.sh' \
+      || fail "roots sharing a large source graph were packed into one partition"$'\n'"1of2: $first"$'\n'"2of2: $second"
+  fi
+  pass "lint partitions balance roots by their source-graph weight"
 }
 
 # fm_lint_stub_git <fakebin-dir>: install a git stub for the changed-file mode
@@ -2030,6 +2060,7 @@ SH
 test_help_reports_the_complete_interface
 test_list_files_reports_the_shell_inventory
 test_canonical_partitions_preserve_full_lint
+test_partitions_balance_by_source_graph_weight
 test_fast_mode_disables_extended_analysis
 test_ci_defaults_to_full_analysis
 test_ci_rejects_explicit_fast_mode
