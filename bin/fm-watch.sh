@@ -129,6 +129,10 @@
 #                          opt-in config/open-decision-reminders record-age
 #                          backstop, independent of pane and branch state;
 #                          open_decision_reminder_tick owns its bounded repeats
+#   check: captain hold <task> recheck due <YYYY-MM-DD>
+#                          a captain hold's --until date arrived; one wake per
+#                          hold and date on the check sweep's cadence, several
+#                          joined with `; ` (captain_hold_due_tick)
 #   check: process-event result captured: <keys>
 #                          a durably captured process-to-event result is queued
 #                          and has not been surfaced yet; reported once per
@@ -3042,6 +3046,53 @@ EOF
   fi
 }
 
+# A captain hold whose --until date has arrived wakes firstmate once per hold
+# and date, so a deferred call is re-checked and re-presented instead of
+# waiting for someone to run Bearings. bin/fm-captain-hold.sh `due` owns which
+# holds are due; this tick owns the once-only bound and the wake. Runs on the
+# check sweep's cadence. STATE/.captain-hold-due stores the `due` lines already
+# announced (<task> TAB <until> TAB <hold lifecycle identity>) and is rewritten
+# to the current due set each tick, so a re-dated, released, or answered hold
+# drops out and a new date or a new hold on the same task wakes again. Each new
+# line is queued before the ledger records it, so a failure between the two can
+# only repeat a wake, never lose one. A backlog the owner cannot read wakes
+# nothing and leaves the ledger untouched. Sets CAPTAIN_HOLD_DUE_REASON to the
+# `; `-joined reasons of this tick's new wakes, empty when there are none.
+CAPTAIN_HOLD_DUE_REASON=
+captain_hold_due_tick() {  # [today YYYY-MM-DD], for deterministic clock callers
+  local today=${1:-} due old='' line id until reason ledger tmp
+  CAPTAIN_HOLD_DUE_REASON=
+  [ -n "$today" ] || today=$(date -u +%Y-%m-%d)
+  if ! due=$(FM_HOME="$FM_HOME" FM_STATE_OVERRIDE="$STATE" FM_CONFIG_OVERRIDE="$CONFIG" \
+      FM_DATA_OVERRIDE="$DATA" "$SCRIPT_DIR/fm-captain-hold.sh" due --today "$today" 2>/dev/null); then
+    triage_log "captain hold due-date check could not read the backlog"
+    return 0
+  fi
+  ledger="$STATE/.captain-hold-due"
+  if [ -e "$ledger" ] || [ -L "$ledger" ]; then
+    [ -f "$ledger" ] && [ -r "$ledger" ] && [ ! -L "$ledger" ] || return 1
+    old=$(cat "$ledger") || return 1
+  fi
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    case $'\n'"$old"$'\n' in *$'\n'"$line"$'\n'*) continue ;; esac
+    IFS=$'\t' read -r id until _ <<EOF
+$line
+EOF
+    reason="check: captain hold $id recheck due $until"
+    fm_wake_append check "captain-hold-due:$id:$until" "$reason" || return 1
+    CAPTAIN_HOLD_DUE_REASON="${CAPTAIN_HOLD_DUE_REASON:+$CAPTAIN_HOLD_DUE_REASON; }$reason"
+  done <<EOF
+$due
+EOF
+  [ "$due" != "$old" ] || return 0
+  tmp=$(mktemp "$STATE/.captain-hold-due.XXXXXX") || return 1
+  if ! printf '%s' "$due" > "$tmp" || ! mv -f "$tmp" "$ledger"; then
+    rm -f -- "$tmp"
+    return 1
+  fi
+}
+
 # The identity a re-surface throttle is bound to: the task's whole status-log
 # signature. Any new status event - a replacement wait, a fresh delivery, a
 # blocker - changes it and so starts its own window instead of inheriting the
@@ -4249,6 +4300,13 @@ while :; do
       [ -z "$FM_CHECK_RESULT" ] || pr_register_reason="check: pr-register: $FM_CHECK_RESULT"
       [ -z "$FM_CHECK_CUT" ] || fm_wake_append check pr-register "check: pr-register: $FM_CHECK_CUT" || exit 1
     fi
+    # Captain holds whose --until date arrived. The tick queues each wake
+    # durably here; the reason is rung at the end of the sweep, so a check
+    # below that exits this cycle first still leaves it in the queue.
+    captain_hold_due_tick || {
+      echo 'watcher: captain hold due-date ledger could not be recorded' >&2
+      exit 1
+    }
     for c in "$STATE"/*.check.sh; do
       [ -e "$c" ] || continue
       is_pr_poll=0
@@ -4462,6 +4520,7 @@ EOF
     fi
     touch "$STATE/.last-check"
     [ -z "$pr_register_reason" ] || wake "$pr_register_reason"
+    [ -z "$CAPTAIN_HOLD_DUE_REASON" ] || wake "$CAPTAIN_HOLD_DUE_REASON"
     if [ -n "$contribution_check_output" ]; then
       wake "$contribution_check_output"
     fi

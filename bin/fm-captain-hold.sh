@@ -33,6 +33,7 @@
 #   fm-captain-hold.sh complete <origin-id> (--none | <task-id>...)
 #   fm-captain-hold.sh verify <origin-id>
 #   fm-captain-hold.sh open <task-id> [--identity] [--distinguish-absent]
+#   fm-captain-hold.sh due [--today YYYY-MM-DD]
 #   fm-captain-hold.sh diverged
 #   fm-captain-hold.sh reconcile list
 #   fm-captain-hold.sh reconcile close <task-id> --evidence-file <path>
@@ -57,7 +58,7 @@
 # readers decode them (bin/fm-hold-reason-lib.sh owns the encoding).
 # `--until` records the captain's own deferral date through `tasks-axi hold
 # --until`, so a "revisit later" answer is stored as a date instead of a live
-# card.
+# card, and `due` below reports it again once that date arrives.
 #
 # `answer` records the captain's exact words and resolves the call in the same
 # act. It requires a non-empty captain decision file of at most 8192 bytes and
@@ -203,6 +204,19 @@
 # crew task reaches a due stale alarm - its open backlog hold need not appear in
 # the task's last status line - and on a 0 bounds repeated alarms from new pane
 # hashes for the decision.
+#
+# `due` is the read-only list of open captain calls whose `--until` date has
+# arrived: one `<task-id>\t<until>\t<identity>` line per call that is not Done,
+# carries hold kind captain, and has a well-formed until date on or before
+# today (UTC, or `--today`), where <identity> is the lifecycle identity `open
+# --identity` prints. tasks-axi stops reporting such a task as held once its
+# date passes, so `due` reads every open row rather than only held ones.
+# Undated, future-dated, answered, released, and closed holds are never listed.
+# A home with no backlog file lists nothing; a backlog it cannot read, or a
+# listed candidate whose own record cannot be read, exits 2. A candidate removed
+# between the listing and its read is simply not listed.
+# bin/fm-watch.sh's captain_hold_due_tick turns each newly listed line into
+# one wake.
 #
 # `diverged` is the read-only guard over the seam between the two records of
 # one captain call. See "record divergence" beside command_diverged below.
@@ -2343,6 +2357,79 @@ EOF
   done
 }
 
+# The lifecycle identity of an open call from its shown record: the hold-set
+# stamp and the count of recorded answers (see `open --identity` in the header).
+hold_lifecycle_identity() {  # <show-output>
+  local shown_body
+  shown_body=$(show_field "$1" body)
+  printf '%s#%s\n' \
+    "$(body_hold_set_timestamp "$(decode_shown_value "$shown_body")")" \
+    "$(resolution_record_count "$shown_body")"
+}
+
+# Open captain calls whose deferral date has arrived (see `due` in the header).
+# The listing only nominates candidates: hold_kind and hold_until are its last
+# two fields, after the one free-text title, so they are read from the end.
+# Each candidate is then confirmed from its own full record.
+command_due() {  # [--today YYYY-MM-DD]
+  local today='' data root backend file listing id until show
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --today) [ "$#" -ge 2 ] || { usage >&2; exit 2; }; today=$2; shift ;;
+      *) usage >&2; exit 2 ;;
+    esac
+    shift
+  done
+  [ -n "$today" ] || today=$(date -u +%Y-%m-%d)
+  case "$today" in
+    [0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]) ;;
+    *) printf 'fm-captain-hold: --today must be YYYY-MM-DD: %s\n' "$today" >&2; exit 2 ;;
+  esac
+  data=$(fm_backlog_data_absolute "$DATA") \
+    || { printf 'fm-captain-hold: data directory cannot be resolved: %s\n' "$DATA" >&2; exit 2; }
+  root=$(fm_backlog_root "$data") \
+    || { printf 'fm-captain-hold: %s\n' "$FM_BACKLOG_TRANSITION_ERROR" >&2; exit 2; }
+  backend=$(fm_tasks_axi_backend_resolve "$root") || exit 2
+  if [ "$backend" = markdown ]; then
+    file=$(fm_backlog_file "$data") \
+      || { printf 'fm-captain-hold: %s\n' "$FM_BACKLOG_TRANSITION_ERROR" >&2; exit 2; }
+    # No backlog file records no captain calls, so nothing is due.
+    [ -e "$file" ] || [ -L "$file" ] || return 0
+  fi
+  command -v tasks-axi >/dev/null 2>&1 \
+    || { printf 'fm-captain-hold: tasks-axi is required\n' >&2; exit 2; }
+  listing=$(fm_backlog_row_list "$data" --fields hold_kind,hold_until) \
+    || { printf 'fm-captain-hold: backlog listing failed: %s\n' "${listing%%$'\n'*}" >&2; exit 2; }
+  printf '%s\n' "$listing" | awk -F, -v today="$today" '
+    /^  [A-Za-z0-9._-]+,/ {
+      id = $1; sub(/^ +/, "", id)
+      until = $NF; gsub(/"/, "", until)
+      kind = $(NF - 1); gsub(/"/, "", kind)
+      if ($2 != "done" && kind == "captain" \
+          && until ~ /^[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]$/ && until <= today)
+        print id
+    }
+  ' | while IFS= read -r id; do
+    [ -n "$id" ] || continue
+    task_show "$id" || {
+      ! printf '%s\n' "$TASK_SHOW_OUTPUT" | grep -q '^code: NOT_FOUND$' || continue
+      printf 'fm-captain-hold: captain call %s could not be read: %s\n' \
+        "$id" "${TASK_SHOW_OUTPUT%%$'\n'*}" >&2
+      exit 2
+    }
+    show=$TASK_SHOW_OUTPUT
+    [ "$(show_field "$show" state)" != "done" ] || continue
+    [ "$(show_field_value "$show" hold_kind)" = captain ] || continue
+    until=$(show_field_value "$show" hold_until)
+    case "$until" in
+      [0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]) ;;
+      *) continue ;;
+    esac
+    [[ ! "$until" > "$today" ]] || continue
+    printf '%s\t%s\t%s\n' "$id" "$until" "$(hold_lifecycle_identity "$show")"
+  done
+}
+
 # Still an open captain call? Exit 0 yes, 1 no, 2 cannot tell (see the header).
 # A row this home does not carry is 3 when the caller requests the distinction,
 # and so is a home with no backlog file at all, because a backlog that does not
@@ -2350,7 +2437,7 @@ EOF
 # printed to stderr, because a mechanical closer must never read "cannot tell"
 # as permission to close.
 command_open() {  # <task-id> [--identity] [--distinguish-absent]
-  local id='' identity=0 distinguish_absent=0 data state root file backend show shown_body
+  local id='' identity=0 distinguish_absent=0 data state root file backend
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --identity) identity=1 ;;
@@ -2397,11 +2484,7 @@ command_open() {  # <task-id> [--identity] [--distinguish-absent]
           printf 'fm-captain-hold: captain call %s is open but its record could not be read\n' "$id" >&2
           exit 2
         }
-        show=$TASK_SHOW_OUTPUT
-        shown_body=$(show_field "$show" body)
-        printf '%s#%s\n' \
-          "$(body_hold_set_timestamp "$(decode_shown_value "$shown_body")")" \
-          "$(resolution_record_count "$shown_body")"
+        hold_lifecycle_identity "$TASK_SHOW_OUTPUT"
       fi
       return 0
     fi
@@ -2426,6 +2509,7 @@ case "${1:-}" in
   complete) shift; command_complete "$@" ;;
   verify) shift; command_verify "$@" ;;
   open) shift; command_open "$@" ;;
+  due) shift; command_due "$@" ;;
   diverged) shift; command_diverged "$@" ;;
   reconcile) shift; command_reconcile "$@" ;;
   pr-policy) shift; command_pr_policy "$@" ;;
