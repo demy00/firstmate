@@ -51,7 +51,9 @@
 # Ordinary Charted Next gates are ordered by durable filed date, newest first,
 # before the FM_BEARINGS_GATES bound is applied. Gates without a comparable filed
 # date keep their input order after dated gates. The synthetic (return-catchup)
-# posture row is reserved ahead of that ordering and bound so it always surfaces.
+# posture row and every captain-hold gate are reserved ahead of that ordering and
+# bound so they always surface; captain-hold gates are ordered oldest filed first,
+# so a presentation bound never hides a parked decision.
 #
 # Main-home inventory validity comes from the canonical snapshot's main_inventory
 # object (orphan structured in-flight without meta, unstructured current rows).
@@ -157,8 +159,10 @@ Default fields: schema, home, generated, prs, in_flight{id,kind,state,repo,name,
   decisions_open{id,key,verb,summary,question,owner}, landed{id,what,artifact,owner},
   gates{id,title,blocked_by,reason,owner,filed}, reports{id,path}, recorded_prs{id,url},
   unhealthy_endpoints{...} (only when non-empty), omitted{surface,reveal}.
-Default gates are selected newest filed first before their bound; undated gates
-  retain input order after dated gates.
+Captain-hold gates (aged, dated, blocked) are listed first, oldest filed first,
+  and are never cut by the gate bound. Ordinary queued gates follow, selected
+  newest filed first before their bound; undated gates retain input order after
+  dated gates.
 Decision presentation uses question, the full title and hold reason; summary
   remains a bounded overview and must not substitute for the question/options.
 landed merges this home's Done with registered secondmate homes' Done, bounded by
@@ -592,12 +596,13 @@ MODEL=$(printf '%s' "$SNAP" | jq \
          filed:null}]
      else [] end) as $return_catchup_gate
   | ((if (.main_inventory.valid == false) then
-        [{id:"(main-inventory)",
-          title:((.main_inventory.reason // "main inventory invalid") | trunc(60)),
-          blocked_by:"-",
-          reason:"main inventory",
-          owner:"(main)",
-          filed:null}]
+        [{hold:false,
+          gate:{id:"(main-inventory)",
+                title:((.main_inventory.reason // "main inventory invalid") | trunc(60)),
+                blocked_by:"-",
+                reason:"main inventory",
+                owner:"(main)",
+                filed:null}}]
       else [] end)
      + [ .backlog.records[]
          | . as $record
@@ -606,13 +611,15 @@ MODEL=$(printf '%s' "$SNAP" | jq \
               (.state == "in_flight" and .current_role == "held" and ($working_ids | index($record.id) | not))))
          | select(.captain_actionable != true)
          | select((.hold_bucket == null) or ($all_decisions == 0))
-         | as_gate("(main)") ]
+         | {hold:(.hold_bucket != null), gate:as_gate("(main)")} ]
      + [ (.secondmate_current.records // [])[] as $m
          | select($m.provenance.selected == "structured-home")
          | $m.queued[]?
          | select(.captain_actionable != true)
          | select((.hold_bucket == null) or ($all_decisions == 0))
-         | as_gate($m.id) ]) as $gates_all
+         | {hold:(.hold_bucket != null), gate:as_gate($m.id)} ]) as $gates_tagged
+  | ([ $gates_tagged[] | select(.hold) | .gate ]) as $hold_gates_all
+  | ([ $gates_tagged[] | select(.hold | not) | .gate ]) as $gates_all
   | ([ .scout_reports[]
        | . as $r
        | select(($all_reports == 1) or (($rel_ids | index($r.id)) != null))
@@ -627,6 +634,11 @@ MODEL=$(printf '%s' "$SNAP" | jq \
       to_entries
       | sort_by((.value | filed_epoch) as $epoch
           | if $epoch == null then [1, 0, .key] else [0, -$epoch, .key] end)
+      | map(.value);
+    def oldest_filed_first:
+      to_entries
+      | sort_by((.value | filed_epoch) as $epoch
+          | if $epoch == null then [1, 0, .key] else [0, $epoch, .key] end)
       | map(.value);
     . as $snap
   | {
@@ -671,6 +683,7 @@ MODEL=$(printf '%s' "$SNAP" | jq \
       landed: ($done | map({id, what:(.title | trunc(70)),
                             artifact:(landed_artifact // "-"),owner:.home_id})),
       gates: ($return_catchup_gate
+              + ($hold_gates_all | oldest_filed_first)
               + ($gates_all | newest_filed_first
                  | if $all_queued == 1 then . else .[:$gates_n] end)),
       reports: (if $all_reports == 1 then $reports_all else $reports_all[:$reports_n] end),
@@ -702,6 +715,9 @@ MODEL=$(printf '%s' "$SNAP" | jq \
         (($snap.secondmate_current.records // [])[] as $m
          | ([($m.omitted // [])[] | select(.surface == "active_children") | .count] | add // 0) as $n
          | if $n > 0 then {surface:("secondmate " + $m.id + " active children omitted by snapshot bound: \($n)"), reveal:"raise FM_SNAPSHOT_SECONDMATE_CHILDREN"} else empty end),
+        (($snap.secondmate_current.records // [])[] as $m
+         | ([($m.omitted // [])[] | select(.surface == "queued") | .count] | add // 0) as $n
+         | if $n > 0 then {surface:("secondmate " + $m.id + " queued rows omitted by snapshot bound: \($n)"), reveal:"raise FM_SNAPSHOT_SECONDMATE_QUEUED"} else empty end),
         (if $all_secondmates == 0 and ($secondmates_all | length) > $secondmates_n then {surface:("secondmates showing \($secondmates_n) of \($secondmates_all | length)"), reveal:"--all-secondmates"} else empty end),
         (if (($snap.secondmate_current.truncated // 0) > 0) then {surface:("registered secondmates omitted by snapshot bound: \($snap.secondmate_current.truncated)"), reveal:"raise FM_SNAPSHOT_SECONDMATES"} else empty end),
         (if $snap.secondmate_current.registry.input_truncated == true then {surface:"secondmate registry input truncated by bounded read", reveal:"raise FM_SNAPSHOT_REGISTRY_LINES or FM_SNAPSHOT_REGISTRY_BYTES"} else empty end),
@@ -714,7 +730,7 @@ MODEL=$(printf '%s' "$SNAP" | jq \
         (([($snap.secondmate_current.records // [])[] | select(.parent_event.activity_scan.available == false)] | length) as $n | if $n > 0 then {surface:("secondmate parent activity evidence unavailable for \($n) record(s)"), reveal:"inspect the parent status logs"} else empty end),
         (if $all_decisions == 0 and ($decisions_all | length) > $decisions_n then {surface:("decisions_open showing \($decisions_n) of \($decisions_all | length)"), reveal:"--all-decisions"} else empty end),
         (if $all_decisions == 0 and $decisions_marked_deferred > 0 then {surface:("captain holds bucketed blocked, dated, or aged: \($decisions_marked_deferred)"), reveal:"--all-decisions"} else empty end),
-        (if $all_queued == 0 and ($gates_all | length) > $gates_n then {surface:("gates showing \($gates_n) of \($gates_all | length)"), reveal:"--all-queued"} else empty end),
+        (if $all_queued == 0 and ($gates_all | length) > $gates_n then {surface:("queued gates showing \($gates_n) of \($gates_all | length)"), reveal:"--all-queued"} else empty end),
         (if $all_reports == 0 and ($reports_all | length) > $reports_n then {surface:("reports showing \($reports_n) of \($reports_all | length)"), reveal:"--all-reports"} else empty end),
         (if $all_recorded_prs == 0 and ($recorded_prs_all | length) > $recorded_prs_n then {surface:("recorded_prs showing \($recorded_prs_n) of \($recorded_prs_all | length)"), reveal:"--all-recorded-prs"} else empty end),
         (if $all_unhealthy == 0 and ($unhealthy_all | length) > $unhealthy_n then {surface:("unhealthy_endpoints showing \($unhealthy_n) of \($unhealthy_all | length)"), reveal:"--all-unhealthy"} else empty end),

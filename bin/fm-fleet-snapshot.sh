@@ -95,10 +95,13 @@
 #     Generated captain-hold rows in decisions_open and queued carry the full
 #     question for presentation; their overview summary, reason, title, and
 #     hold_reason fields stay bounded.
-#     Before that queued bound is applied, non-captain-actionable rows are selected
-#     ahead of captain-actionable rows so separately projected live decisions cannot
-#     crowd Charted-Next-eligible work out of the summary. Each group is ordered by
-#     filed date newest first, with undated rows stable at the end.
+#     Deferred (blocked, dated, or aged) captain holds lead queued, oldest filed
+#     first, and are exempt from that bound so no parked decision is dropped.
+#     Before the bound is applied to the remaining rows, non-captain-actionable rows
+#     are selected ahead of captain-actionable rows so separately projected live
+#     decisions cannot crowd Charted-Next-eligible work out of the summary. Each
+#     group is ordered by filed date (deferred holds oldest first, the rest newest
+#     first), with undated rows stable at the end.
 #     Structured-home input must declare the current home-summary and hold-classifier
 #     schemas; a live ledger or cached copy missing either declaration or declaring
 #     an unsupported version is unavailable even when it contains no captain holds.
@@ -257,6 +260,8 @@ queued with hold_reason, hold_kind, hold_until,
 hold_bucket, hold_age_days, and plural blocker fields for downstream
 projections. A captain hold is actionable only when every blocker is Done, any
 hold-until date has arrived, and an undated hold remains below the aging threshold.
+Deferred (blocked, dated, or aged) captain holds in queued are listed oldest
+filed first and are never cut by FM_SNAPSHOT_SECONDMATE_QUEUED.
 Cross-home collection uses FM_SNAPSHOT_SECONDMATES (default 20, 0 lifts the
 count bound) and FM_SNAPSHOT_SECONDMATE_MAX_BYTES.
 Every sampled remote home's state/home-summary.json is fetched concurrently
@@ -1015,6 +1020,11 @@ secondmate_home_summary_json() {  # <backlog-json-file> <tasks-json-file>
       | sort_by((.value | filed_epoch) as $epoch
           | if $epoch == null then [1, 0, .key] else [0, -$epoch, .key] end)
       | map(.value);
+    def oldest_filed_first:
+      to_entries
+      | sort_by((.value | filed_epoch) as $epoch
+          | if $epoch == null then [1, 0, .key] else [0, $epoch, .key] end)
+      | map(.value);
     ([ $backlog.records[]?
        | select((.state == "in_flight" or .state == "queued") and (.structured | not)) ]) as $unstructured_current
     | ([ $backlog.records[]? | select(.state == "in_flight" and .structured) ]) as $owned_in_flight
@@ -1150,9 +1160,10 @@ secondmate_home_summary_json() {  # <backlog-json-file> <tasks-json-file>
           repo:((.repo // null) | if . == null then null else trunc(120) end),
           kind:((.kind // null) | if . == null then null else trunc(40) end),
           since:((.since // null) | if . == null then null else trunc(40) end)}]
-          | ((map(select(.captain_actionable != true)) | newest_filed_first)
-             + (map(select(.captain_actionable == true)) | newest_filed_first))
-          | .[:$queued_n]),
+          | (map(select(.captain_actionable != true and .hold_bucket != null)) | oldest_filed_first)
+            + ((map(select(.captain_actionable != true and .hold_bucket == null)) | newest_filed_first)
+               + (map(select(.captain_actionable == true)) | newest_filed_first)
+               | .[:$queued_n])),
         landed:(if $landed_n == 0 then $landed_all else $landed_all[:$landed_n] end),
         endpoints:([$tasks[] | {id,state:.current_state.state,source:.current_state.source,
           endpoint:(.endpoint + {target:((.endpoint.target // null) | if . == null then null else trunc(240) end)})}][:$child_n]),
@@ -1167,7 +1178,8 @@ secondmate_home_summary_json() {  # <backlog-json-file> <tasks-json-file>
         omitted:[
           (if ($active_all | length) > $child_n then {surface:"active_children",count:(($active_all | length) - $child_n)} else empty end),
           (if ($decisions_all | length) > $decisions_n then {surface:"decisions_open",count:(($decisions_all | length) - $decisions_n)} else empty end),
-          (if ($queued_all | length) > $queued_n then {surface:"queued",count:(($queued_all | length) - $queued_n)} else empty end),
+          (([$queued_all[] | select(.captain_actionable == true or .hold_bucket == null)] | length) as $cuttable
+           | if $cuttable > $queued_n then {surface:"queued",count:($cuttable - $queued_n)} else empty end),
           (if ($tasks | length) > $child_n then {surface:"endpoints",count:(($tasks | length) - $child_n)} else empty end),
           (if $landed_n > 0 and ($landed_all | length) > $landed_n then {surface:"landed",count:(($landed_all | length) - $landed_n)} else empty end)
         ]
