@@ -1,0 +1,2 @@
+ok - five canonical lint partitions preserve complete source-aware coverage and reject weakened or empty partitions
+ok - lint partitions balance roots by their source-graph weight

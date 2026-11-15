@@ -1,0 +1,22 @@
+total roots:      626
+partition 1of5:      125 roots
+partition 2of5:      125 roots
+partition 3of5:      125 roots
+partition 4of5:      125 roots
+partition 5of5:      126 roots
+union sorted == canonical: yes
+duplicates:        0
+--- refusals
+0of5 -> rc=2 fm-lint.sh: --partition must be KofN with 1 <= K <= N, got 0of5.
+6of5 -> rc=2 fm-lint.sh: --partition must be KofN with 1 <= K <= N, got 6of5.
+1of0 -> rc=2 fm-lint.sh: --partition must be KofN with 1 <= K <= N, got 1of0.
+01of5 -> rc=2 fm-lint.sh: --partition must be KofN with 1 <= K <= N, got 01of5.
+1of05 -> rc=2 fm-lint.sh: --partition must be KofN with 1 <= K <= N, got 1of05.
+of5 -> rc=2 fm-lint.sh: --partition must be KofN with 1 <= K <= N, got of5.
+1of -> rc=2 fm-lint.sh: --partition must be KofN with 1 <= K <= N, got 1of.
+aof5 -> rc=2 fm-lint.sh: --partition must be KofN with 1 <= K <= N, got aof5.
+1of2of3 -> rc=2 fm-lint.sh: --partition must be KofN with 1 <= K <= N, got 1of2of3.
+1000of1000 -> rc=2 fm-lint.sh: --partition 1000of1000 selects no roots; use fewer partitions.
+3of2 -> rc=2 fm-lint.sh: --partition must be KofN with 1 <= K <= N, got 3of2.
+1of5 --fast rc=2
+1of5 explicit path rc=2
