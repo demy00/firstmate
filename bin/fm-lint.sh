@@ -46,10 +46,12 @@
 # run holds at most JOBS concurrent ShellCheck processes. Diagnostics replay
 # in stable shard/root order. FM_LINT_JOBS=1 changes concurrency, not diagnostics
 # or exit selection.
-# --partition 1of2/2of2 splits the entire canonical inventory across
-# two CI runners, each with those same concurrency-limited workers.
-# Partitions are complete, disjoint, and byte-weight balanced; --list-files
-# exposes their actual roots.
+# --partition KofN selects partition K of N over the entire canonical
+# inventory, one partition per CI runner, each with those same
+# concurrency-limited workers. The CI lint matrix owns N.
+# Partitions are complete, disjoint, and balanced by source-graph weight
+# (see fm_lint_root_weights); --list-files exposes their actual roots, and a
+# partition that would select no roots is refused.
 # Partition mode starts with full source-aware analysis, never changed-only
 # or --fast, and does not accept explicit paths. Each partition also runs
 # workflow lint and backend-purity checks, keeping either invocation
@@ -107,7 +109,7 @@
 #   fm-lint.sh --fast [path]...       local lint with extended analysis disabled
 #   fm-lint.sh <path>...               lint explicit roots with the same config
 #   fm-lint.sh --jobs <1|2> [path]...  override concurrent worker count
-#   fm-lint.sh --partition <1of2|2of2> lint one canonical CI partition (see fallback above)
+#   fm-lint.sh --partition <KofN>      lint one canonical CI partition (see fallback above)
 #   fm-lint.sh --telemetry <path> ...  write a quiet metrics snapshot
 #   fm-lint.sh --required-version      print the ShellCheck pin
 #   fm-lint.sh --list-files            print the file set that would be linted
@@ -714,6 +716,8 @@ TELEMETRY=${FM_LINT_TELEMETRY:-}
 FAST=0
 ANALYSIS_MODE=full
 PARTITION=
+PARTITION_INDEX=
+PARTITION_TOTAL=
 PARTITION_REQUESTED=0
 LIST_FILES=0
 while [ "$#" -gt 0 ]; do
@@ -737,7 +741,7 @@ while [ "$#" -gt 0 ]; do
       shift
       ;;
     --partition)
-      [ "$#" -ge 2 ] || { printf 'fm-lint.sh: --partition requires 1of2 or 2of2.\n' >&2; exit 2; }
+      [ "$#" -ge 2 ] || { printf 'fm-lint.sh: --partition requires KofN, such as 1of5.\n' >&2; exit 2; }
       PARTITION=$2
       PARTITION_REQUESTED=1
       shift 2
@@ -776,17 +780,29 @@ esac
 case "$PARTITION" in
   '')
     if [ "$PARTITION_REQUESTED" -eq 1 ]; then
-      printf 'fm-lint.sh: --partition requires 1of2 or 2of2.\n' >&2
+      printf 'fm-lint.sh: --partition requires KofN, such as 1of5.\n' >&2
       exit 2
     fi
     ;;
-  1of2|2of2)
+  [1-9]*of[1-9]*)
+    PARTITION_INDEX=${PARTITION%%of*}
+    PARTITION_TOTAL=${PARTITION#*of}
+    case "$PARTITION_INDEX$PARTITION_TOTAL" in
+      *[!0-9]*)
+        printf 'fm-lint.sh: --partition must be KofN with 1 <= K <= N, got %s.\n' "$PARTITION" >&2
+        exit 2
+        ;;
+    esac
+    if [ "$PARTITION_INDEX" -gt "$PARTITION_TOTAL" ]; then
+      printf 'fm-lint.sh: --partition must be KofN with 1 <= K <= N, got %s.\n' "$PARTITION" >&2
+      exit 2
+    fi
     if [ "$FAST" -eq 1 ] || [ "$#" -gt 0 ]; then
       printf 'fm-lint.sh: --partition requires full canonical lint; omit --fast and explicit paths.\n' >&2
       exit 2
     fi
     ;;
-  *) printf 'fm-lint.sh: --partition must be 1of2 or 2of2, got %s.\n' "$PARTITION" >&2; exit 2 ;;
+  *) printf 'fm-lint.sh: --partition must be KofN with 1 <= K <= N, got %s.\n' "$PARTITION" >&2; exit 2 ;;
 esac
 
 if [ "$FAST" -eq 1 ] && { [ "${GITHUB_ACTIONS:-}" = true ] || [ "${CI:-}" = true ]; }; then
@@ -867,9 +883,14 @@ if [ "$CHANGED_MODE" -eq 1 ] && [ "$FAST" -eq 0 ]; then
 fi
 # Stable largest-first packing is shared by cross-runner partition selection
 # and the two local workers. Weights are a scheduling proxy, never a skip rule.
+# A root's weight is its source-graph bytes: the root plus every file reached
+# transitively through literal `# shellcheck source=` directives, each counted
+# once. ShellCheck analyzes that whole graph for a source-following root, so
+# this tracks per-root cost far better than the root's own size, which left
+# equal-byte partitions with very unequal wall time.
 TAB=$(printf '\t')
 fm_lint_root_weights() {
-  local index=1 path weight
+  local path
   for path in "${ROOTS[@]}"; do
     case "$path" in
       *"$TAB"*|*$'\n'*)
@@ -877,14 +898,47 @@ fm_lint_root_weights() {
         return 2
         ;;
     esac
-    weight=1
-    if [ -f "$path" ]; then
-      weight=$(wc -c < "$path" 2>/dev/null | tr -d '[:space:]')
-    fi
-    case "$weight" in ''|*[!0-9]*) weight=1 ;; esac
-    printf '%s\t%s\t%s\n' "$weight" "$index" "$path"
-    index=$((index + 1))
   done
+  printf '%s\n' "${ROOTS[@]}" | LC_ALL=C awk '
+    # load_file caches one file byte count and its literal source targets.
+    function load_file(file,   line, target) {
+      if (file in bytes) return
+      bytes[file] = 0
+      targets[file] = ""
+      while ((getline line < file) > 0) {
+        bytes[file] += length(line) + 1
+        if (line ~ /^[[:space:]]*# shellcheck source=/) {
+          target = line
+          sub(/^[[:space:]]*# shellcheck source=/, "", target)
+          sub(/[[:space:]].*$/, "", target)
+          if (target != "" && target != "/dev/null" && target !~ /[$]/)
+            targets[file] = targets[file] SUBSEP target
+        }
+      }
+      close(file)
+    }
+    function graph_weight(root,   seen, stack, depth, file, list, count, i, total) {
+      depth = 1
+      stack[1] = root
+      total = 0
+      while (depth > 0) {
+        file = stack[depth]
+        depth--
+        if (file in seen) continue
+        seen[file] = 1
+        load_file(file)
+        total += bytes[file]
+        count = split(substr(targets[file], 2), list, SUBSEP)
+        for (i = 1; i <= count; i++) stack[++depth] = list[i]
+      }
+      return total
+    }
+    {
+      weight = graph_weight($0)
+      if (weight < 1) weight = 1
+      print weight "\t" NR "\t" $0
+    }
+  '
 }
 
 if [ -n "$PARTITION" ]; then
@@ -892,9 +946,18 @@ if [ -n "$PARTITION" ]; then
   partition_weights=$(fm_lint_root_weights) || exit $?
   while IFS="$TAB" read -r index path; do
     PARTITION_ROOTS+=("$path")
-  done < <(printf '%s\n' "$partition_weights" | LC_ALL=C sort -t "$TAB" -k1,1nr -k2,2n | awk -F '\t' -v want="${PARTITION%%of*}" '
-    { shard=(load[2] < load[1]) ? 2 : 1; load[shard]+=$1; if (shard == want) print $2 "\t" $3 }
+  done < <(printf '%s\n' "$partition_weights" | LC_ALL=C sort -t "$TAB" -k1,1nr -k2,2n | awk -F '\t' -v want="$PARTITION_INDEX" -v total="$PARTITION_TOTAL" '
+    {
+      shard = 1
+      for (i = 2; i <= total; i++) if (load[i] + 0 < load[shard] + 0) shard = i
+      load[shard] += $1
+      if (shard == want) print $2 "\t" $3
+    }
   ' | LC_ALL=C sort -t "$TAB" -k1,1n)
+  if [ "${#PARTITION_ROOTS[@]}" -eq 0 ]; then
+    printf 'fm-lint.sh: --partition %s selects no roots; use fewer partitions.\n' "$PARTITION" >&2
+    exit 2
+  fi
   ROOTS=("${PARTITION_ROOTS[@]}")
 fi
 ROOT_COUNT=${#ROOTS[@]}
@@ -1105,8 +1168,7 @@ done
 fm_lint_root_weights > "$WEIGHTS" || exit $?
 
 # Largest-first deterministic greedy assignment balances the two worker
-# queues without affecting replay order. Direct bytes are a stable portable
-# proxy after the expensive dynamic adapter source fan-out is cut.
+# queues by source-graph weight without affecting replay order.
 WORKER_LOADS=(0 0)
 LC_ALL=C sort -t "$TAB" -k1,1nr -k2,2n "$WEIGHTS" > "$WEIGHTS.sorted"
 while IFS="$TAB" read -r weight index path; do
