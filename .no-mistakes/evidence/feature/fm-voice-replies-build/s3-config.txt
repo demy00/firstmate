@@ -1,0 +1,3 @@
+mode=mac
+voice=Samantha
+quiet=23:00-02:00

@@ -1,0 +1,14 @@
+1..12
+ok - mac mode speaks only the 🔊 line, without the marker, and prints nothing
+ok - the tracked Stop registration runs in the background, stays silent until the home's config/voice-replies turns it on, and is inert under grok
+ok - a reply superseded while it settles is never spoken
+ok - a newer reply cuts off an older one that is still speaking
+ok - the same line twice in a row within two minutes is spoken once, and no spoken text is written to state
+ok - only mode=mac speaks: an absent file, off, the reserved phone and auto values, and a reply with no 🔊 line stay silent
+ok - a linked crew worktree never speaks, even with the file turned on
+ok - a marked secondmate home stays silent until its own config/voice-replies turns it on
+ok - Grok and Cursor stops, and unreadable payloads, are silent and exit 0
+ok - the last line that starts with 🔊 is spoken, after a quote or bold mark, without its variation selector or Markdown, and an empty one is not
+ok - quiet hours silence the speaker across midnight and within a day, and an unusable quiet line is ignored
+ok - a voice line uses that voice when it is installed and the default voice when it is not
+FM_TEST_COMPLETE
