@@ -45,7 +45,7 @@ Remote Control keeps the session running on the Mac, so a reply to a message sen
 ## Behavior
 
 - The session never waits for speech, because the hook runs in the background.
-- Speech starts about two seconds after the reply, so a reply that is replaced right away is never spoken.
+- Speech starts about two seconds after the reply, so a reply that is replaced within those two seconds is never spoken.
 - A newer reply cuts off an older one that is still speaking.
 - The same line twice within two minutes is spoken once.
 - During quiet hours nothing is spoken.
@@ -57,6 +57,9 @@ Remote Control keeps the session running on the Mac, so a reply to a message sen
 - Claude Code only: the hook is a Claude Code Stop hook, and other primary harnesses do not run it.
 - A one-shot `claude -p` run exits before its background hooks finish, so its reply is not spoken; an interactive session, including one driven through Remote Control, is.
 - A reply delivered through a tool, such as a channel's `reply` tool, is not the session's final message and is not spoken.
+- A reply that the turn-end guard continues may still be spoken, because the voice hook cannot see the guard's decision.
+  It is cut off only when the continuation ends with its own `🔊` line.
+  Letting the turn-end guard tell the voice hook about a continued reply is a later step.
 - `phone` and `auto` are reserved mode values for later builds and are silent today.
 
 The script header of [`bin/fm-voice-reply.sh`](../bin/fm-voice-reply.sh) owns the mechanics, and `tests/fm-voice-reply.test.sh` verifies them with a fake `say`.
