@@ -54,7 +54,9 @@ Remote Control keeps the session running on the Mac, so a reply to a message sen
 
 ## Limits
 
-- Claude Code only: the hook is a Claude Code Stop hook, and other primary harnesses do not run it.
+- The hook is a Claude Code Stop hook.
+  Pi with its Claude-hook compatibility layer (pi-code) also loads `.claude/settings.json`, so it would run the hook and wait for it, holding the Pi turn open for the settle and the whole spoken line.
+  So do not set `mode=mac` in a home that runs Pi until a stand-down for Pi lands.
 - A one-shot `claude -p` run exits before its background hooks finish, so its reply is not spoken; an interactive session, including one driven through Remote Control, is.
 - A reply delivered through a tool, such as a channel's `reply` tool, is not the session's final message and is not spoken.
 - A reply that the turn-end guard continues may still be spoken, because the voice hook cannot see the guard's decision.
