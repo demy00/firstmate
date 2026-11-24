@@ -35,6 +35,7 @@ config/backlog-backend  backlog backend override; LOCAL, gitignored; absent or "
 config/backend  runtime session-provider backend override for new tasks; LOCAL, gitignored; docs/configuration.md "Runtime backend" owns supported values, selection, and limits; inherited by secondmate homes under the primary-authoritative contract in secondmate-provisioning
 config/t3code-token  LOCAL, gitignored T3 Code mcp-client credential; docs/t3code-backend.md "Sign-in" owns minting, expiry, and secondmate linking
 config/t3code-instances  LOCAL, gitignored, inherited T3 provider-instance map; docs/t3code-backend.md "Provider instances and models" owns schema and catalog validation
+config/voice-replies  optional voice-replies mode, voice, and quiet hours for the Claude Stop hook that speaks a reply's 🔊 line on the Mac; LOCAL, gitignored, and not inherited; see docs/configuration.md "Voice replies"
 config/calm     Calm presentation preference shared by the Pi extension and the Claude Code mod; LOCAL, gitignored, and not inherited; see docs/configuration.md "Calm preference"
 config/keep-ai-trailers  optional presence flag to keep AI co-author trailers in this home's fleet commits; LOCAL, gitignored; inherited by secondmate homes; see docs/configuration.md "Commit attribution"
 config/supervision-branch-model config/supervision-branch-effort  Pi supervision-branch model and reasoning-effort pins written by /supervision-model; LOCAL, gitignored, independently settable, and not inherited; see docs/configuration.md "Pi supervision branch model and effort"

@@ -11,7 +11,7 @@ Start with the directory layout, then use the setting reference for the behavior
 | Task windows and worker tools | [Runtime backend](#runtime-backend-configbackend--fm_backend) and [harness support](#harness-support) |
 | Worker permissions, accounts, or environment | [Codex approval review](#codex-automatic-approval-review), [Claude permission mode](#claude-permission-mode-configclaude-permission-mode), [Codex permission mode](#codex-permission-mode-configcodex-permission-mode), [persistent managed-policy failover](#persistent-managed-policy-failover), [worker account pin](#worker-account-pin-configclaude-account-configpi-account), [several Claude accounts](#several-claude-accounts-configclaude-accounts), [worker tool exclusions](#worker-tool-exclusions-configcrew-exclude-tools), [worker launch environment](#worker-launch-environment-configlaunch-env-allowlist), and its [Orca environment source](#orca-environment-source-configlaunch-env-tmux-session) |
 | Backlog, preferences, and memory | [Backlog backend](#backlog-backend-taskstoml--configbacklog-backend), [captain preferences](#captain-preferences-datacaptainmd--datacaptain-sharedmd), [external memory tiers](#external-memory-tiers-memory-layering-section), [record export](#record-export-configrecord-export-root), [startup memory budget](#startup-memory-budget-configstartup-memory-budget), and [stow guard](#stow-guard-configstow-guard) |
-| Supervision and presentation | [Pi supervision branch](#pi-supervision-branch), [supervision host](#supervision-host-configsupervision-host), [Codex native Stop park](#codex-native-stop-park-configcodex-stop-park), [warm-cache compaction](#warm-cache-compaction-configwarm-compact), and [Calm preference](#calm-preference-configcalm) |
+| Supervision and presentation | [Pi supervision branch](#pi-supervision-branch), [supervision host](#supervision-host-configsupervision-host), [Codex native Stop park](#codex-native-stop-park-configcodex-stop-park), [warm-cache compaction](#warm-cache-compaction-configwarm-compact), [Calm preference](#calm-preference-configcalm), and [voice replies](#voice-replies-configvoice-replies) |
 | Persistent secondmates | [Secondmate routes](#secondmate-routes-datasecondmatesmd) |
 | Review bots on owned GitHub pull requests | [Contribution review bots](#contribution-review-bots-configcontribution-review-bots) |
 | Stopping idle workers while a PR awaits review, and cleanup on merge | [Park on review](#park-on-review) |
@@ -3572,6 +3572,25 @@ The two read files use different parsing rules:
 - In `config/voice-read-deny`, every line that is neither blank nor a `#` comment adds one substring.
 
 `FM_VOICE_RELAY` and `FM_VOICE_PYTHON` belong to the laptop rather than to a home, so they have no config file: `bin/fm-voice-client.py` requires the relay path as a flag or that variable and carries no default path.
+
+## Voice replies (config/voice-replies)
+
+`config/voice-replies` is an optional local, gitignored file that turns on [voice replies](voice-replies.md): the Claude Stop hook `bin/fm-voice-reply.sh` speaks each reply's `🔊` line on the Mac.
+It is separate from the spoken interface above and needs no account or network.
+Without the file the hook does nothing.
+
+Each line is `key=value`, with blank space around the key and the value ignored.
+Blank lines, `#` comments, and unknown keys are ignored, and the last line for a key wins.
+
+| Key | Values | Meaning |
+| --- | --- | --- |
+| `mode` | `mac` or `off` | `mac` speaks on the Mac with `say`; `off`, a missing line, and every other value are silent. `phone` and `auto` are reserved for later builds and are silent today. |
+| `voice` | A voice name exactly as `say -v '?'` lists it, such as `Zoe (Premium)` | Optional. A name that is not installed falls back to the system voice. |
+| `quiet` | `HH:MM-HH:MM` in 24-hour local time, such as `22:00-07:00` | Optional quiet hours with nothing spoken; the window may wrap midnight. An unusable value, or equal start and end, means no quiet hours. |
+
+The file is per home and is not inherited by secondmate homes, so a second mate speaks only when its own home has the file.
+A crew or scout worktree never speaks.
+The script header owns the superseded-reply, repeat, and state-file mechanics.
 
 ## Environment variables
 
