@@ -203,3 +203,4 @@ The shared no-mistakes gate lifecycle boundary is summarized in [architecture.md
 | `fm-voice-client.py`     | The laptop end of the spoken interface: capture, playback, and turn timing over SSH; audio devices unverified |
 | `fm_voice_frame.py`      | The wire format both machines share, copied to the laptop beside the client          |
 | `fm_voice_records.py`    | What a spoken answer may read, and the handover that queues real work                |
+| `fm-voice-reply.sh`      | Claude Stop hook that speaks a reply's `🔊` line on the Mac when `config/voice-replies` turns it on ([voice-replies.md](voice-replies.md)) |

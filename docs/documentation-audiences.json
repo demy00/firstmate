@@ -654,6 +654,10 @@
       "audience": "operator-current"
     },
     {
+      "path": "docs/voice-replies.md",
+      "audience": "operator-current"
+    },
+    {
       "path": "docs/watcher-continuity.md",
       "audience": "operator-current"
     },
